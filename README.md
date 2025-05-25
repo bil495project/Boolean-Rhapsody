@@ -12,15 +12,15 @@
 
 **Grubun kısaca tanıtılması:**
 
-**Grup üyelerinin numaraları ve bölümleri alttadır**
-
-* Utku Ceylan 221101067 Bilgisayar Mühendisliği  
-* Mustafa Tufan 221401029 Yapay Zeka Mühendisliği  
-* Ahmet Salih Kaya 221401015 Yapay Zeka Mühendisliği \- Bilgisayar Mühendisliği ÇAP  
-* Batuhan Efe Alkış 231104086 Bilgisayar Mühendisliği  
-* Doruk Demirci 221101042 Bilgisayar Mühendisliği
-
-Hızla gelişen yapay zeka hepimizin ilgisini çekiyor ve bu alanda bir bitirme projesi yapmayı hedefliyoruz.
+      **Grup üyelerinin numaraları ve bölümleri alttadır**
+      
+      * Utku Ceylan 221101067 Bilgisayar Mühendisliği  
+      * Mustafa Tufan 221401029 Yapay Zeka Mühendisliği  
+      * Ahmet Salih Kaya 221401015 Yapay Zeka Mühendisliği \- Bilgisayar Mühendisliği ÇAP  
+      * Batuhan Efe Alkış 231104086 Bilgisayar Mühendisliği  
+      * Doruk Demirci 221101042 Bilgisayar Mühendisliği
+      
+      Hızla gelişen yapay zeka hepimizin ilgisini çekiyor ve bu alanda bir bitirme projesi yapmayı hedefliyoruz.
 
 **Scrum Master Planlanması:**
 
