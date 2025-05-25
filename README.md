@@ -24,10 +24,10 @@
 
 **Scrum Master Planlanması:**
 
-      1\. Scrum \- Utku Ceylan  
-      2\. Scrum \- Mustafa Tufan  
-      3\. Scrum \- Doruk Demirci  
-      4\. Scrum \- Batuhan Efe Alkış
+      1\. Sprint \- Utku Ceylan  
+      2\. Sprint \- Mustafa Tufan  
+      3\. Sprint \- Doruk Demirci  
+      4\. Sprint \- Batuhan Efe Alkış
 
 **Grubun Maili:** [tobbbitirmeabdmu584@gmail.com](mailto:tobbbitirmeabdmu584@gmail.com)
 
