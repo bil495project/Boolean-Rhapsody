@@ -12,22 +12,22 @@
 
 **Grubun kısaca tanıtılması:**
 
-      **Grup üyelerinin numaraları ve bölümleri alttadır**
+**Grup üyelerinin numaraları ve bölümleri alttadır**
       
-      * Utku Ceylan 221101067 Bilgisayar Mühendisliği  
-      * Mustafa Tufan 221401029 Yapay Zeka Mühendisliği  
-      * Ahmet Salih Kaya 221401015 Yapay Zeka Mühendisliği \- Bilgisayar Mühendisliği ÇAP  
-      * Batuhan Efe Alkış 231104086 Bilgisayar Mühendisliği  
-      * Doruk Demirci 221101042 Bilgisayar Mühendisliği
+  * Utku Ceylan 221101067 Bilgisayar Mühendisliği  
+  * Mustafa Tufan 221401029 Yapay Zeka Mühendisliği  
+  * Ahmet Salih Kaya 221401015 Yapay Zeka Mühendisliği - Bilgisayar Mühendisliği ÇAP  
+  * Batuhan Efe Alkış 231104086 Bilgisayar Mühendisliği  
+  * Doruk Demirci 221101042 Bilgisayar Mühendisliği
       
-      Hızla gelişen yapay zeka hepimizin ilgisini çekiyor ve bu alanda bir bitirme projesi yapmayı hedefliyoruz.
+Hızla gelişen yapay zeka hepimizin ilgisini çekiyor ve bu alanda bir bitirme projesi yapmayı hedefliyoruz.
 
 **Scrum Master Planlanması:**
 
-      1\. Sprint \- Utku Ceylan  
-      2\. Sprint \- Mustafa Tufan  
-      3\. Sprint \- Doruk Demirci  
-      4\. Sprint \- Batuhan Efe Alkış
+1. Sprint - Utku Ceylan  
+2. Sprint - Mustafa Tufan  
+3. Sprint - Doruk Demirci  
+4. Sprint - Batuhan Efe Alkış
 
 **Grubun Maili:** [tobbbitirmeabdmu584@gmail.com](mailto:tobbbitirmeabdmu584@gmail.com)
 
