@@ -34,5 +34,5 @@ Hızla gelişen yapay zeka hepimizin ilgisini çekiyor ve bu alanda bir bitirme 
 **Piazza postunda bahsedilen linkler:**
 
 1. **Proje kapsamında oluşturulan drive linki:** [https://drive.google.com/drive/u/2/folders/1GQi-M1XxTLCynjEkB0TjZtSbjPcDLByY](https://drive.google.com/drive/u/2/folders/1GQi-M1XxTLCynjEkB0TjZtSbjPcDLByY)  
-2. **Trello board :** [https://trello.com/u/tobbbitirmeabdmu584/boards](https://trello.com/u/tobbbitirmeabdmu584/boards)  
+2. **Trello board :** [https://trello.com/b/BLno6o20/bi%CC%87l-495-trello-board](https://trello.com/b/BLno6o20/bi%CC%87l-495-trello-board)
 3. **Github organizasyonunun linki :** [https://github.com/bil495project](https://github.com/bil495project)
