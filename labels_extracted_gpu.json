@@ -1,0 +1,1190 @@
+{
+    "Rich Cultural HeritageThings": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "vibrant and active nightlife",
+            "score": 5
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Anitkabir": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "the Beypazarı Market": {
+        "peaceful": {
+            "label": "moderately peaceful",
+            "score": 3
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "moderately priced",
+            "score": 3
+        },
+        "nightlife_vibrancy": {
+            "label": "no nightlife activity",
+            "score": 1
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Ulus": {
+        "peaceful": {
+            "label": "very noisy and bustling",
+            "score": 1
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "moderately priced",
+            "score": 3
+        },
+        "nightlife_vibrancy": {
+            "label": "no nightlife activity",
+            "score": 1
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Atatürk": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Vibrant Music": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Turkey": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "moderately priced",
+            "score": 3
+        },
+        "nightlife_vibrancy": {
+            "label": "no nightlife activity",
+            "score": 1
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Street Food Off-the-Beaten-Path Neighborhoods Local Markets": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "vibrant and active nightlife",
+            "score": 5
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Street Food Ankara's": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "vibrant and active nightlife",
+            "score": 5
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Göreme National ParkCycling Through": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "AnkaraHiking": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Culinary Delights Food": {
+        "peaceful": {
+            "label": "moderately peaceful",
+            "score": 3
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "moderately priced",
+            "score": 3
+        },
+        "nightlife_vibrancy": {
+            "label": "no nightlife activity",
+            "score": 1
+        },
+        "historical_significance": {
+            "label": "exceptionally rich in history and heritage",
+            "score": 5
+        }
+    },
+    "CafesEmbark": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "vibrant and active nightlife",
+            "score": 5
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Unique Experiences": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "the Best Attractions & ActivitiesExplore": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "vibrant and active nightlife",
+            "score": 5
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Göreme National Park Visiting Göreme National Park": {
+        "peaceful": {
+            "label": "moderately peaceful",
+            "score": 3
+        },
+        "family_friendly": {
+            "label": "slightly adult-oriented",
+            "score": 2
+        },
+        "budget_friendliness": {
+            "label": "moderately priced",
+            "score": 3
+        },
+        "nightlife_vibrancy": {
+            "label": "no nightlife activity",
+            "score": 1
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "the Mustafa Kemal Atatürk": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "moderately priced",
+            "score": 3
+        },
+        "nightlife_vibrancy": {
+            "label": "no nightlife activity",
+            "score": 1
+        },
+        "historical_significance": {
+            "label": "some historical sites present",
+            "score": 3
+        }
+    },
+    "Thrilling Rides and": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Lively Bars and Clubs": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Rich Cultural Heritage": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Ankara Aquarium": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "greenery": {
+        "peaceful": {
+            "label": "moderately peaceful",
+            "score": 3
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "moderately priced",
+            "score": 3
+        },
+        "nightlife_vibrancy": {
+            "label": "no nightlife activity",
+            "score": 1
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Ankara": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "City Views Indulge": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "vibrant and active nightlife",
+            "score": 5
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Culinary DelightsTraditional Turkish CuisineTrendy Fusion Restaurants": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Culinary DelightsTraditional Turkish CuisineTrendy Fusion Restaurants and": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "ExhibitionsUnique Experiences": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "vibrant and active nightlife",
+            "score": 5
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Cycling Through the City's": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Göreme National Park’s": {
+        "peaceful": {
+            "label": "very peaceful",
+            "score": 4
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "moderately priced",
+            "score": 3
+        },
+        "nightlife_vibrancy": {
+            "label": "no nightlife activity",
+            "score": 1
+        },
+        "historical_significance": {
+            "label": "exceptionally rich in history and heritage",
+            "score": 5
+        }
+    },
+    "Art and Museum Scene Ankara": {
+        "peaceful": {
+            "label": "very noisy and bustling",
+            "score": 1
+        },
+        "family_friendly": {
+            "label": "perfect for families with children",
+            "score": 5
+        },
+        "budget_friendliness": {
+            "label": "moderately priced",
+            "score": 3
+        },
+        "nightlife_vibrancy": {
+            "label": "no nightlife activity",
+            "score": 1
+        },
+        "historical_significance": {
+            "label": "exceptionally rich in history and heritage",
+            "score": 5
+        }
+    },
+    "Ankara Citadel": {
+        "peaceful": {
+            "label": "moderately peaceful",
+            "score": 3
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "moderate nightlife presence",
+            "score": 3
+        },
+        "historical_significance": {
+            "label": "some historical sites present",
+            "score": 3
+        }
+    },
+    "The Kocatepe Mosque": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "slightly adult-oriented",
+            "score": 2
+        },
+        "budget_friendliness": {
+            "label": "moderately priced",
+            "score": 3
+        },
+        "nightlife_vibrancy": {
+            "label": "no nightlife activity",
+            "score": 1
+        },
+        "historical_significance": {
+            "label": "not historical",
+            "score": 1
+        }
+    },
+    "Kızılay": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Göreme National Park Cycling Through": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "vibrant and active nightlife",
+            "score": 5
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Exhibitions Modern Art Galleries": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "vibrant and active nightlife",
+            "score": 5
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Modern Art Galleries": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Whirling": {
+        "peaceful": {
+            "label": "very peaceful",
+            "score": 4
+        },
+        "family_friendly": {
+            "label": "slightly adult-oriented",
+            "score": 2
+        },
+        "budget_friendliness": {
+            "label": "moderately priced",
+            "score": 3
+        },
+        "nightlife_vibrancy": {
+            "label": "no nightlife activity",
+            "score": 1
+        },
+        "historical_significance": {
+            "label": "exceptionally rich in history and heritage",
+            "score": 5
+        }
+    },
+    "NightVibrant Music and": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Art and Museum SceneModern Art Galleries": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Rich Cultural Heritage Ankara": {
+        "peaceful": {
+            "label": "moderately peaceful",
+            "score": 3
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "moderately priced",
+            "score": 3
+        },
+        "nightlife_vibrancy": {
+            "label": "no nightlife activity",
+            "score": 1
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Atatürk Anitkabir": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "slightly adult-oriented",
+            "score": 2
+        },
+        "budget_friendliness": {
+            "label": "moderately priced",
+            "score": 3
+        },
+        "nightlife_vibrancy": {
+            "label": "no nightlife activity",
+            "score": 1
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Göreme National Park": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "The Ankara Citadel Ethnography Museum": {
+        "peaceful": {
+            "label": "moderately peaceful",
+            "score": 3
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "moderately priced",
+            "score": 3
+        },
+        "nightlife_vibrancy": {
+            "label": "moderate nightlife presence",
+            "score": 3
+        },
+        "historical_significance": {
+            "label": "some historical sites present",
+            "score": 3
+        }
+    },
+    "the Kocatepe Mosque": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "slightly adult-oriented",
+            "score": 2
+        },
+        "budget_friendliness": {
+            "label": "moderately priced",
+            "score": 3
+        },
+        "nightlife_vibrancy": {
+            "label": "no nightlife activity",
+            "score": 1
+        },
+        "historical_significance": {
+            "label": "not historical",
+            "score": 1
+        }
+    },
+    "Discover Free Attractions": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Ankara Ankara": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "perfect for families with children",
+            "score": 5
+        },
+        "budget_friendliness": {
+            "label": "moderately priced",
+            "score": 3
+        },
+        "nightlife_vibrancy": {
+            "label": "vibrant and active nightlife",
+            "score": 5
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Glimpse": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Erimtan Archaeology": {
+        "peaceful": {
+            "label": "moderately peaceful",
+            "score": 3
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "moderately priced",
+            "score": 3
+        },
+        "nightlife_vibrancy": {
+            "label": "no nightlife activity",
+            "score": 1
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Trendy Fusion Restaurants and Cafes": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Street FoodAnkara's": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "vibrant and active nightlife",
+            "score": 5
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "NightVibrant Music": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "Local Markets": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "City Views Lively Bars and Clubs": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "vibrant and active nightlife",
+            "score": 5
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    },
+    "City Views": {
+        "peaceful": {
+            "label": "somewhat noisy",
+            "score": 2
+        },
+        "family_friendly": {
+            "label": "somewhat family-friendly",
+            "score": 3
+        },
+        "budget_friendliness": {
+            "label": "affordable",
+            "score": 4
+        },
+        "nightlife_vibrancy": {
+            "label": "good nightlife options",
+            "score": 4
+        },
+        "historical_significance": {
+            "label": "historically significant",
+            "score": 4
+        }
+    }
+}
