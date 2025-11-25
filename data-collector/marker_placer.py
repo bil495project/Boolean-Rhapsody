@@ -8,7 +8,7 @@ import argparse
 from pandas.errors import ParserError
 
 # Default to root CSV
-DEFAULT_CSV = Path("places_ankara.csv")
+DEFAULT_CSV = Path("C:\\dev\\Boolean-Rhapsody\\ankara_places_new.csv")
 DEFAULT_OUT = Path("ankara_map.html")
 
 def load_places(csv_path: Path) -> pd.DataFrame:
@@ -142,7 +142,7 @@ def parse_args():
 def main():
     args = parse_args()
     if not args.csv.exists():
-        args.csv = Path("data-collector/places_ankara.csv")
+        args.csv = Path("C:\\dev\\Boolean-Rhapsody\\ankara_places_new.csv")
     df = load_places(args.csv)
     
     # Limit markers if requested

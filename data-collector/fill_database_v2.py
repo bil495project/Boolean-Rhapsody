@@ -5,13 +5,18 @@ import csv
 import json
 import requests
 
+def get_api_key():
+    with open("C:\\dev\\Boolean-Rhapsody\\data-collector\\api-key.txt", "r") as f:
+        return f.read().strip()
+
 # ===================== AYARLAR =====================
-API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY") or ""
+
+API_KEY = get_api_key()
 OUTPUT_CSV = "ankara_places_new.csv"
 
 ANKARA_CENTER_LAT = 39.92077
 ANKARA_CENTER_LNG = 32.85411
-INITIAL_SIDE_M   = 60_000
+INITIAL_SIDE_M   = 5000
 MAX_RESULT_COUNT = 20
 DEBUG            = True
 # ===================================================
@@ -29,7 +34,7 @@ def offset_latlng(lat, lng, dx_east_m, dy_north_m):
     return lat + dlat, lng + dlng
 
 def radius_for_square(side_m):
-    return side_m * math.sqrt(2) / 2.0
+    return side_m * math.sqrt(2)
 
 def nearby_search_new(lat, lng, radius_m):
     url = "https://places.googleapis.com/v1/places:searchNearby"
@@ -45,7 +50,7 @@ def nearby_search_new(lat, lng, radius_m):
     headers = {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": API_KEY,
-        "X-Goog-FieldMask": "places.id,places.displayName.text,places.location.latitude,places.location.longitude"
+        "X-Goog-FieldMask": "places.id,places.displayName.text,places.formattedAddress,places.location.latitude,places.location.longitude,places.types,places.rating,places.userRatingCount,places.priceLevel,places.businessStatus"
     }
     r = requests.post(url, headers=headers, data=json.dumps(payload), timeout=30)
     data = r.json()
@@ -75,12 +80,18 @@ def extract_row(p):
     return {
         "id": p.get("id"),
         "displayName": name,
+        "formatted_address": p.get("formattedAddress") or "",
         "lat": loc.get("latitude"),
-        "lng": loc.get("longitude")
+        "lng": loc.get("longitude"),
+        "types": json.dumps(p.get("types", []), ensure_ascii=False),
+        "rating": p.get("rating"),
+        "user_rating_count": p.get("userRatingCount"),
+        "price_level": p.get("priceLevel"),
+        "business_status": p.get("businessStatus")
     }
 
 def write_csv(rows, path):
-    fields = ["id","displayName","lat","lng"]
+    fields = ["id","displayName","formatted_address","lat","lng","types","rating","user_rating_count","price_level","business_status"]
     with open(path, "a", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=fields)
         if f.tell() == 0:
