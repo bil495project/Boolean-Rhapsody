@@ -36,3 +36,9 @@ Hızla gelişen yapay zeka hepimizin ilgisini çekiyor ve bu alanda bir bitirme 
 1. **Proje kapsamında oluşturulan drive linki:** [https://drive.google.com/drive/u/2/folders/1GQi-M1XxTLCynjEkB0TjZtSbjPcDLByY](https://drive.google.com/drive/u/2/folders/1GQi-M1XxTLCynjEkB0TjZtSbjPcDLByY)  
 2. **Trello board :** [https://trello.com/b/BLno6o20/bi%CC%87l-495-trello-board](https://trello.com/b/BLno6o20/bi%CC%87l-495-trello-board)
 3. **Github organizasyonunun linki :** [https://github.com/bil495project](https://github.com/bil495project)
+
+## BİL 495 Raporları
+- [Project Proposal](https://github.com/bil495project/Boolean-Rhapsody/blob/main/reports/495/Project%20Proposal.docx)
+- [Project Specifications Report](https://github.com/bil495project/Boolean-Rhapsody/blob/main/reports/495/Project%20Specifications%20Report.docx)
+- [Analysis Report](https://github.com/bil495project/Boolean-Rhapsody/blob/main/reports/495/Analysis_Report.docx)
+- [High Level Design Report](https://github.com/bil495project/Boolean-Rhapsody/blob/main/reports/495/High-Level%20Design%20Report.docx)
