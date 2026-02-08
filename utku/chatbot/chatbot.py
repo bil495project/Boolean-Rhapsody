@@ -75,9 +75,27 @@ def extract_json_from_text(text: str):
 
 SYSTEM_PROMPT = f"""You are a helpful assistant. You have access to these tools:
 {json.dumps(TOOLS_DEFINITION, indent=2)}
+""" +"""If you need to use a tool, you MUST return a VALID JSON object in this format:
+{
+  "tool_call": {
+    "name": "tool_name",
+    "parameters": {
+      "param": "value"
+    }
+  }
+}
 
-If you need to use a tool, you MUST return a JSON object in this format:
-{{"tool_call": {{"name": "tool_name", "parameters": {{"param": "value"}}}}}}
+
+an example tool call is as follows:
+{
+  "tool_call": {
+    "name": "weather_agent",
+    "parameters": {
+      "location": "Tokyo, Japan",
+      "unit": "celsius"
+    }
+  }
+}
 
 If no tool is needed, respond with normal text."""
 
@@ -102,14 +120,14 @@ def ask_question(question: str) -> str:
         return_dict=True
     )
     
-    inputs_on_device = {k: v.to(model.device) for k, v in inputs.items()}
+    inputs_on_device = inputs.to(model.device)
 
     outputs = model.generate(
         **inputs_on_device,
         max_new_tokens=1024,
         do_sample=False
     )
-
+    
     input_len = inputs_on_device["input_ids"].shape[-1]
     raw_response = tokenizer.decode(outputs[0][input_len:], skip_special_tokens=True).strip()
     
@@ -117,9 +135,15 @@ def ask_question(question: str) -> str:
     potential_json = extract_json_from_text(raw_response)
     
     if potential_json and "tool_call" in potential_json:
-        return potential_json  # Returns the dict for server.py
-        
-    return raw_response # Returns plain text if no tool found
+        return {
+            "type": "tool_call",
+            "data": potential_json
+        }
+
+    return {
+        "type": "text",
+        "data": raw_response
+    }
 
 if __name__ == "__main__":
     # Check if a question was provided as a command line argument
