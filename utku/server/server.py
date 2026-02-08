@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 import sys
 import os
-
+import json
 # Bridge the path to the 'chatbot' directory
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from chatbot.chatbot import ask_question, load_model
@@ -38,11 +38,13 @@ def handle_chat():
         # 1. Ask the LLM. 
         # ask_question is configured to return JSON if a tool is needed.
         llm_output = ask_question(query)
+        print(llm_output)
         long_ans += f"This is llm's initial output: {llm_output}\n\n"
         # 2. Check if the LLM wants to call a tool
-        if isinstance(llm_output, dict) and "tool_call" in llm_output:
-            tool_name = llm_output["tool_call"]["name"]
-            params = llm_output["tool_call"]["parameters"]
+        if llm_output["type"] == "tool_call":
+            tool_name = llm_output["data"]["tool_call"]["name"]
+            params = llm_output["data"]["tool_call"]["parameters"]    
+            print(tool_name, params)
             
             long_ans += f"The tool {tool_name}, with parameters : {params} is invoked\n\n"
 
@@ -54,10 +56,15 @@ def handle_chat():
             # 4. Send the result back to the LLM to generate a final natural response
             final_response = ask_question(f"The tool {tool_name} returned: {tool_result}. Summarize this for the user.")
             
-            return jsonify({"status": "success", "response": long_ans + "\n\n" +final_response})
-        
-        return jsonify({"status": "success", "response": llm_output})
-    
+            return jsonify({
+                "status": "success",
+                "response": long_ans + "\n\n" + final_response["data"]
+            })
+        else: 
+            return jsonify({
+                "status": "success",
+                "response": llm_output["data"]
+            })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
