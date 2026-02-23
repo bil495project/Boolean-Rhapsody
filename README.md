@@ -38,7 +38,10 @@ Hızla gelişen yapay zeka hepimizin ilgisini çekiyor ve bu alanda bir bitirme 
 3. **Github organizasyonunun linki :** [https://github.com/bil495project](https://github.com/bil495project)
 
 ## BİL 495 Raporları
-- [Project Proposal](https://github.com/bil495project/Boolean-Rhapsody/blob/main/reports/495/Project%20Proposal.docx)
-- [Project Specifications Report](https://github.com/bil495project/Boolean-Rhapsody/blob/main/reports/495/Project%20Specifications%20Report.docx)
-- [Analysis Report](https://github.com/bil495project/Boolean-Rhapsody/blob/main/reports/495/Analysis_Report.docx)
-- [High Level Design Report](https://github.com/bil495project/Boolean-Rhapsody/blob/main/reports/495/High-Level%20Design%20Report.docx)
+- [Project Proposal](https://github.com/bil495project/Boolean-Rhapsody/blob/main/reports/495/Analysis%20Report.pdf)
+- [Project Specifications Report](https://github.com/bil495project/Boolean-Rhapsody/blob/main/reports/495/High%20Level%20Design%20Report.pdf)
+- [Analysis Report](https://github.com/bil495project/Boolean-Rhapsody/blob/main/reports/495/Project%20Proposal.pdf)
+- [High Level Design Report](https://github.com/bil495project/Boolean-Rhapsody/blob/main/reports/495/Project%20Specifications%20Report.pdf)
+
+## BİL 496 Raporları
+- [Low Level Design Report](https://github.com/bil495project/Boolean-Rhapsody/blob/main/reports/496/Low%20Level%20Design%20Report.pdf)
