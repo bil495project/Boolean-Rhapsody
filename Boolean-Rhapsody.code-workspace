@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"name": "Boolean-Rhapsody",
+			"path": "."
+		},
+		{
+			"name": "backend",
+			"path": "../../temp/roadrunner/backend"
+		},
+		{
+			"name": "frontend",
+			"path": "../../temp/roadrunner/frontend"
+		}
+	],
+	"settings": {}
+}

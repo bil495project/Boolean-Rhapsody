@@ -1,0 +1,334 @@
+import { useEffect, useState, useRef } from 'react';
+import { useParams, useSearchParams, Navigate, useNavigate } from 'react-router-dom';
+import { Box, Drawer } from '@mui/joy';
+import { useMediaQuery } from '@mui/system';
+import ChatSidebar from '../components/chat/ChatSidebar';
+import ChatPanel from '../components/chat/ChatPanel';
+import MapPanel from '../components/chat/MapPanel';
+import ResizableDivider from '../components/chat/ResizableDivider';
+import DestinationDetailPanel from '../components/chat/DestinationDetailPanel';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
+import {
+    createChatAsync,
+    addMessageAsync,
+    setActiveChat,
+    addMessageLocal,
+    setSidebarOpen,
+    setLoading,
+    toggleSidebar,
+} from '../store/chatSlice';
+import { sendMessage, generateTripTitle } from '../services/geminiService';
+import type { MapDestination } from '../data/destinations';
+import { allDestinations } from '../data/destinations';
+
+const ChatPage = () => {
+    const { chatId } = useParams<{ chatId: string }>();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
+    const initialQuery = searchParams.get('q');
+    const dispatch = useAppDispatch();
+
+    const { user, isAuthenticated } = useAppSelector((state) => state.auth);
+    const { chats, activeChat, sidebarOpen, mapFullscreen, chatPanelWidth } = useAppSelector(
+        (state) => state.chat
+    );
+
+    // Check if we're in "new chat" mode (no chat created yet)
+    const isNewChatMode = chatId === 'new' || !chatId;
+
+    // Responsive breakpoints
+    const isMobile = useMediaQuery('(max-width: 768px)');
+
+    const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+    const processedQueryRef = useRef<string | null>(null);
+    const [highlightedDestination] = useState<MapDestination | null>(null);
+    const [selectedDestination, setSelectedDestination] = useState<MapDestination | null>(null);
+
+    // Redirect to login if not authenticated
+    if (!isAuthenticated) {
+        return <Navigate to="/login" replace />;
+    }
+
+    // Handle initial query from landing page - creates chat and sends message
+    useEffect(() => {
+        const processInitialQuery = async () => {
+            if (initialQuery && chatId && chatId !== 'new' && processedQueryRef.current !== `${chatId}-${initialQuery}`) {
+                processedQueryRef.current = `${chatId}-${initialQuery}`;
+
+                const existingChat = chats.find((c) => c.id === chatId);
+                if (existingChat) {
+                    dispatch(setActiveChat(chatId));
+                    return;
+                }
+
+                // Create chat via backend
+                const title = generateTripTitle(initialQuery);
+                const result = await dispatch(createChatAsync({ title })).unwrap();
+                const newId = result.id;
+                navigate(`/chat/${newId}`, { replace: true });
+                setSearchParams({}, { replace: true });
+
+                // Add user message
+                await dispatch(addMessageAsync({ chatId: newId, role: 'user', content: initialQuery }));
+
+                // Get AI response
+                dispatch(setLoading(true));
+                try {
+                    const response = await sendMessage(initialQuery);
+                    await dispatch(addMessageAsync({
+                        chatId: newId,
+                        role: 'assistant',
+                        content: response.message,
+                    }));
+                } catch {
+                    await dispatch(addMessageAsync({
+                        chatId: newId,
+                        role: 'assistant',
+                        content: 'Welcome! I\'m excited to help you plan your trip. What would you like to explore?',
+                    }));
+                } finally {
+                    dispatch(setLoading(false));
+                }
+            }
+        };
+
+        processInitialQuery();
+    }, [initialQuery, chatId, chats, dispatch, setSearchParams, navigate]);
+
+    // Set active chat based on URL (only for existing chats, not "new")
+    useEffect(() => {
+        if (chatId && chatId !== 'new' && !initialQuery && chatId !== activeChat?.id) {
+            const existingChat = chats.find((c) => c.id === chatId);
+            if (existingChat) {
+                dispatch(setActiveChat(chatId));
+            } else {
+                // Chat doesn't exist, redirect to new
+                navigate('/chat/new', { replace: true });
+            }
+        }
+    }, [chatId, chats, activeChat, dispatch, initialQuery, navigate]);
+
+    // Close sidebar on mobile by default
+    useEffect(() => {
+        if (isMobile) {
+            dispatch(setSidebarOpen(false));
+        }
+    }, [isMobile, dispatch]);
+
+    const handleMobileDrawerClose = () => {
+        setMobileDrawerOpen(false);
+    };
+
+    const handleMobileMenuClick = () => {
+        setMobileDrawerOpen(true);
+    };
+
+    const handleToggleSidebar = () => {
+        dispatch(toggleSidebar());
+    };
+
+    // Called when user sends first message in new chat mode
+    const handleCreateChat = async (firstMessage: string) => {
+        const title = generateTripTitle(firstMessage);
+
+        // Create the chat on the backend
+        const result = await dispatch(createChatAsync({ title })).unwrap();
+        const newChatId = result.id;
+
+        // Navigate to the new chat
+        navigate(`/chat/${newChatId}`, { replace: true });
+
+        // Add user message to backend
+        await dispatch(addMessageAsync({ chatId: newChatId, role: 'user', content: firstMessage }));
+
+        // Send to AI
+        dispatch(setLoading(true));
+        try {
+            const response = await sendMessage(firstMessage);
+            await dispatch(addMessageAsync({
+                chatId: newChatId,
+                role: 'assistant',
+                content: response.message,
+            }));
+        } catch {
+            await dispatch(addMessageAsync({
+                chatId: newChatId,
+                role: 'assistant',
+                content: 'Welcome! I\'m excited to help you plan your trip. What would you like to explore?',
+            }));
+        } finally {
+            dispatch(setLoading(false));
+        }
+    };
+
+    const handleDestinationSelect = (destination: MapDestination) => {
+        // Open the detail panel
+        setSelectedDestination(destination);
+    };
+
+    const handleCloseDetailPanel = () => {
+        setSelectedDestination(null);
+    };
+
+    const handleAskAboutDestination = async (destination: MapDestination) => {
+        const query = `Tell me more about ${destination.name} in Ankara. What can I do there and what should I know before visiting?`;
+
+        if (isNewChatMode) {
+            // Create new chat with destination query
+            handleCreateChat(query);
+        } else if (activeChat) {
+            // Add user message optimistically
+            dispatch(addMessageLocal({
+                chatId: activeChat.id,
+                message: {
+                    id: `temp-${Date.now()}`,
+                    role: 'user',
+                    content: query,
+                    timestamp: Date.now(),
+                },
+            }));
+
+            // Persist user message
+            await dispatch(addMessageAsync({ chatId: activeChat.id, role: 'user', content: query }));
+
+            dispatch(setLoading(true));
+            try {
+                const response = await sendMessage(query);
+                await dispatch(addMessageAsync({
+                    chatId: activeChat.id,
+                    role: 'assistant',
+                    content: response.message,
+                }));
+            } catch {
+                // ignore
+            } finally {
+                dispatch(setLoading(false));
+            }
+        }
+        // Close detail panel
+        setSelectedDestination(null);
+    };
+
+    return (
+        <Box
+            sx={{
+                height: '100vh',
+                display: 'flex',
+                overflow: 'hidden',
+            }}
+        >
+            {/* Desktop Sidebar */}
+            {!isMobile && sidebarOpen && (
+                <ChatSidebar />
+            )}
+
+            {/* Mobile Sidebar Drawer */}
+            {isMobile && (
+                <Drawer
+                    open={mobileDrawerOpen}
+                    onClose={handleMobileDrawerClose}
+                    size="sm"
+                    sx={{
+                        '--Drawer-horizontalSize': '280px',
+                    }}
+                >
+                    <ChatSidebar mobile onClose={handleMobileDrawerClose} />
+                </Drawer>
+            )}
+
+            {/* Main Content Area */}
+            <Box
+                sx={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    position: 'relative',
+                }}
+            >
+                {/* Mobile Layout */}
+                {isMobile ? (
+                    <>
+                        {!mapFullscreen && (
+                            <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                                <ChatPanel
+                                    userName={user?.name || 'Traveler'}
+                                    onMenuClick={handleMobileMenuClick}
+                                    showMenuButton={true}
+                                    isNewChatMode={isNewChatMode}
+                                    onCreateChat={handleCreateChat}
+                                />
+                            </Box>
+                        )}
+
+                        {mapFullscreen && (
+                            <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                                <MapPanel
+                                    destinations={allDestinations}
+                                    highlightedDestination={highlightedDestination}
+                                    onDestinationSelect={handleDestinationSelect}
+                                />
+                            </Box>
+                        )}
+                    </>
+                ) : (
+                    /* Desktop: Side-by-side layout */
+                    <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+                        {/* Chat Panel */}
+                        {!mapFullscreen && (
+                            <Box
+                                sx={{
+                                    width: `${chatPanelWidth}%`,
+                                    height: '100%',
+                                    flexShrink: 0,
+                                    overflow: 'hidden',
+                                }}
+                            >
+                                <ChatPanel
+                                    userName={user?.name || 'Traveler'}
+                                    isNewChatMode={isNewChatMode}
+                                    onCreateChat={handleCreateChat}
+                                    showMenuButton={!sidebarOpen}
+                                    onMenuClick={handleToggleSidebar}
+                                />
+                            </Box>
+                        )}
+
+                        {/* Resizable Divider */}
+                        {!mapFullscreen && (
+                            <ResizableDivider orientation="vertical" />
+                        )}
+
+                        {/* Map Panel */}
+                        <Box
+                            sx={{
+                                flex: mapFullscreen ? 1 : undefined,
+                                width: mapFullscreen ? '100%' : `${100 - chatPanelWidth}%`,
+                                height: '100%',
+                                flexShrink: 0,
+                                overflow: 'hidden',
+                            }}
+                        >
+                            <MapPanel
+                                destinations={allDestinations}
+                                highlightedDestination={highlightedDestination}
+                                onDestinationSelect={handleDestinationSelect}
+                            />
+                        </Box>
+
+                        {/* Destination Detail Panel */}
+                        {selectedDestination && (
+                            <DestinationDetailPanel
+                                destination={selectedDestination}
+                                onClose={handleCloseDetailPanel}
+                                onAskAbout={handleAskAboutDestination}
+                            />
+                        )}
+                    </Box>
+                )}
+            </Box>
+        </Box>
+    );
+};
+
+export default ChatPage;
