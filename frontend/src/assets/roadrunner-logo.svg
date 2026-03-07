@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 160" fill="none">
+  <!-- Roadrunner Bird Logo - Transparent Background -->
+  
+  <!-- Wing -->
+  <path d="M20 85 C30 70, 50 65, 70 75 L75 80 L70 85 C55 82, 40 85, 30 95 L25 100 C15 95, 18 88, 20 85Z" 
+        fill="#00BFA6" stroke="#00796B" stroke-width="2"/>
+  <path d="M30 78 L45 75" stroke="#00796B" stroke-width="1.5"/>
+  <path d="M32 83 L50 80" stroke="#00796B" stroke-width="1.5"/>
+  <path d="M35 88 L52 86" stroke="#00796B" stroke-width="1.5"/>
+  
+  <!-- Body -->
+  <ellipse cx="95" cy="85" rx="45" ry="35" fill="#00BFA6" stroke="#00796B" stroke-width="2.5"/>
+  
+  <!-- Backpack -->
+  <rect x="70" y="55" width="25" height="30" rx="5" fill="#00917C" stroke="#005346" stroke-width="2"/>
+  <rect x="75" y="70" width="15" height="10" rx="2" fill="#007A68" stroke="#005346" stroke-width="1"/>
+  
+  <!-- Sleeping bag roll -->
+  <ellipse cx="82" cy="52" rx="12" ry="6" fill="#4DD4C3" stroke="#00796B" stroke-width="1.5"/>
+  <path d="M75 52 C75 48, 89 48, 89 52" stroke="#00796B" stroke-width="1" fill="none"/>
+  
+  <!-- Tail feathers -->
+  <path d="M50 90 C35 85, 25 95, 15 100 L20 105 C30 100, 45 98, 55 95Z" 
+        fill="#00BFA6" stroke="#00796B" stroke-width="2"/>
+  
+  <!-- Neck -->
+  <path d="M125 70 C135 55, 145 45, 155 40" stroke="#00796B" stroke-width="2.5" fill="none"/>
+  <path d="M120 75 C130 60, 145 48, 158 42 L155 38 C140 45, 128 58, 118 72Z" 
+        fill="#00BFA6" stroke="#00796B" stroke-width="2"/>
+  
+  <!-- Head -->
+  <ellipse cx="165" cy="38" rx="22" ry="18" fill="#00BFA6" stroke="#00796B" stroke-width="2.5"/>
+  
+  <!-- Crest/Hair feathers -->
+  <path d="M160 22 C162 15, 168 10, 172 8 L170 14 C168 12, 165 16, 163 20Z" 
+        fill="#00BFA6" stroke="#00796B" stroke-width="1.5"/>
+  <path d="M168 20 C172 12, 178 8, 182 5 L178 12 C175 10, 172 15, 170 18Z" 
+        fill="#00BFA6" stroke="#00796B" stroke-width="1.5"/>
+  
+  <!-- Eye -->
+  <circle cx="172" cy="35" r="5" fill="white" stroke="#00796B" stroke-width="1.5"/>
+  <circle cx="173" cy="34" r="2.5" fill="#1A1A1A"/>
+  <circle cx="174" cy="33" r="1" fill="white"/>
+  
+  <!-- Beak -->
+  <path d="M185 38 L198 36 L185 42 Z" fill="#1A1A1A"/>
+  
+  <!-- Map in beak -->
+  <path d="M150 50 L165 55 L160 70 L145 65 Z" fill="#E0F7F4" stroke="#00796B" stroke-width="1"/>
+  <path d="M148 58 L162 62" stroke="#00BFA6" stroke-width="1"/>
+  <path d="M147 62 L158 65" stroke="#00BFA6" stroke-width="1"/>
+  
+  <!-- Legs (BLACK as requested) -->
+  <path d="M85 115 L80 140 L70 145 M80 140 L85 148 M80 140 L90 145" 
+        stroke="#1A1A1A" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <path d="M105 115 L110 140 L100 148 M110 140 L115 145 M110 140 L120 142" 
+        stroke="#1A1A1A" stroke-width="3" stroke-linecap="round" fill="none"/>
+</svg>
