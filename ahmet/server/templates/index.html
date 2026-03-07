@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Road Runner AI Dashboard</title>
+    <style>
+        :root { 
+            --primary: #2563eb; 
+            --sidebar-bg: #0f172a; 
+            --chat-bg: #f8fafc; 
+            --border-color: #e2e8f0;
+        }
+
+        body { font-family: 'Inter', sans-serif; margin: 0; display: flex; height: 100vh; background: var(--chat-bg); }
+        
+        /* Sidebar */
+        .sidebar { width: 260px; background: var(--sidebar-bg); color: white; padding: 25px; display: flex; flex-direction: column; }
+        .brand { display: flex; align-items: center; gap: 15px; margin-bottom: 40px; }
+        .logo { width: 45px; height: 45px; border-radius: 10px; object-fit: cover; border: 2px solid var(--primary); }
+        
+        /* Chat Window */
+        .main { flex: 1; display: flex; flex-direction: column; position: relative; }
+        #chat-window { flex: 1; overflow-y: auto; padding: 40px; display: flex; flex-direction: column; gap: 20px; }
+        .msg { max-width: 75%; padding: 15px 20px; border-radius: 15px; line-height: 1.6; font-size: 15px; white-space: pre-wrap; }
+        .user-msg { align-self: flex-end; background: white; border: 1px solid var(--border-color); color: #1e293b; }
+        .ai-msg { align-self: flex-start; background: var(--primary); color: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        
+        /* Input area */
+        .input-area { padding: 25px 40px; background: white; border-top: 1px solid var(--border-color); display: flex; gap: 15px; }
+        input { flex: 1; padding: 14px; border: 1px solid #cbd5e1; border-radius: 12px; outline: none; font-size: 15px; }
+        button { background: var(--primary); color: white; border: none; padding: 0 30px; border-radius: 12px; cursor: pointer; font-weight: 600; }
+
+        /* Agent Inspector (Bottom Left Box) */
+        .agent-inspector {
+            position: fixed;
+            bottom: 25px;
+            left: 25px;
+            width: 200px;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            overflow: hidden;
+            transition: all 0.3s ease-in-out;
+        }
+
+        .agent-inspector.expanded { width: 320px; }
+
+        .inspector-header {
+            padding: 12px 15px;
+            background: var(--sidebar-bg);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .inspector-content {
+            max-height: 0;
+            overflow-y: auto;
+            transition: max-height 0.3s ease;
+        }
+
+        .agent-inspector.expanded .inspector-content {
+            max-height: 400px;
+            padding: 15px;
+        }
+
+        .tool-card {
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .tool-title { color: var(--primary); font-weight: bold; font-size: 14px; text-transform: uppercase; }
+        .tool-description { font-size: 12px; color: #64748b; margin: 5px 0; }
+        .param-chip {
+            display: inline-block;
+            background: #eff6ff;
+            color: #1d4ed8;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin: 4px 4px 0 0;
+            border: 1px solid #dbeafe;
+        }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="brand">
+            <img src="{{ url_for('static', filename='img/road_runner.jpg') }}" alt="Logo" class="logo">
+            <h2 style="margin: 0; font-size: 20px;">RoadRunner</h2>
+        </div>
+        <div style="font-size: 12px; color: #64748b; margin-top: auto;">
+            SYSTEM STATUS: <span style="color: #10b981;">ONLINE</span>
+        </div>
+    </aside>
+
+    <main class="main">
+        <div class="agent-inspector" id="agentBox">
+            <div class="inspector-header" onclick="toggleInspector()">
+                <span>AI Agents</span>
+                <span id="agentCount">(0)</span>
+            </div>
+            <div class="inspector-content" id="agentList">
+                <div style="font-size: 12px; color: #94a3b8;">Scanning for agents...</div>
+            </div>
+        </div>
+
+        <div id="chat-window">
+            <div class="msg ai-msg">Hello! I am Road Runner. I have access to external tools like calculators and weather sensors. How can I assist you?</div>
+        </div>
+
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="Ask me something (e.g., 'What is 15 * 85?')" 
+                   onkeypress="if(event.key==='Enter') sendMessage()">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </main>
+
+    <script>
+        // 1. Chat Logic
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const chat = document.getElementById('chat-window');
+            const query = input.value.trim();
+            if (!query) return;
+
+            chat.innerHTML += `<div class="msg user-msg">${query}</div>`;
+            input.value = '';
+            chat.scrollTop = chat.scrollHeight;
+
+            try {
+                const response = await fetch('/chatbot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query })
+                });
+                const data = await response.json();
+                chat.innerHTML += `<div class="msg ai-msg">${data.response}</div>`;
+            } catch (err) {
+                chat.innerHTML += `<div class="msg" style="color: red;">Connection Error.</div>`;
+            }
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        // 2. Agent Inspector Logic
+        function toggleInspector() {
+            document.getElementById('agentBox').classList.toggle('expanded');
+        }
+
+        async function fetchAvailableAgents() {
+            try {
+                const response = await fetch('/tools');
+                const tools = await response.json();
+                const list = document.getElementById('agentList');
+                document.getElementById('agentCount').innerText = `(${tools.length})`;
+
+                list.innerHTML = tools.map(tool => `
+                    <div class="tool-card">
+                        <div class="tool-title">${tool.name.replace('_', ' ')}</div>
+                        <div class="tool-description">${tool.description}</div>
+                        <div style="font-size: 10px; font-weight: bold; margin-top: 8px;">SCHEMA:</div>
+                        <div>
+                            ${Object.keys(tool.input_schema.properties).map(p => 
+                                `<span class="param-chip">${p}</span>`).join('')}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error("Inspector Error:", err);
+            }
+        }
+
+        // Initialize on load
+        window.onload = fetchAvailableAgents;
+    </script>
+</body>
+</html>
