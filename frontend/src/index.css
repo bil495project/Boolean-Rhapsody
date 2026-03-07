@@ -1,0 +1,93 @@
+/* TravelPlanner AI - Global Styles */
+
+/* Reset and base styles */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+}
+
+/* Remove default link styles */
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Remove list styles */
+ul, ol {
+  list-style: none;
+}
+
+/* Image defaults */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Button reset */
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+/* Input reset */
+input, textarea, select {
+  font-family: inherit;
+}
+
+/* Focus visible for accessibility */
+:focus-visible {
+  outline: 2px solid #00BFA6;
+  outline-offset: 2px;
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 191, 166, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 191, 166, 0.5);
+}
+
+/* Selection color */
+::selection {
+  background-color: rgba(0, 191, 166, 0.3);
+  color: inherit;
+}
+
+/* Smooth transitions for color scheme changes */
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Hide reCAPTCHA badge (optional - you may want to show it for compliance) */
+.grecaptcha-badge {
+  visibility: hidden !important;
+}
