@@ -4,6 +4,11 @@ import json
 import re
 import sys
 import time
+from chatbot.ai_agents import (
+    calculatorAgent, weatherAgent, UserProfileAgent_SetInfo, 
+    UserFeedbackAgent, XAIJustificationAgent, Route_search_agent, 
+    POI_suggest_agent, ItineraryModificationAgent,ChatTitleAgent, POIDataAgent
+)
 
 # --- Configuration ---
 MODEL_ID = "Qwen/Qwen2.5-1.5B-Instruct" # Qwen2.5/3 are optimized for tools
@@ -25,36 +30,18 @@ def load_model():
     )
 
 # --- Tool Definitions (Standard JSON Schema) ---
+# Dynamically build the TOOLS list for the LLM
 TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "calculator_agent",
-            "description": "Performs math. Use this for any numerical calculation.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "expression": {"type": "string", "description": "The math expression to solve"}
-                },
-                "required": ["expression"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "weather_agent",
-            "description": "Gets current weather for a location.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "location": {"type": "string", "description": "City and country"},
-                    "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]}
-                },
-                "required": ["location"]
-            }
-        }
-    }
+    {"type": "function", "function": calculatorAgent.tool_template},
+    {"type": "function", "function": weatherAgent.tool_template},
+    {"type": "function", "function": UserProfileAgent_SetInfo.tool_template},
+    {"type": "function", "function": UserFeedbackAgent.tool_template},
+    {"type": "function", "function": XAIJustificationAgent.tool_template},
+    {"type": "function", "function": Route_search_agent.tool_template},
+    {"type": "function", "function": POI_suggest_agent.tool_template},
+    {"type": "function", "function": ItineraryModificationAgent.tool_template},
+    {"type": "function", "function": ChatTitleAgent.tool_template},
+    {"type": "function", "function": POIDataAgent.tool_template},
 ]
 
 # chatbot.py updates
