@@ -1,8 +1,12 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { MapDestination } from '../data/destinations';
+import { fetchSavedFromBackend, syncToggleToBackend } from './savedThunks';
 
 interface SavedState {
     destinations: MapDestination[];
+    activePlanId: string | null;
+    isLoading: boolean;
+    error: string | null;
 }
 
 // Load saved items from localStorage
@@ -18,33 +22,21 @@ const loadSaved = (): MapDestination[] => {
     return [];
 };
 
-const saveSaved = (destinations: MapDestination[]) => {
-    // TODO: When backend is ready, save per-user
+const saveLocally = (destinations: MapDestination[]) => {
     localStorage.setItem('travelplanner_saved', JSON.stringify(destinations));
 };
 
 const initialState: SavedState = {
     destinations: loadSaved(),
+    activePlanId: null,
+    isLoading: false,
+    error: null,
 };
 
 const savedSlice = createSlice({
     name: 'saved',
     initialState,
     reducers: {
-        saveDestination: (state, action: PayloadAction<MapDestination>) => {
-            // Check if already saved
-            const exists = state.destinations.some(d => d.id === action.payload.id);
-            if (!exists) {
-                state.destinations.unshift(action.payload);
-                saveSaved(state.destinations);
-            }
-        },
-
-        unsaveDestination: (state, action: PayloadAction<string>) => {
-            state.destinations = state.destinations.filter(d => d.id !== action.payload);
-            saveSaved(state.destinations);
-        },
-
         toggleSaveDestination: (state, action: PayloadAction<MapDestination>) => {
             const index = state.destinations.findIndex(d => d.id === action.payload.id);
             if (index >= 0) {
@@ -52,10 +44,42 @@ const savedSlice = createSlice({
             } else {
                 state.destinations.unshift(action.payload);
             }
-            saveSaved(state.destinations);
+            saveLocally(state.destinations);
         },
+        clearSaved: (state) => {
+            state.destinations = [];
+            state.activePlanId = null;
+            saveLocally([]);
+        }
     },
+    extraReducers: (builder) => {
+        builder
+            .addCase(fetchSavedFromBackend.pending, (state) => {
+                state.isLoading = true;
+            })
+            .addCase(fetchSavedFromBackend.fulfilled, (state, action) => {
+                state.isLoading = false;
+                state.activePlanId = action.payload.planId;
+                state.destinations = action.payload.destinations;
+                saveLocally(state.destinations);
+            })
+            .addCase(fetchSavedFromBackend.rejected, (state, action) => {
+                state.isLoading = false;
+                state.error = action.payload as string;
+            })
+            .addCase(syncToggleToBackend.fulfilled, (state, action) => {
+                if (action.payload) {
+                    state.activePlanId = action.payload;
+                }
+            })
+            .addCase('auth/logout', (state) => {
+                state.destinations = [];
+                state.activePlanId = null;
+                saveLocally([]);
+            });
+    }
 });
 
-export const { saveDestination, unsaveDestination, toggleSaveDestination } = savedSlice.actions;
+export const { toggleSaveDestination, clearSaved } = savedSlice.actions;
 export default savedSlice.reducer;
+export * from './savedThunks';

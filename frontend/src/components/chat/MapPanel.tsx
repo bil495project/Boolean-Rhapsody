@@ -8,12 +8,16 @@ import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents, Polyline } from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+import 'leaflet.markercluster';
 import 'leaflet/dist/leaflet.css';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { toggleMapFullscreen } from '../../store/chatSlice';
-import { toggleSaveDestination } from '../../store/savedSlice';
-import { ankaraDestinations, type MapDestination } from '../../data/destinations';
+import { toggleSaveDestination, syncToggleToBackend } from '../../store/savedSlice';
+import { type MapDestination } from '../../data/destinations';
 
 // Fix for default marker icons in React-Leaflet
 delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: () => string })._getIconUrl;
@@ -98,7 +102,7 @@ interface MapPanelProps {
 }
 
 const MapPanel = ({
-    destinations = ankaraDestinations, // Default to all destinations
+    destinations = [], // Default to empty array
     highlightedDestination,
     onDestinationSelect,
     route,
@@ -106,7 +110,6 @@ const MapPanel = ({
 }: MapPanelProps) => {
     const dispatch = useAppDispatch();
     const { mapFullscreen } = useAppSelector((state) => state.chat);
-    const { destinations: savedDestinations } = useAppSelector((state) => state.saved);
 
     // Hover-based popup
     const [hoveredDestination, setHoveredDestination] = useState<MapDestination | null>(null);
@@ -168,11 +171,13 @@ const MapPanel = ({
         setHoveredDestination(null);
         setPopupPosition(null);
     };
+    const { destinations: savedDestinations } = useAppSelector(state => state.saved);
 
     const handleSaveClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (hoveredDestination) {
             dispatch(toggleSaveDestination(hoveredDestination));
+            dispatch(syncToggleToBackend(hoveredDestination));
         }
     };
 
@@ -224,27 +229,29 @@ const MapPanel = ({
                 )}
 
                 {/* Destination markers */}
-                {destinations.map((destination) => {
-                    const orderIndex = orderedDestinations.findIndex(d => d.id === destination.id);
-                    const orderNumber = orderIndex !== -1 ? orderIndex + 1 : undefined;
+                <MarkerClusterGroup chunkedLoading>
+                    {destinations.map((destination) => {
+                        const orderIndex = orderedDestinations.findIndex(d => d.id === destination.id);
+                        const orderNumber = orderIndex !== -1 ? orderIndex + 1 : undefined;
 
-                    return (
-                        <Marker
-                            key={destination.id}
-                            position={destination.coordinates}
-                            icon={createCustomIcon(
-                                highlightedDestination?.id === destination.id || hoveredDestination?.id === destination.id
-                                    ? '#FF6B6B'
-                                    : '#00BFA6',
-                                orderNumber
-                            )}
-                            eventHandlers={{
-                                mouseover: (e) => handleMarkerHover(destination, e),
-                                mouseout: handleMarkerLeave,
-                            }}
-                        />
-                    );
-                })}
+                        return (
+                            <Marker
+                                key={destination.id}
+                                position={destination.coordinates}
+                                icon={createCustomIcon(
+                                    highlightedDestination?.id === destination.id || hoveredDestination?.id === destination.id
+                                        ? '#FF6B6B'
+                                        : '#00BFA6',
+                                    orderNumber
+                                )}
+                                eventHandlers={{
+                                    mouseover: (e) => handleMarkerHover(destination, e),
+                                    mouseout: handleMarkerLeave,
+                                }}
+                            />
+                        );
+                    })}
+                </MarkerClusterGroup>
             </MapContainer>
 
             {/* Hover Popup Card */}

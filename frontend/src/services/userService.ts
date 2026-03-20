@@ -150,7 +150,7 @@ export const userApi = {
     },
 
     createPersona: async (persona: Omit<TravelPersonaData, 'id'>): Promise<TravelPersonaData> => {
-        const response = await api.post<TravelPersonaData>('/users/me/personas', persona);
+        const response = await api.post<TravelPersonaData>('/users/me/personas/new', persona);
         return response.data;
     },
 

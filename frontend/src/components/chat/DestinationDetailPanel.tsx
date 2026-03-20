@@ -9,7 +9,7 @@ import PhoneIcon from '@mui/icons-material/Phone';
 import LanguageIcon from '@mui/icons-material/Language';
 import type { MapDestination } from '../../data/destinations';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { toggleSaveDestination } from '../../store/savedSlice';
+import { toggleSaveDestination, syncToggleToBackend } from '../../store/savedSlice';
 
 interface DestinationDetailPanelProps {
     destination: MapDestination;
@@ -31,6 +31,7 @@ const DestinationDetailPanel = ({ destination, onClose }: DestinationDetailPanel
 
     const handleToggleSave = () => {
         dispatch(toggleSaveDestination(destination));
+        dispatch(syncToggleToBackend(destination));
     };
 
     // Resize handlers

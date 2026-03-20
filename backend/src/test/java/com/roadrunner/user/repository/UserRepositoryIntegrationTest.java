@@ -5,6 +5,7 @@ import com.roadrunner.user.entity.TravelPersona;
 import com.roadrunner.user.entity.TravelPlan;
 import com.roadrunner.user.entity.User;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -16,11 +17,13 @@ import java.util.ArrayList;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import java.util.Arrays;
 
 @DataJpaTest
 @ActiveProfiles("test")
 @SuppressWarnings("null")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@DisplayName("Integration Tests - UserRepository")
 class UserRepositoryIntegrationTest {
 
     @Autowired
@@ -72,6 +75,7 @@ class UserRepositoryIntegrationTest {
     }
 
     @Test
+    @DisplayName("TC-USI-UserRepo: Olmayan email findByEmail ile boş döner")
     void shouldReturnEmpty_whenEmailDoesNotExist() {
         // given — no user saved
 
@@ -85,6 +89,7 @@ class UserRepositoryIntegrationTest {
     // --- existsByEmail ---
 
     @Test
+    @DisplayName("TC-USI-UserRepo: existsByEmail var olan email için true döner")
     void shouldReturnTrue_whenEmailExists() {
         // given
         User user = User.builder()
@@ -102,6 +107,7 @@ class UserRepositoryIntegrationTest {
     }
 
     @Test
+    @DisplayName("TC-USI-UserRepo: existsByEmail olmayan email için false döner")
     void shouldReturnFalse_whenEmailDoesNotExist() {
         // given — no user saved
 
@@ -174,8 +180,8 @@ class UserRepositoryIntegrationTest {
                 .build();
         user = userRepository.save(user);
 
-        TravelPersona p1 = TravelPersona.builder().user(user).travelStyles("a").interests("b").build();
-        TravelPersona p2 = TravelPersona.builder().user(user).travelStyles("c").interests("d").build();
+        TravelPersona p1 = TravelPersona.builder().user(user).travelStyles(Arrays.asList("a")).interests(Arrays.asList("b")).build();
+        TravelPersona p2 = TravelPersona.builder().user(user).travelStyles(Arrays.asList("c")).interests(Arrays.asList("d")).build();
         travelPersonaRepository.save(p1);
         travelPersonaRepository.save(p2);
 
@@ -206,7 +212,7 @@ class UserRepositoryIntegrationTest {
                 .build();
         user = userRepository.save(user);
 
-        TravelPlan plan = TravelPlan.builder().user(user).selectedPlaceIds("p1,p2").build();
+        TravelPlan plan = TravelPlan.builder().user(user).selectedPlaceIds(Arrays.asList("p1", "p2")).build();
         travelPlanRepository.save(plan);
 
         entityManager.flush();

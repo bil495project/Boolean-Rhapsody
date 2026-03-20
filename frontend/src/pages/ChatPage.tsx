@@ -19,7 +19,7 @@ import {
 } from '../store/chatSlice';
 import { sendMessage, generateTripTitle } from '../services/geminiService';
 import type { MapDestination } from '../data/destinations';
-import { allDestinations } from '../data/destinations';
+import { fetchAllPlaces } from '../store/placesSlice';
 
 const ChatPage = () => {
     const { chatId } = useParams<{ chatId: string }>();
@@ -32,6 +32,14 @@ const ChatPage = () => {
     const { chats, activeChat, sidebarOpen, mapFullscreen, chatPanelWidth } = useAppSelector(
         (state) => state.chat
     );
+    const { destinations } = useAppSelector((state) => state.places);
+
+    // Fetch destinations from backend if not already loaded
+    useEffect(() => {
+        if (destinations.length === 0) {
+            dispatch(fetchAllPlaces());
+        }
+    }, [dispatch, destinations.length]);
 
     // Check if we're in "new chat" mode (no chat created yet)
     const isNewChatMode = chatId === 'new' || !chatId;
@@ -264,7 +272,7 @@ const ChatPage = () => {
                         {mapFullscreen && (
                             <Box sx={{ flex: 1, overflow: 'hidden' }}>
                                 <MapPanel
-                                    destinations={allDestinations}
+                                    destinations={destinations}
                                     highlightedDestination={highlightedDestination}
                                     onDestinationSelect={handleDestinationSelect}
                                 />
@@ -310,7 +318,7 @@ const ChatPage = () => {
                             }}
                         >
                             <MapPanel
-                                destinations={allDestinations}
+                                destinations={destinations}
                                 highlightedDestination={highlightedDestination}
                                 onDestinationSelect={handleDestinationSelect}
                             />
