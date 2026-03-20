@@ -13,16 +13,16 @@ import MicIcon from '@mui/icons-material/Mic';
 import MenuIcon from '@mui/icons-material/Menu';
 import ChatMessage from './ChatMessage';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { addMessageLocal, addMessageAsync, setLoading, toggleSidebar } from '../../store/chatSlice';
+import { addMessageLocal, addMessageAsync, setLoading, toggleSidebar, createChatAsync } from '../../store/chatSlice';
 import { toggleSaveDestination, syncToggleToBackend } from '../../store/savedSlice';
-import { sendMessage, type ChatMessage as GeminiMessage, type ToolCallResult } from '../../services/geminiService';
+import { sendMessage, type ChatMessage as GeminiMessage, type ToolCallResult, generateTripTitle } from '../../services/llmService';
+import { useNavigate } from 'react-router-dom';
 
 interface ChatPanelProps {
     userName: string;
     onMenuClick?: () => void;
     showMenuButton?: boolean;
     isNewChatMode?: boolean;
-    onCreateChat?: (firstMessage: string) => void;
 }
 
 const ChatPanel = ({
@@ -30,11 +30,11 @@ const ChatPanel = ({
     onMenuClick,
     showMenuButton = false,
     isNewChatMode = false,
-    onCreateChat
 }: ChatPanelProps) => {
     const [inputValue, setInputValue] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const dispatch = useAppDispatch();
+    const navigate = useNavigate();
     const { activeChat, isLoading, sidebarOpen } = useAppSelector((state) => state.chat);
 
     const scrollToBottom = () => {
@@ -52,8 +52,39 @@ const ChatPanel = ({
         setInputValue('');
 
         // If in new chat mode, create the chat first
-        if (isNewChatMode && onCreateChat) {
-            onCreateChat(userMessage);
+        if (isNewChatMode) {
+            dispatch(setLoading(true));
+            try {
+                const title = await generateTripTitle(userMessage);
+                const result = await dispatch(createChatAsync({ title })).unwrap();
+                const newChatId = result.id;
+
+                // Navigate to the new chat
+                navigate(`/chat/${newChatId}`, { replace: true });
+
+                // Add user message to the newly created chat
+                await dispatch(addMessageAsync({ chatId: newChatId, role: 'user', content: userMessage }));
+
+                // Get AI response for the first message (no history yet)
+                const response: ToolCallResult = await sendMessage(userMessage, []);
+
+                // If AI saved a destination via tool call, add it to savedSlice and sync
+                if (response.type === 'destination_saved' && response.savedDestination) {
+                    dispatch(toggleSaveDestination(response.savedDestination));
+                    dispatch(syncToggleToBackend(response.savedDestination));
+                }
+
+                // Add AI response message to backend
+                await dispatch(addMessageAsync({
+                    chatId: newChatId,
+                    role: 'assistant',
+                    content: response.message,
+                }));
+            } catch (error) {
+                console.error('Error creating new chat:', error);
+            } finally {
+                dispatch(setLoading(false));
+            }
             return;
         }
 
@@ -79,7 +110,7 @@ const ChatPanel = ({
         try {
             // Build chat history for context
             const history: GeminiMessage[] = activeChat.messages.map((msg) => ({
-                role: msg.role === 'user' ? 'user' : 'model',
+                role: msg.role === 'user' ? 'user' : 'assistant',
                 content: msg.content,
             }));
 
@@ -214,6 +245,7 @@ const ChatPanel = ({
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
+                                dangerouslySetInnerHTML: { __html: '' }
                             }}
                         >
                             <CircularProgress size="sm" />
@@ -244,7 +276,6 @@ const ChatPanel = ({
                         px: 1,
                     }}
                 >
-                    {/* TODO: Implement attachment functionality */}
                     <IconButton variant="plain" size="sm" disabled>
                         <AddIcon />
                     </IconButton>
@@ -269,7 +300,6 @@ const ChatPanel = ({
                         }}
                     />
 
-                    {/* TODO: Implement voice input functionality */}
                     <IconButton variant="plain" size="sm" disabled>
                         <MicIcon />
                     </IconButton>
