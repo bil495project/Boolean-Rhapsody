@@ -104,8 +104,20 @@ public class RouteController {
     public RouteResponse reorderPoints(
             @RequestBody @Valid ReorderWithStateRequest req) {
         Route route = reconstructRoute(req.getCurrentRoute());
+
+        // The incoming newOrder covers all points including hotel anchors.
+        // Extract interior-only indices (skip first and last hotel).
+        List<Integer> fullOrder = req.getNewOrder();
+        List<Integer> interiorOrder = new ArrayList<>();
+        if (fullOrder != null && fullOrder.size() >= 3) {
+            for (int i = 1; i < fullOrder.size() - 1; i++) {
+                // Convert from full-route index to interior-only index
+                interiorOrder.add(fullOrder.get(i) - 1);
+            }
+        }
+
         Route updated = routeService.reorderPOIs(
-                route, req.getNewOrder(), req.getOriginalUserVector());
+                route, interiorOrder, req.getOriginalUserVector());
         return RouteResponse.fromRoute(updated);
     }
 

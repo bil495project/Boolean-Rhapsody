@@ -1,7 +1,6 @@
 package com.roadrunner.route.service;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -21,413 +20,563 @@ import com.roadrunner.route.entity.RoutePoint;
 import com.roadrunner.route.entity.RouteSegment;
 
 /**
- * Core route-generation service — direct port of Python's {@code TripRequest}.
- * Stateless: every method receives all required context as parameters.
+ * Core route-generation service using the new weight-based model.
+ * Routes are anchored by a hotel at first and last position;
+ * interior POIs are selected by per-category quotas derived from
+ * the 7 visit-category weights.
  */
 @Service
 public class RouteGenerationService {
 
+    static final double KIZILAY_LAT = 39.9208;
+    static final double KIZILAY_LNG = 32.8541;
+
+    private static final int MIN_RATING_COUNT = 100;
+
     private final PlaceRepository placeRepository;
     private final RouteScoringService scoring;
+    private final PlaceLabelService labelService;
 
     public RouteGenerationService(PlaceRepository placeRepository,
-                                  RouteScoringService scoring) {
+                                  RouteScoringService scoring,
+                                  PlaceLabelService labelService) {
         this.placeRepository = placeRepository;
         this.scoring = scoring;
+        this.labelService = labelService;
     }
 
-    // ------------------------------------------------------------------
-    // ParsedRequest — holds all fields parsed from the user vector
-    // ------------------------------------------------------------------
-
-    private record ParsedRequest(
+    record ParsedWeightRequest(
             String requestId,
-            int maxStops,
-            int maxBudgetMin,
-            Set<String> mandatoryTypes,
-            Map<String, Double> overrideWeights,
-            Double centerLat,
-            Double centerLng,
-            Double radiusKm,
             String travelMode,
-            double minRating,
-            String maxPriceLevel
-    ) {}
+            double parkVeSeyirNoktalari,
+            double geceHayati,
+            double restoranToleransi,
+            double landmark,
+            double dogalAlanlar,
+            double tarihiAlanlar,
+            double kafeTatli,
+            double toplamPoiYogunlugu,
+            double sparsity,
+            double hotelCenterBias,
+            double butceSeviyesi) {
 
-    // ------------------------------------------------------------------
-    // Parsing & validation
-    // ------------------------------------------------------------------
+        double weightFor(RouteLabel label) {
+            return switch (label) {
+                case PARK_VE_SEYIR_NOKTALARI -> parkVeSeyirNoktalari;
+                case GECE_HAYATI -> geceHayati;
+                case RESTORAN_TOLERANSI -> restoranToleransi;
+                case LANDMARK -> landmark;
+                case DOGAL_ALANLAR -> dogalAlanlar;
+                case TARIHI_ALANLAR -> tarihiAlanlar;
+                case KAFE_TATLI -> kafeTatli;
+                default -> 0.0;
+            };
+        }
+    }
 
-    private ParsedRequest parseUserVector(Map<String, String> userVector) {
+    private record RouteVariantProfile(int routeIndex,
+                                       double quotaExponent,
+                                       double explorationFactor,
+                                       double overlapPenalty) {
+    }
+
+    ParsedWeightRequest parseUserVector(Map<String, String> userVector) {
         Map<String, String> uv = userVector != null ? userVector : Map.of();
 
-        // requestId
-        String requestId = firstNonBlank(uv.get("requestId"),
-                                         uv.get("tripId"), "req").strip();
-
-        // maxStops
-        int maxStops = Math.max(1, Math.min(
-                GeoUtils.safeInt(uv.get("maxStops"), 6), 30));
-
-        // maxBudgetMin
-        String budgetRaw = uv.get("maxBudgetMin");
-        if (budgetRaw == null || budgetRaw.isBlank()) {
-            budgetRaw = uv.get("maxDurationMin");
-        }
-        int maxBudgetMin = Math.max(1, GeoUtils.safeInt(budgetRaw, 480));
-
-        // mandatoryTypes
-        String mand = uv.getOrDefault("mandatoryTypes", "").strip();
-        Set<String> mandatoryTypes = new HashSet<>();
-        if (!mand.isEmpty()) {
-            for (String x : mand.replace(";", ",").split(",")) {
-                String t = x.strip().toLowerCase();
-                if (!t.isEmpty()) mandatoryTypes.add(t);
-            }
+        String requestId = firstNonBlank(uv.get("requestId"), "req").strip();
+        double hotelCenterBias = clamp01(GeoUtils.safeFloat(uv.get("weight_hotelCenterBias"), 0.5));
+        String travelMode = firstNonBlank(uv.get("mode"), uv.get("travelMode"), "").strip().toLowerCase();
+        if (travelMode.isEmpty()) {
+            travelMode = hotelCenterBias >= 0.66 ? "walking" : "driving";
         }
 
-        // overrideWeights
-        Map<String, Double> overrideWeights = new HashMap<>();
-        for (Map.Entry<String, String> entry : uv.entrySet()) {
-            if (entry.getKey().startsWith("weight_")) {
-                String t = entry.getKey().substring("weight_".length())
-                                .strip().toLowerCase();
-                double w = GeoUtils.safeFloat(entry.getValue(), 0.0);
-                if (!t.isEmpty() && w > 0.0) {
-                    overrideWeights.put(t, w);
-                }
-            }
-        }
-
-        // center / radius
-        Double centerLat = parseNullableDouble(uv.get("centerLat"));
-        Double centerLng = parseNullableDouble(uv.get("centerLng"));
-        Double radiusKm  = parseNullableDouble(uv.get("radiusKm"));
-
-        // travelMode
-        String travelMode = firstNonBlank(uv.get("mode"),
-                uv.get("travelMode"), "driving").strip().toLowerCase();
-
-        // minRating
-        double minRating = GeoUtils.safeFloat(uv.get("minRating"), 0.0);
-
-        // maxPriceLevel
-        String maxPriceLevel = uv.getOrDefault("maxPriceLevel", "").strip();
-
-        return new ParsedRequest(requestId, maxStops, maxBudgetMin,
-                mandatoryTypes, overrideWeights, centerLat, centerLng,
-                radiusKm, travelMode, minRating, maxPriceLevel);
+        return new ParsedWeightRequest(
+                requestId,
+                travelMode,
+                clamp01(GeoUtils.safeFloat(uv.get("weight_parkVeSeyirNoktalari"), 0.0)),
+                clamp01(GeoUtils.safeFloat(uv.get("weight_geceHayati"), 0.0)),
+                clamp01(GeoUtils.safeFloat(uv.get("weight_restoranToleransi"), 0.0)),
+                clamp01(GeoUtils.safeFloat(uv.get("weight_landmark"), 0.0)),
+                clamp01(GeoUtils.safeFloat(uv.get("weight_dogalAlanlar"), 0.0)),
+                clamp01(GeoUtils.safeFloat(uv.get("weight_tarihiAlanlar"), 0.0)),
+                clamp01(GeoUtils.safeFloat(uv.get("weight_kafeTatli"), 0.0)),
+                clamp01(GeoUtils.safeFloat(uv.get("weight_toplamPoiYogunlugu"), 0.5)),
+                clamp01(GeoUtils.safeFloat(uv.get("weight_sparsity"), 0.5)),
+                hotelCenterBias,
+                clamp01(GeoUtils.safeFloat(uv.get("weight_butceSeviyesi"), 0.5))
+        );
     }
 
-    private boolean validate(ParsedRequest req) {
-        return req.maxStops() > 0 && req.maxBudgetMin() > 0;
-    }
-
-    // ------------------------------------------------------------------
-    // Public API: Generate Routes
-    // ------------------------------------------------------------------
-
-    /**
-     * Generates {@code k} route alternatives from the given user vector.
-     * Direct port of Python {@code TripRequest.generateRoutes()}.
-     */
     public List<Route> generateRoutes(Map<String, String> userVector, int k) {
-        ParsedRequest req = parseUserVector(userVector);
-        if (!validate(req)) return List.of();
+        ParsedWeightRequest req = parseUserVector(userVector);
 
         List<Place> allPlaces = placeRepository.findAll();
-        List<Place> candidatePool = scoring.buildCandidatePool(
-                allPlaces, req.centerLat(), req.centerLng(),
-                req.radiusKm(), req.minRating());
+        List<Place> pool = scoring.buildCandidatePool(allPlaces, MIN_RATING_COUNT);
+
+        int totalPointCount = (int) Math.max(3, Math.min(12,
+                Math.round(3 + 9 * req.toplamPoiYogunlugu())));
+        int interiorPoiCount = totalPointCount - 2;
+
+        Place hotel = selectHotel(pool, req);
+        if (hotel == null) {
+            return List.of();
+        }
 
         k = Math.max(1, k);
         List<Route> routes = new ArrayList<>();
+        List<Set<String>> priorInteriorIds = new ArrayList<>();
 
         for (int i = 0; i < k; i++) {
-            Random rnd = new Random(
-                    Objects.hash(req.requestId(), i, "routegen"));
+            RouteVariantProfile variant = variantFor(i);
+            Random rnd = new Random(Objects.hash(req.requestId(), i, "routegen"));
+            Map<RouteLabel, Integer> quotas = computeCategoryQuotas(req, interiorPoiCount, variant.quotaExponent());
 
-            List<Place> selected = selectPlaces(candidatePool, req, rnd);
-            List<Place> ordered = orderNearestNeighbor(selected, req);
+            List<Place> interiorPois = selectInteriorPois(pool, quotas, req, hotel, rnd, variant, priorInteriorIds);
+            List<Place> orderedInterior = orderNearestNeighbor(interiorPois, hotel, req.sparsity());
 
-            Route route = new Route();
-            route.setRouteId("route-" + req.requestId() + "-" + i);
-            route.setTravelMode(req.travelMode());
-
-            List<RoutePoint> points = new ArrayList<>();
-            for (int j = 0; j < ordered.size(); j++) {
-                Place p = ordered.get(j);
-                points.add(RoutePoint.builder()
-                        .index(j)
-                        .poi(p)
-                        .plannedVisitMin(scoring.estimateVisitMinutes(p))
-                        .build());
-            }
-            route.setPoints(points);
-
+            Route route = assembleRoute(hotel, orderedInterior, req, i);
             recomputeLocalSegments(route);
             recomputeTotals(route);
-            route.setFeasible(isFeasible(route, req));
+            route.setFeasible(isFeasible(route));
             routes.add(route);
+
+            priorInteriorIds.add(collectInteriorIds(route));
         }
 
         return routes;
     }
 
-    // ------------------------------------------------------------------
-    // Public API: Route mutations
-    // ------------------------------------------------------------------
-
-    /**
-     * Rerolls a single POI at the given index.
-     * Ported from Python {@code TripRequest.rerollRoutePoint()} + {@code Route.rerollPoint()}.
-     */
     public Route rerollRoutePoint(Route route, int index,
                                   Map<String, String> indexParams,
                                   Map<String, String> originalUserVector) {
-        if (index < 0 || index >= route.getPoints().size()) return route;
-
-        ParsedRequest req = parseUserVector(originalUserVector);
-        Set<String> lockedIds = lockUnchangedPOIs(route, index);
-
-        String desiredType = indexParams != null
-                ? indexParams.getOrDefault("type", "") : "";
-        if (desiredType.isBlank()) {
-            Place cur = route.getPoints().get(index).getPoi();
-            if (cur != null) {
-                List<String> curTypes = GeoUtils.parseTypesFromEntity(cur.getTypes());
-                if (!curTypes.isEmpty()) desiredType = curTypes.get(0);
-            }
+        List<RoutePoint> points = route.getPoints();
+        if (index <= 0 || index >= points.size() - 1) {
+            return route;
         }
 
-        double minRating = GeoUtils.safeFloat(
-                indexParams != null ? indexParams.get("minRating") : null,
-                req.minRating());
-        String maxPrice = indexParams != null
-                ? indexParams.getOrDefault("maxPriceLevel", req.maxPriceLevel())
-                : req.maxPriceLevel();
+        ParsedWeightRequest req = parseUserVector(originalUserVector);
+        Place currentPoi = points.get(index).getPoi();
+        RouteLabel slotLabel = currentPoi != null ? labelService.label(currentPoi) : RouteLabel.UNKNOWN;
 
-        List<Place> allPlaces = placeRepository.findAll();
-        List<Place> pool = scoring.buildCandidatePool(
-                allPlaces, req.centerLat(), req.centerLng(),
-                req.radiusKm(), req.minRating());
+        Set<String> usedIds = collectUsedIds(route);
+        if (currentPoi != null && currentPoi.getId() != null) {
+            usedIds.remove(currentPoi.getId());
+        }
 
-        Optional<Place> replacement = scoring.pickOnePlace(
-                pool, desiredType, lockedIds, minRating, maxPrice,
-                req.overrideWeights(), req.centerLat(), req.centerLng());
+        List<Place> pool = scoring.buildCandidatePool(placeRepository.findAll(), MIN_RATING_COUNT);
+        Place hotel = points.get(0).getPoi();
+        double anchorLat = hotel != null ? hotel.getLatitude() : KIZILAY_LAT;
+        double anchorLng = hotel != null ? hotel.getLongitude() : KIZILAY_LNG;
 
-        if (replacement.isEmpty()) return route;
+        Optional<Place> replacement = pickBestCandidate(
+                pool,
+                slotLabel,
+                usedIds,
+                req,
+                anchorLat,
+                anchorLng,
+                new Random(Objects.hash(route.getRouteId(), index, req.requestId(), "reroll")),
+                variantFor(1),
+                List.of()
+        );
 
-        route.getPoints().get(index).assignPOI(replacement.get());
-        route.getPoints().get(index).setPlannedVisitMin(
-                scoring.estimateVisitMinutes(replacement.get()));
+        if (replacement.isEmpty()) {
+            return route;
+        }
 
+        points.get(index).assignPOI(replacement.get());
+        points.get(index).setPlannedVisitMin(scoring.estimateVisitMinutes(replacement.get()));
         recomputeLocalSegments(route);
         recomputeTotals(route);
-        route.setFeasible(isFeasible(route, req));
+        route.setFeasible(isFeasible(route));
         return route;
     }
 
-    /**
-     * Inserts a manually chosen POI at the given index.
-     * Ported from Python {@code Route.insertManualPOI()}.
-     */
     public Route insertManualPOI(Route route, int index, String poiId,
                                  Map<String, String> originalUserVector) {
+        if (route.getPoints().size() >= 12) {
+            return route;
+        }
+
         Optional<Place> optPlace = placeRepository.findById(poiId);
-        if (optPlace.isEmpty()) return route;
+        if (optPlace.isEmpty()) {
+            return route;
+        }
 
-        Place p = optPlace.get();
-        int idx = Math.max(0, Math.min(index, route.getPoints().size()));
+        Place place = optPlace.get();
+        if (labelService.label(place) == RouteLabel.HOTEL) {
+            return route;
+        }
+        if (collectInteriorIds(route).contains(place.getId())) {
+            return route;
+        }
 
+        int idx = Math.max(1, Math.min(index, route.getPoints().size() - 1));
         route.getPoints().add(idx, RoutePoint.builder()
                 .index(idx)
-                .poi(p)
-                .plannedVisitMin(45)
+                .poi(place)
+                .plannedVisitMin(scoring.estimateVisitMinutes(place))
                 .build());
 
         reindexPoints(route);
         recomputeLocalSegments(route);
         recomputeTotals(route);
-
-        ParsedRequest req = parseUserVector(originalUserVector);
-        route.setFeasible(isFeasible(route, req));
+        route.setFeasible(isFeasible(route));
         return route;
     }
 
-    /**
-     * Removes the point at the given index.
-     * Ported from Python {@code Route.removePoint()}.
-     */
     public Route removePoint(Route route, int index,
                              Map<String, String> originalUserVector) {
-        if (index < 0 || index >= route.getPoints().size()) return route;
-
-        route.getPoints().remove(index);
-        reindexPoints(route);
-        recomputeLocalSegments(route);
-        recomputeTotals(route);
-
-        ParsedRequest req = parseUserVector(originalUserVector);
-        route.setFeasible(isFeasible(route, req));
-        return route;
-    }
-
-    /**
-     * Reorders POIs according to the supplied index permutation.
-     * Ported from Python {@code Route.reorderPOIs()}.
-     */
-    public Route reorderPOIs(Route route, List<Integer> newOrder,
-                             Map<String, String> originalUserVector) {
-        if (newOrder == null || newOrder.size() != route.getPoints().size())
+        List<RoutePoint> points = route.getPoints();
+        if (index <= 0 || index >= points.size() - 1) {
             return route;
-
-        List<RoutePoint> old = new ArrayList<>(route.getPoints());
-        List<RoutePoint> reordered = new ArrayList<>();
-        for (int i : newOrder) {
-            if (i < 0 || i >= old.size()) return route;
-            reordered.add(old.get(i));
+        }
+        if (points.size() <= 3) {
+            return route;
         }
 
-        route.setPoints(reordered);
+        points.remove(index);
         reindexPoints(route);
         recomputeLocalSegments(route);
         recomputeTotals(route);
-
-        ParsedRequest req = parseUserVector(originalUserVector);
-        route.setFeasible(isFeasible(route, req));
+        route.setFeasible(isFeasible(route));
         return route;
     }
 
-    // ------------------------------------------------------------------
-    // Core algorithms (private)
-    // ------------------------------------------------------------------
+    public Route reorderPOIs(Route route, List<Integer> newInteriorOrder,
+                             Map<String, String> originalUserVector) {
+        List<RoutePoint> points = route.getPoints();
+        if (points.size() < 3) {
+            return route;
+        }
 
-    /**
-     * Selects places for a route from the candidate pool.
-     * Ported from Python {@code _select_places()}.
-     */
-    private List<Place> selectPlaces(List<Place> pool,
-                                     ParsedRequest req, Random rnd) {
-        if (pool.isEmpty()) return List.of();
+        int interiorSize = points.size() - 2;
+        if (newInteriorOrder == null || newInteriorOrder.size() != interiorSize) {
+            return route;
+        }
 
-        Set<String> used = new HashSet<>();
+        List<RoutePoint> interior = new ArrayList<>(points.subList(1, points.size() - 1));
+        Set<Integer> seen = new HashSet<>();
+        List<RoutePoint> reorderedInterior = new ArrayList<>();
+        for (int i : newInteriorOrder) {
+            if (i < 0 || i >= interior.size() || !seen.add(i)) {
+                return route;
+            }
+            reorderedInterior.add(interior.get(i));
+        }
+
+        List<RoutePoint> reorderedPoints = new ArrayList<>();
+        reorderedPoints.add(points.get(0));
+        reorderedPoints.addAll(reorderedInterior);
+        reorderedPoints.add(points.get(points.size() - 1));
+
+        route.setPoints(reorderedPoints);
+        reindexPoints(route);
+        recomputeLocalSegments(route);
+        recomputeTotals(route);
+        route.setFeasible(isFeasible(route));
+        return route;
+    }
+
+    Place selectHotel(List<Place> pool, ParsedWeightRequest req) {
+        List<Place> hotels = new ArrayList<>();
+        for (Place place : pool) {
+            if (labelService.label(place) == RouteLabel.HOTEL) {
+                hotels.add(place);
+            }
+        }
+
+        if (hotels.isEmpty()) {
+            return null;
+        }
+
+        return hotels.stream()
+                .max(Comparator.comparingDouble(hotel -> scoring.scoreHotelCandidate(
+                        hotel, req.hotelCenterBias(), KIZILAY_LAT, KIZILAY_LNG)))
+                .orElse(hotels.get(0));
+    }
+
+    Map<RouteLabel, Integer> computeCategoryQuotas(ParsedWeightRequest req, int interiorPoiCount) {
+        return computeCategoryQuotas(req, interiorPoiCount, 1.0);
+    }
+
+    Map<RouteLabel, Integer> computeCategoryQuotas(ParsedWeightRequest req,
+                                                   int interiorPoiCount,
+                                                   double quotaExponent) {
+        RouteLabel[] categories = RouteLabel.VISIT_CATEGORIES;
+        double[] weights = new double[categories.length];
+        double totalWeight = 0.0;
+
+        for (int i = 0; i < categories.length; i++) {
+            double weight = req.weightFor(categories[i]);
+            weights[i] = Math.pow(weight, quotaExponent);
+            totalWeight += weights[i];
+        }
+
+        Map<RouteLabel, Integer> quotas = new HashMap<>();
+        if (totalWeight == 0.0) {
+            int base = interiorPoiCount / categories.length;
+            int remaining = interiorPoiCount % categories.length;
+            for (int i = 0; i < categories.length; i++) {
+                quotas.put(categories[i], base + (i < remaining ? 1 : 0));
+            }
+            return quotas;
+        }
+
+        double[] rawQuotas = new double[categories.length];
+        int[] floors = new int[categories.length];
+        int floorSum = 0;
+        for (int i = 0; i < categories.length; i++) {
+            rawQuotas[i] = interiorPoiCount * (weights[i] / totalWeight);
+            floors[i] = (int) Math.floor(rawQuotas[i]);
+            floorSum += floors[i];
+        }
+
+        Integer[] indices = new Integer[categories.length];
+        for (int i = 0; i < categories.length; i++) {
+            indices[i] = i;
+            quotas.put(categories[i], floors[i]);
+        }
+
+        java.util.Arrays.sort(indices, (a, b) -> Double.compare(
+                rawQuotas[b] - floors[b],
+                rawQuotas[a] - floors[a]));
+
+        int remainingSlots = interiorPoiCount - floorSum;
+        for (int i = 0; i < remainingSlots && i < indices.length; i++) {
+            RouteLabel label = categories[indices[i]];
+            quotas.put(label, quotas.get(label) + 1);
+        }
+
+        return quotas;
+    }
+
+    private List<Place> selectInteriorPois(List<Place> pool,
+                                           Map<RouteLabel, Integer> quotas,
+                                           ParsedWeightRequest req,
+                                           Place hotel,
+                                           Random rnd,
+                                           RouteVariantProfile variant,
+                                           List<Set<String>> priorInteriorIds) {
+        Set<String> usedIds = new HashSet<>();
+        if (hotel != null) {
+            usedIds.add(hotel.getId());
+        }
+
+        double anchorLat = hotel != null ? hotel.getLatitude() : KIZILAY_LAT;
+        double anchorLng = hotel != null ? hotel.getLongitude() : KIZILAY_LNG;
         List<Place> selected = new ArrayList<>();
 
-        // Phase 1 — mandatory types
-        List<String> mand = new ArrayList<>(req.mandatoryTypes());
-        Collections.shuffle(mand, rnd);
-        for (String t : mand) {
-            if (selected.size() >= req.maxStops()) break;
-            List<Place> candidates = new ArrayList<>();
-            for (Place p : pool) {
-                if (!used.contains(p.getId()) && scoring.hasType(p, t)) {
-                    candidates.add(p);
+        for (RouteLabel label : RouteLabel.VISIT_CATEGORIES) {
+            int count = quotas.getOrDefault(label, 0);
+            if (count <= 0) {
+                continue;
+            }
+
+            List<Place> candidates = buildCandidatesForLabel(pool, usedIds, label);
+            List<Place> picked = chooseTopCandidates(
+                    candidates, count, req.weightFor(label), req, anchorLat, anchorLng, rnd, variant, priorInteriorIds);
+            for (Place place : picked) {
+                selected.add(place);
+                usedIds.add(place.getId());
+            }
+        }
+
+        int totalNeeded = quotas.values().stream().mapToInt(Integer::intValue).sum();
+        if (selected.size() < totalNeeded) {
+            List<Place> fallback = new ArrayList<>();
+            for (Place place : pool) {
+                if (!usedIds.contains(place.getId()) && labelService.label(place) != RouteLabel.HOTEL) {
+                    fallback.add(place);
                 }
             }
-            if (candidates.isEmpty()) continue;
-            candidates.sort(Comparator.comparingDouble(
-                    (Place p) -> scoring.scorePlace(p, req.overrideWeights(),
-                            req.centerLat(), req.centerLng())).reversed());
-            Place chosen = candidates.get(0);
-            selected.add(chosen);
-            used.add(chosen.getId());
+            List<Place> filler = chooseTopCandidates(
+                    fallback,
+                    totalNeeded - selected.size(),
+                    0.35,
+                    req,
+                    anchorLat,
+                    anchorLng,
+                    rnd,
+                    variant,
+                    priorInteriorIds
+            );
+            selected.addAll(filler);
         }
 
-        // Phase 2 — fill remaining slots
-        if (selected.size() < req.maxStops()) {
-            List<Place> remaining = new ArrayList<>();
-            for (Place p : pool) {
-                if (!used.contains(p.getId())) remaining.add(p);
-            }
-            remaining.sort(Comparator.comparingDouble(
-                    (Place p) -> scoring.scorePlace(p, req.overrideWeights(),
-                            req.centerLat(), req.centerLng())).reversed());
-
-            int topM = Math.min(
-                    Math.max(req.maxStops() * 10, 40), remaining.size());
-            List<Place> head = new ArrayList<>(remaining.subList(0, topM));
-            Collections.shuffle(head, rnd);
-
-            for (Place p : head) {
-                if (selected.size() >= req.maxStops()) break;
-                selected.add(p);
-                used.add(p.getId());
-            }
-        }
-
-        // Phase 3 — fallback random fill
-        while (selected.size() < req.maxStops() && used.size() < pool.size()) {
-            Place p = pool.get(rnd.nextInt(pool.size()));
-            if (used.contains(p.getId())) continue;
-            selected.add(p);
-            used.add(p.getId());
-        }
-
-        return selected.subList(0, Math.min(selected.size(), req.maxStops()));
+        return selected;
     }
 
-    /**
-     * Orders places using nearest-neighbor heuristic.
-     * Ported from Python {@code _order_nearest_neighbor()}.
-     */
-    private List<Place> orderNearestNeighbor(List<Place> places,
-                                             ParsedRequest req) {
-        if (places.size() <= 2) return new ArrayList<>(places);
-
-        Place start;
-        if (req.centerLat() != null && req.centerLng() != null) {
-            start = places.stream().min(Comparator.comparingDouble(
-                    p -> GeoUtils.haversineKm(req.centerLat(), req.centerLng(),
-                            p.getLatitude(), p.getLongitude())
-            )).orElse(places.get(0));
-        } else {
-            start = places.stream().max(Comparator.comparingDouble(
-                    p -> scoring.scorePlace(p, req.overrideWeights(),
-                            req.centerLat(), req.centerLng())
-            )).orElse(places.get(0));
+    private Optional<Place> pickBestCandidate(List<Place> pool,
+                                              RouteLabel label,
+                                              Set<String> excludedIds,
+                                              ParsedWeightRequest req,
+                                              double anchorLat,
+                                              double anchorLng,
+                                              Random rnd,
+                                              RouteVariantProfile variant,
+                                              List<Set<String>> priorInteriorIds) {
+        List<Place> candidates = buildCandidatesForLabel(pool, excludedIds, label);
+        if (candidates.isEmpty()) {
+            for (Place place : pool) {
+                if (!excludedIds.contains(place.getId()) && labelService.label(place) != RouteLabel.HOTEL) {
+                    candidates.add(place);
+                }
+            }
+        }
+        if (candidates.isEmpty()) {
+            return Optional.empty();
         }
 
-        List<Place> remaining = new ArrayList<>(places);
-        remaining.remove(start);
+        List<Place> picked = chooseTopCandidates(
+                candidates, 1, req.weightFor(label), req, anchorLat, anchorLng, rnd, variant, priorInteriorIds);
+        return picked.isEmpty() ? Optional.empty() : Optional.of(picked.get(0));
+    }
 
+    private List<Place> buildCandidatesForLabel(List<Place> pool,
+                                                Set<String> excludedIds,
+                                                RouteLabel label) {
+        List<Place> candidates = new ArrayList<>();
+        for (Place place : pool) {
+            if (excludedIds.contains(place.getId())) {
+                continue;
+            }
+            if (labelService.label(place) == label) {
+                candidates.add(place);
+            }
+        }
+        return candidates;
+    }
+
+    private List<Place> chooseTopCandidates(List<Place> candidates,
+                                            int count,
+                                            double categoryWeight,
+                                            ParsedWeightRequest req,
+                                            double anchorLat,
+                                            double anchorLng,
+                                            Random rnd,
+                                            RouteVariantProfile variant,
+                                            List<Set<String>> priorInteriorIds) {
+        if (count <= 0 || candidates.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, Double> scores = new HashMap<>();
+        for (Place candidate : candidates) {
+            double baseScore = scoring.scoreInteriorCandidate(
+                    candidate,
+                    categoryWeight,
+                    req.butceSeviyesi(),
+                    labelService.label(candidate) == RouteLabel.GECE_HAYATI,
+                    req.sparsity(),
+                    anchorLat,
+                    anchorLng,
+                    deterministicNoise(candidate.getId(), req.requestId(), variant.routeIndex()));
+            double overlapPenalty = seenInPreviousRoutes(candidate.getId(), priorInteriorIds)
+                    ? variant.overlapPenalty()
+                    : 0.0;
+            scores.put(candidate.getId(), baseScore - overlapPenalty);
+        }
+
+        List<Place> ranked = new ArrayList<>(candidates);
+        ranked.sort(Comparator.comparingDouble((Place place) -> scores.getOrDefault(place.getId(), 0.0))
+                .reversed());
+
+        List<Place> picked = new ArrayList<>();
+        Set<String> localIds = new HashSet<>();
+        while (picked.size() < count && !ranked.isEmpty()) {
+            int bandSize = candidateBandSize(ranked.size(), categoryWeight, variant);
+            int selectedIndex = deterministicIndex(bandSize, req.requestId(), variant.routeIndex(), picked.size(), rnd);
+            Place chosen = ranked.remove(selectedIndex);
+            if (!localIds.add(chosen.getId())) {
+                continue;
+            }
+            picked.add(chosen);
+        }
+
+        return picked;
+    }
+
+    private List<Place> orderNearestNeighbor(List<Place> interiorPois,
+                                             Place hotel,
+                                             double sparsity) {
+        if (interiorPois.size() <= 1) {
+            return new ArrayList<>(interiorPois);
+        }
+
+        double startLat = hotel != null ? hotel.getLatitude() : KIZILAY_LAT;
+        double startLng = hotel != null ? hotel.getLongitude() : KIZILAY_LNG;
+
+        List<Place> remaining = new ArrayList<>(interiorPois);
         List<Place> ordered = new ArrayList<>();
-        ordered.add(start);
-        Place cur = start;
+        double curLat = startLat;
+        double curLng = startLng;
 
         while (!remaining.isEmpty()) {
-            final Place current = cur;
-            Place next = remaining.stream().min(Comparator.comparingDouble(
-                    p -> GeoUtils.haversineKm(current.getLatitude(), current.getLongitude(),
-                            p.getLatitude(), p.getLongitude())
-            )).orElse(remaining.get(0));
+            final double lat = curLat;
+            final double lng = curLng;
+            final double hotelLat = startLat;
+            final double hotelLng = startLng;
+
+            Place next = remaining.stream()
+                    .min(Comparator.comparingDouble(place ->
+                            orderingScore(place, lat, lng, hotelLat, hotelLng, sparsity)))
+                    .orElse(remaining.get(0));
+
             ordered.add(next);
             remaining.remove(next);
-            cur = next;
+            curLat = next.getLatitude();
+            curLng = next.getLongitude();
         }
 
         return ordered;
     }
 
-    // ------------------------------------------------------------------
-    // Segment & totals computation
-    // ------------------------------------------------------------------
+    private Route assembleRoute(Place hotel, List<Place> orderedInterior,
+                                ParsedWeightRequest req, int routeIndex) {
+        Route route = new Route();
+        route.setRouteId("route-" + req.requestId() + "-" + routeIndex);
+        route.setTravelMode(req.travelMode());
 
-    /**
-     * Recomputes route segments from consecutive point pairs.
-     * Ported from Python {@code Route.recomputeLocalSegments()}.
-     */
+        List<RoutePoint> points = new ArrayList<>();
+        int idx = 0;
+        points.add(RoutePoint.builder()
+                .index(idx++)
+                .poi(hotel)
+                .plannedVisitMin(scoring.estimateVisitMinutes(hotel))
+                .build());
+
+        for (Place place : orderedInterior) {
+            points.add(RoutePoint.builder()
+                    .index(idx++)
+                    .poi(place)
+                    .plannedVisitMin(scoring.estimateVisitMinutes(place))
+                    .build());
+        }
+
+        points.add(RoutePoint.builder()
+                .index(idx)
+                .poi(hotel)
+                .plannedVisitMin(scoring.estimateVisitMinutes(hotel))
+                .build());
+
+        route.setPoints(points);
+        return route;
+    }
+
     public void recomputeLocalSegments(Route route) {
         route.getSegments().clear();
-        List<RoutePoint> pts = route.getPoints();
-        if (pts.size() <= 1) return;
+        List<RoutePoint> points = route.getPoints();
+        if (points.size() <= 1) {
+            return;
+        }
 
-        for (int i = 0; i < pts.size() - 1; i++) {
-            Place a = pts.get(i).getPoi();
-            Place b = pts.get(i + 1).getPoi();
+        for (int i = 0; i < points.size() - 1; i++) {
+            Place from = points.get(i).getPoi();
+            Place to = points.get(i + 1).getPoi();
             double km = GeoUtils.haversineKm(
-                    a.getLatitude(), a.getLongitude(),
-                    b.getLatitude(), b.getLongitude());
+                    from.getLatitude(), from.getLongitude(),
+                    to.getLatitude(), to.getLongitude());
             route.getSegments().add(RouteSegment.builder()
                     .fromIndex(i)
                     .toIndex(i + 1)
@@ -437,83 +586,159 @@ public class RouteGenerationService {
         }
     }
 
-    /**
-     * Recomputes total duration and distance for a route.
-     * Ported from Python {@code Route.recomputeTotals()}.
-     */
     public void recomputeTotals(Route route) {
         int travel = 0;
         double dist = 0.0;
-        for (RouteSegment seg : route.getSegments()) {
-            travel += seg.getDurationSec();
-            dist += seg.getDistanceM();
+        for (RouteSegment segment : route.getSegments()) {
+            travel += segment.getDurationSec();
+            dist += segment.getDistanceM();
         }
+
         int visits = 0;
-        for (RoutePoint rp : route.getPoints()) {
-            visits += rp.getPlannedVisitMin() * 60;
+        for (RoutePoint point : route.getPoints()) {
+            visits += point.getPlannedVisitMin() * 60;
         }
+
         route.setTotalDurationSec(travel + visits);
         route.setTotalDistanceM(dist);
     }
 
-    /**
-     * Checks route feasibility against constraints.
-     * Ported from Python {@code _is_feasible()}.
-     */
-    private boolean isFeasible(Route route, ParsedRequest req) {
-        if (!req.mandatoryTypes().isEmpty()) {
-            Set<String> present = new HashSet<>();
-            for (RoutePoint rp : route.getPoints()) {
-                List<String> types = GeoUtils.parseTypesFromEntity(
-                        rp.getPoi().getTypes());
-                for (String t : types) {
-                    present.add(t.strip().toLowerCase());
-                }
+    boolean isFeasible(Route route) {
+        List<RoutePoint> points = route.getPoints();
+        if (points.size() < 3 || points.size() > 12) {
+            return false;
+        }
+
+        Place first = points.get(0).getPoi();
+        Place last = points.get(points.size() - 1).getPoi();
+        if (first == null || last == null) {
+            return false;
+        }
+        if (!Objects.equals(first.getId(), last.getId())) {
+            return false;
+        }
+        if (labelService.label(first) != RouteLabel.HOTEL) {
+            return false;
+        }
+
+        Set<String> interiorIds = new HashSet<>();
+        for (int i = 1; i < points.size() - 1; i++) {
+            Place poi = points.get(i).getPoi();
+            if (poi == null || labelService.label(poi) == RouteLabel.HOTEL) {
+                return false;
             }
-            for (String m : req.mandatoryTypes()) {
-                if (!present.contains(m)) return false;
+            if (!interiorIds.add(poi.getId())) {
+                return false;
             }
         }
-        return route.getTotalDurationSec() <= req.maxBudgetMin() * 60;
+
+        if (route.getSegments().size() != points.size() - 1) {
+            return false;
+        }
+        return route.getTotalDurationSec() >= 0 && route.getTotalDistanceM() >= 0.0;
     }
 
-    // ------------------------------------------------------------------
-    // Helpers
-    // ------------------------------------------------------------------
-
-    private Set<String> lockUnchangedPOIs(Route route, int index) {
-        Set<String> locked = new HashSet<>();
-        List<RoutePoint> pts = route.getPoints();
-        for (int i = 0; i < pts.size(); i++) {
-            if (i == index) continue;
-            Place poi = pts.get(i).getPoi();
-            if (poi != null && poi.getId() != null) {
-                locked.add(poi.getId());
+    private Set<String> collectUsedIds(Route route) {
+        Set<String> ids = new HashSet<>();
+        for (RoutePoint point : route.getPoints()) {
+            if (point.getPoi() != null && point.getPoi().getId() != null) {
+                ids.add(point.getPoi().getId());
             }
         }
-        return locked;
+        return ids;
     }
 
     private void reindexPoints(Route route) {
-        List<RoutePoint> pts = route.getPoints();
-        for (int i = 0; i < pts.size(); i++) {
-            pts.get(i).setIndex(i);
+        List<RoutePoint> points = route.getPoints();
+        for (int i = 0; i < points.size(); i++) {
+            points.get(i).setIndex(i);
         }
     }
 
+    private Set<String> collectInteriorIds(Route route) {
+        Set<String> ids = new HashSet<>();
+        List<RoutePoint> points = route.getPoints();
+        for (int i = 1; i < points.size() - 1; i++) {
+            Place poi = points.get(i).getPoi();
+            if (poi != null && poi.getId() != null) {
+                ids.add(poi.getId());
+            }
+        }
+        return ids;
+    }
+
+    private static double orderingScore(Place place,
+                                        double currentLat,
+                                        double currentLng,
+                                        double hotelLat,
+                                        double hotelLng,
+                                        double sparsity) {
+        double fromCurrent = GeoUtils.haversineKm(currentLat, currentLng,
+                place.getLatitude(), place.getLongitude());
+        double fromHotel = GeoUtils.haversineKm(hotelLat, hotelLng,
+                place.getLatitude(), place.getLongitude());
+        double compactWeight = 1.0 - sparsity;
+        double spreadWeight = sparsity;
+        return (fromCurrent * (0.85 + compactWeight))
+                - (fromHotel * 0.12 * spreadWeight);
+    }
+
+    private static RouteVariantProfile variantFor(int routeIndex) {
+        if (routeIndex <= 0) {
+            return new RouteVariantProfile(routeIndex, 1.35, 0.08, 0.00);
+        }
+        if (routeIndex == 1) {
+            return new RouteVariantProfile(routeIndex, 1.00, 0.28, 0.20);
+        }
+        return new RouteVariantProfile(routeIndex, 0.82, 0.52, 0.38);
+    }
+
+    private static int candidateBandSize(int rankedSize,
+                                         double categoryWeight,
+                                         RouteVariantProfile variant) {
+        double ratio = 0.12
+                + (variant.explorationFactor() * 0.45)
+                + ((1.0 - categoryWeight) * 0.28);
+        int bandSize = (int) Math.ceil(rankedSize * Math.min(0.85, ratio));
+        return Math.max(1, Math.min(rankedSize, bandSize));
+    }
+
+    private static boolean seenInPreviousRoutes(String placeId, List<Set<String>> priorInteriorIds) {
+        for (Set<String> routeIds : priorInteriorIds) {
+            if (routeIds.contains(placeId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int deterministicIndex(int bandSize,
+                                          String requestId,
+                                          int routeIndex,
+                                          int pickIndex,
+                                          Random rnd) {
+        if (bandSize <= 1) {
+            return 0;
+        }
+        int seed = Math.abs(Objects.hash(requestId, routeIndex, pickIndex, rnd.nextInt(10_000)));
+        return seed % bandSize;
+    }
+
+    private static double deterministicNoise(String placeId, String requestId, int routeIndex) {
+        int seed = Math.abs(Objects.hash(placeId, requestId, routeIndex, "noise"));
+        return (seed % 1000) / 1000.0 * 0.10;
+    }
+
     private static String firstNonBlank(String... values) {
-        for (String v : values) {
-            if (v != null && !v.isBlank()) return v;
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
         }
         return "";
     }
 
-    private static Double parseNullableDouble(String s) {
-        if (s == null || s.isBlank()) return null;
-        try {
-            return Double.parseDouble(s.strip());
-        } catch (Exception e) {
-            return null;
-        }
+    private static double clamp01(double value) {
+        return Math.max(0.0, Math.min(1.0, value));
     }
 }

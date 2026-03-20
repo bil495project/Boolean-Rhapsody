@@ -2,96 +2,42 @@ package com.roadrunner.route.service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Random;
-import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
 import com.roadrunner.place.entity.Place;
 
 /**
- * Stateless scoring and candidate-filtering service.
- * Ported from the private scoring methods of Python's {@code TripRequest}.
+ * Stateless scoring and candidate-filtering service for the new
+ * weight-based route generation model.
  */
 @Service
 public class RouteScoringService {
 
-    /**
-     * Scores a Place for ranking purposes.
-     * Ported from Python {@code _score_place()}.
-     *
-     * @param p               the place to score
-     * @param overrideWeights type→weight map (may be null/empty)
-     * @param centerLat       optional center latitude for distance penalty
-     * @param centerLng       optional center longitude for distance penalty
-     * @return computed score (higher is better)
-     */
-    public double scorePlace(Place p,
-            Map<String, Double> overrideWeights,
-            Double centerLat,
-            Double centerLng) {
-        double rating = p.getRatingScore() != null ? p.getRatingScore() : 0.0;
-        int rCount = p.getRatingCount() != null ? p.getRatingCount() : 0;
-        double pop = Math.log(Math.max(rCount, 0) + 1.0);
+    private final PlaceLabelService labelService;
 
-        double typeBonus = 0.0;
-        if (overrideWeights != null && !overrideWeights.isEmpty()) {
-            List<String> types = GeoUtils.parseTypesFromEntity(p.getTypes());
-            for (String t : types) {
-                String tt = t.strip().toLowerCase();
-                typeBonus += overrideWeights.getOrDefault(tt, 0.0);
-            }
-        }
-
-        double distPenalty = 0.0;
-        if (centerLat != null && centerLng != null) {
-            double d = GeoUtils.haversineKm(
-                    centerLat, centerLng,
-                    p.getLatitude(), p.getLongitude());
-            distPenalty = 0.05 * d;
-        }
-
-        return (1.0 * rating) + (0.4 * pop) + (1.0 * typeBonus) - distPenalty;
+    public RouteScoringService(PlaceLabelService labelService) {
+        this.labelService = labelService;
     }
 
     /**
-     * Builds the filtered candidate pool from all places.
-     * Ported from Python {@code _build_candidate_pool()}.
-     *
-     * @param allPlaces every place from the repository
-     * @param centerLat optional center latitude for radius filter
-     * @param centerLng optional center longitude for radius filter
-     * @param radiusKm  optional radius in km
-     * @param minRating minimum rating threshold (0 = disabled)
-     * @return filtered list of candidate places
+     * Builds the candidate pool from all places.
+     * Filters out non-operational places and those with fewer than
+     * {@code minRatingCount} reviews.
      */
     public List<Place> buildCandidatePool(List<Place> allPlaces,
-            Double centerLat,
-            Double centerLng,
-            Double radiusKm,
-            double minRating) {
+                                          int minRatingCount) {
         List<Place> pool = new ArrayList<>();
         for (Place p : allPlaces) {
-            // Filter out non-operational businesses
-            String bs = p.getBusinessStatus();
-            if (bs != null && !bs.isBlank()
-                    && !bs.strip().equalsIgnoreCase("OPERATIONAL")) {
+            String businessStatus = p.getBusinessStatus();
+            if (businessStatus != null && !businessStatus.isBlank()
+                    && !businessStatus.strip().equalsIgnoreCase("OPERATIONAL")) {
                 continue;
             }
-            // Filter by minimum rating
-            double score = p.getRatingScore() != null ? p.getRatingScore() : 0.0;
-            if (minRating > 0 && score < minRating) {
+
+            int ratingCount = p.getRatingCount() != null ? p.getRatingCount() : 0;
+            if (ratingCount < minRatingCount) {
                 continue;
-            }
-            // Filter by radius
-            if (centerLat != null && centerLng != null && radiusKm != null) {
-                double dist = GeoUtils.haversineKm(
-                        centerLat, centerLng,
-                        p.getLatitude(), p.getLongitude());
-                if (dist > radiusKm)
-                    continue;
             }
             pool.add(p);
         }
@@ -99,118 +45,118 @@ public class RouteScoringService {
     }
 
     /**
-     * Estimates visit duration based on place types.
-     * Ported from Python {@code _estimate_visit_minutes()}.
+     * Scores a hotel candidate.
+     * Higher {@code hotelCenterBias} means stronger centrality preference.
+     */
+    public double scoreHotelCandidate(Place hotel,
+                                      double hotelCenterBias,
+                                      double kizilayLat,
+                                      double kizilayLng) {
+        double ratingNorm = ratingQualityScore(hotel);
+        double popNorm = popularityConfidence(hotel);
+
+        double distKm = GeoUtils.haversineKm(kizilayLat, kizilayLng,
+                hotel.getLatitude(), hotel.getLongitude());
+        double centralityNorm = 1.0 - Math.min(distKm / 30.0, 1.0);
+
+        double centerWeight = 0.20 + 0.55 * hotelCenterBias;
+        double ratingWeight = 0.65 - 0.45 * hotelCenterBias;
+        double popWeight = 0.15;
+
+        return ratingNorm * ratingWeight
+                + centralityNorm * centerWeight
+                + popNorm * popWeight;
+    }
+
+    /**
+     * Scores an interior POI candidate.
+     * Budget is intentionally neutral for now because price data is not usable.
+     */
+    public double scoreInteriorCandidate(Place place,
+                                         double categoryWeight,
+                                         double budgetLevel,
+                                         boolean isNightlife,
+                                         double sparsity,
+                                         double anchorLat,
+                                         double anchorLng,
+                                         double randomBonus) {
+        double ratingNorm = ratingQualityScore(place);
+        double popNorm = popularityConfidence(place);
+        double qualityScore = qualityConfidenceScore(place);
+
+        double distKm = GeoUtils.haversineKm(anchorLat, anchorLng,
+                place.getLatitude(), place.getLongitude());
+        double distPenaltyFactor = 1.0 - sparsity;
+        double distPenalty = 0.028 * distKm * distPenaltyFactor;
+
+        return (0.52 * qualityScore)
+                + (0.18 * ratingNorm)
+                + (0.08 * popNorm)
+                + (0.18 * categoryWeight)
+                + (0.04 * randomBonus)
+                - distPenalty;
+    }
+
+    /**
+     * Kept for compatibility with existing tests and future reactivation.
+     * Currently neutral because price data is not populated reliably.
+     */
+    public double computeBudgetCompatibility(Place place, double budgetLevel) {
+        return 1.0;
+    }
+
+    double qualityConfidenceScore(Place place) {
+        return (0.58 * ratingQualityScore(place))
+                + (0.42 * popularityConfidence(place));
+    }
+
+    double ratingQualityScore(Place place) {
+        double rating = place.getRatingScore() != null ? place.getRatingScore() : 0.0;
+        double normalized = Math.max(0.0, Math.min(1.0, (rating - 3.5) / 1.5));
+        return Math.pow(normalized, 1.65);
+    }
+
+    double popularityConfidence(Place place) {
+        int ratingCount = place.getRatingCount() != null ? place.getRatingCount() : 0;
+        double confidence = 1.0 - Math.exp(-Math.max(0, ratingCount) / 900.0);
+        return Math.max(0.0, Math.min(1.0, confidence));
+    }
+
+    /**
+     * Estimates visit duration based on the place's semantic label.
      */
     public int estimateVisitMinutes(Place p) {
-        List<String> types = GeoUtils.parseTypesFromEntity(p.getTypes());
-        Set<String> ts = new java.util.HashSet<>();
-        for (String t : types)
-            ts.add(t.toLowerCase());
-
-        if (ts.contains("hotel") || ts.contains("lodging") || ts.contains("guest_house"))
-            return 20;
-        if (ts.contains("museum"))
-            return 90;
-        if (ts.contains("restaurant"))
-            return 70;
-        if (ts.contains("cafe"))
-            return 50;
-        if (ts.contains("park") || ts.contains("nature"))
-            return 60;
-        if (ts.contains("historical") || ts.contains("landmark")
-                || ts.contains("tourist_attraction"))
-            return 60;
-        return 45;
+        RouteLabel label = labelService.label(p);
+        return switch (label) {
+            case HOTEL -> 20;
+            case TARIHI_ALANLAR -> 75;
+            case RESTORAN_TOLERANSI -> 70;
+            case KAFE_TATLI -> 45;
+            case PARK_VE_SEYIR_NOKTALARI -> 60;
+            case DOGAL_ALANLAR -> 60;
+            case LANDMARK -> 60;
+            case GECE_HAYATI -> 90;
+            case UNKNOWN -> 45;
+        };
     }
 
-    /**
-     * Picks one random place from the top-25 scored candidates matching
-     * the given filters.
-     * Ported from Python {@code _pick_one_place()}.
-     *
-     * @param candidatePool   pre-built candidate pool
-     * @param desiredType     required type (null/blank = any)
-     * @param excludedIds     POI IDs to exclude
-     * @param minRating       minimum rating threshold
-     * @param maxPriceLevel   max price level as string-integer (blank = any)
-     * @param overrideWeights type weight overrides for scoring
-     * @param centerLat       center latitude for scoring
-     * @param centerLng       center longitude for scoring
-     * @return a randomly chosen place from the top-25, or empty
-     */
-    public Optional<Place> pickOnePlace(List<Place> candidatePool,
-            String desiredType,
-            Set<String> excludedIds,
-            double minRating,
-            String maxPriceLevel,
-            Map<String, Double> overrideWeights,
-            Double centerLat,
-            Double centerLng) {
-        String dt = (desiredType == null ? "" : desiredType).strip().toLowerCase();
-        Integer maxPrice = parseIntSafe(maxPriceLevel);
-
-        List<Place> candidates = new ArrayList<>();
-        for (Place p : candidatePool) {
-            if (excludedIds != null && excludedIds.contains(p.getId()))
-                continue;
-
-            double score = p.getRatingScore() != null ? p.getRatingScore() : 0.0;
-            if (minRating > 0 && score < minRating)
-                continue;
-
-            if (!dt.isEmpty() && !hasType(p, dt))
-                continue;
-
-            if (maxPrice != null) {
-                Integer placePrice = parseIntSafe(p.getPriceLevel());
-                if (placePrice != null && placePrice > maxPrice)
-                    continue;
-            }
-
-            candidates.add(p);
+    static int parsePriceOrdinal(String priceLevel) {
+        if (priceLevel == null || priceLevel.isBlank()) {
+            return -1;
         }
+        String pl = priceLevel.strip().toUpperCase();
 
-        if (candidates.isEmpty())
-            return Optional.empty();
+        if (pl.contains("FREE")) return 0;
+        if (pl.contains("INEXPENSIVE")) return 1;
+        if (pl.contains("MODERATE")) return 2;
+        if (pl.contains("EXPENSIVE") && !pl.contains("VERY")) return 3;
+        if (pl.contains("VERY_EXPENSIVE") || pl.contains("VERY EXPENSIVE")) return 4;
 
-        // Sort by score descending
-        candidates.sort((a, b) -> Double.compare(
-                scorePlace(b, overrideWeights, centerLat, centerLng),
-                scorePlace(a, overrideWeights, centerLat, centerLng)));
-
-        int topN = Math.min(25, candidates.size());
-        List<Place> top = candidates.subList(0, topN);
-        return Optional.of(top.get(new Random().nextInt(top.size())));
-    }
-
-    // ------------------------------------------------------------------
-    // Internal helpers
-    // ------------------------------------------------------------------
-
-    /**
-     * Checks if a Place entity has a given type (case-insensitive).
-     * Mirrors Python {@code Place.has_type()}.
-     */
-    public boolean hasType(Place p, String type) {
-        if (type == null || type.isBlank())
-            return false;
-        String tt = type.strip().toLowerCase();
-        List<String> types = GeoUtils.parseTypesFromEntity(p.getTypes());
-        for (String t : types) {
-            if (t.strip().toLowerCase().equals(tt))
-                return true;
-        }
-        return false;
-    }
-
-    private static Integer parseIntSafe(String s) {
-        if (s == null || s.isBlank())
-            return null;
         try {
-            return (int) Double.parseDouble(s.strip());
+            int value = (int) Double.parseDouble(pl);
+            return Math.max(0, Math.min(value, 4));
         } catch (Exception e) {
-            return null;
+            return -1;
         }
     }
 }

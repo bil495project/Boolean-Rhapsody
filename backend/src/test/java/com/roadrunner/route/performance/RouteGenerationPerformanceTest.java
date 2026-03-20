@@ -3,7 +3,6 @@ package com.roadrunner.route.performance;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -35,10 +34,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-// Performance tests measure wall-clock time including Spring's MockMvc overhead.
-// These tests are inherently environment-dependent and may fail on slow CI machines.
-// Thresholds are based on NFR-PERF-01: single route ≤ 5s, three routes ≤ 8s.
-
+/**
+ * Performance tests for the new weight-based route generation.
+ * Thresholds: single route ≤ 5s, three routes ≤ 8s.
+ */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -46,7 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SuppressWarnings("null")
 @Epic("Route Generation")
 @Feature("Performance Tests")
-@DisplayName("Performance Tests - RouteGeneration")
+@DisplayName("Performance Tests - RouteGeneration (Weight-Based)")
 class RouteGenerationPerformanceTest {
 
     private static final String TEST_EMAIL = "perf-test@roadrunner.com";
@@ -75,9 +74,17 @@ class RouteGenerationPerformanceTest {
         userRepository.deleteAll();
     }
 
+    /**
+     * Builds 50 test places across all route label categories.
+     * All have rating count >= 100 to pass the candidate pool filter.
+     */
     private List<Place> build50TestPlaces() {
-        String[] types = {"restaurant", "museum", "park", "cafe", "landmark",
-                "hotel", "tourist_attraction", "historical", "nature", "lodging"};
+        // Distribute types across the 7 categories + hotel
+        String[] types = {
+                "hotel", "restaurant", "museum", "park", "cafe",
+                "tourist_attraction", "bar", "nature_preserve",
+                "turkish_restaurant", "historical_landmark"
+        };
         List<Place> places = new ArrayList<>();
         for (int i = 0; i < 50; i++) {
             String type = types[i % types.length];
@@ -88,7 +95,7 @@ class RouteGenerationPerformanceTest {
                     .latitude(ANKARA_LAT + (i * 0.005) - 0.125)
                     .longitude(ANKARA_LNG + (i * 0.005) - 0.125)
                     .ratingScore(3.0 + (i % 20) * 0.1)
-                    .ratingCount(50 + i * 10)
+                    .ratingCount(100 + i * 10)
                     .businessStatus("OPERATIONAL")
                     .build());
         }
@@ -115,24 +122,27 @@ class RouteGenerationPerformanceTest {
     private Map<String, String> buildUserVector() {
         Map<String, String> uv = new HashMap<>();
         uv.put("requestId", "perf-test");
-        uv.put("maxStops", "6");
-        uv.put("maxBudgetMin", "480");
-        uv.put("mode", "driving");
-        uv.put("centerLat", String.valueOf(ANKARA_LAT));
-        uv.put("centerLng", String.valueOf(ANKARA_LNG));
-        uv.put("radiusKm", "50");
+        uv.put("weight_parkVeSeyirNoktalari", "0.5");
+        uv.put("weight_geceHayati", "0.3");
+        uv.put("weight_restoranToleransi", "0.7");
+        uv.put("weight_landmark", "0.4");
+        uv.put("weight_dogalAlanlar", "0.2");
+        uv.put("weight_tarihiAlanlar", "0.6");
+        uv.put("weight_kafeTatli", "0.5");
+        uv.put("weight_toplamPoiYogunlugu", "0.5");
+        uv.put("weight_sparsity", "0.5");
+        uv.put("weight_hotelCenterBias", "0.5");
+        uv.put("weight_butceSeviyesi", "0.5");
         return uv;
     }
 
-    @DisplayName("TC-RGP-001: Tek bir rota 5 saniyenin altında üretilebiliyor mu")
+    @DisplayName("TC-RGP-001: Tek rota 5 saniyenin altında üretiliyor")
     @Test
     void shouldGenerateSingleRouteUnderFiveSeconds() throws Exception {
-        // given
         GenerateRoutesRequest req = new GenerateRoutesRequest();
         req.setUserVector(buildUserVector());
         req.setK(1);
 
-        // when
         long start = System.currentTimeMillis();
         MvcResult result = mockMvc.perform(post("/api/routes/generate")
                         .header("Authorization", "Bearer " + jwtToken)
@@ -145,20 +155,17 @@ class RouteGenerationPerformanceTest {
         List<RouteResponse> routes = objectMapper.readValue(
                 result.getResponse().getContentAsString(), new TypeReference<>() {});
 
-        // then
         assertThat(durationMs).isLessThanOrEqualTo(5000L);
         assertThat(routes).hasSize(1);
     }
 
-    @DisplayName("TC-RGP-002: 3 adet rota isteği 8 saniyenin altında cevaplanabiliyor mu")
+    @DisplayName("TC-RGP-002: 3 rota 8 saniyenin altında üretiliyor")
     @Test
     void shouldGenerateThreeRoutesUnderEightSeconds() throws Exception {
-        // given
         GenerateRoutesRequest req = new GenerateRoutesRequest();
         req.setUserVector(buildUserVector());
         req.setK(3);
 
-        // when
         long start = System.currentTimeMillis();
         MvcResult result = mockMvc.perform(post("/api/routes/generate")
                         .header("Authorization", "Bearer " + jwtToken)
@@ -171,7 +178,6 @@ class RouteGenerationPerformanceTest {
         List<RouteResponse> routes = objectMapper.readValue(
                 result.getResponse().getContentAsString(), new TypeReference<>() {});
 
-        // then
         assertThat(durationMs).isLessThanOrEqualTo(8000L);
         assertThat(routes).hasSize(3);
     }
