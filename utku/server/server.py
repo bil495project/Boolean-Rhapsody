@@ -5,14 +5,28 @@ import json
 # Bridge the path to the 'chatbot' directory
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from chatbot.chatbot import ask_question, load_model
-from chatbot.ai_agents import calculatorAgent, weatherAgent
+# Import the agents from the sibling file
+from chatbot.ai_agents import (
+    calculatorAgent, weatherAgent, UserProfileAgent_SetInfo, 
+    UserFeedbackAgent, XAIJustificationAgent, Route_search_agent, 
+    POI_suggest_agent, ItineraryModificationAgent, ChatTitleAgent, POIDataAgent
+)
 
 app = Flask(__name__)
 
-# Initialize the agents
+# Now the classes are defined and accessible here
+
 TOOL_REGISTRY = {
     "calculator_agent": calculatorAgent(),
     "weather_agent": weatherAgent(),
+    "user_profile_agent": UserProfileAgent_SetInfo(),      # Matches TC-LLM-U-008
+    "submit_user_feedback": UserFeedbackAgent(),          # Matches TC-LLM-U-005
+    "get_xai_justification": XAIJustificationAgent(),      # Matches TC-LLM-U-006
+    "search_route": Route_search_agent(),                 # Matches TC-LLM-U-002
+    "suggest_poi": POI_suggest_agent(),                   # Matches TC-LLM-U-003
+    "modify_itinerary": ItineraryModificationAgent(),     # Matches TC-LLM-U-007
+    "generate_chat_title": ChatTitleAgent(),              # Matches TC-LLM-U-015
+    "get_poi_details": POIDataAgent(),                    # Supports context for justification
 }
 
 # Pre-load model on startup
@@ -79,19 +93,32 @@ def handle_chat():
 
 
 def invoke_action(tool_name, parameters):
+    """
+    Dynamically resolves and executes a tool from the registry.
+    """
+    # 1. Validation: Check if the tool exists in our registry
     if tool_name not in TOOL_REGISTRY:
-        return f"Error: Tool '{tool_name}' not found."
+        print(f"[ERROR] Tool '{tool_name}' requested by LLM but not found in Registry.")
+        return f"Error: Tool '{tool_name}' is not currently available."
     
     try:
-        # Ensure parameters is a dict
+        # 2. Safety: Ensure parameters is a dictionary
         if isinstance(parameters, str):
             parameters = json.loads(parameters)
             
-        # Calling the __call__ method of the agent classes
-        result = TOOL_REGISTRY[tool_name](**parameters)
+        print(f"[SYSTEM] Executing {tool_name} with params: {parameters}")
+
+        # 3. Execution: Call the agent instance using the ** unpacking operator
+        # This triggers the __call__ method defined in your ai_agents.py classes
+        agent_instance = TOOL_REGISTRY[tool_name]
+        result = agent_instance(**parameters)
+        
         return result
+
+    except TypeError as e:
+        return f"Parameter Error: The tool '{tool_name}' received invalid arguments. {str(e)}"
     except Exception as e:
-        return f"Error executing {tool_name}: {str(e)}"
+        return f"Execution Error in {tool_name}: {str(e)}"
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
