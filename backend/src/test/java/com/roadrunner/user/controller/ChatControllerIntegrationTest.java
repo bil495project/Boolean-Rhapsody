@@ -11,6 +11,7 @@ import com.roadrunner.user.repository.ChatRepository;
 import com.roadrunner.user.repository.MessageRepository;
 import com.roadrunner.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -34,6 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
+@DisplayName("Integration Tests - ChatController")
 class ChatControllerIntegrationTest {
 
         private static final String TEST_EMAIL = "chat-test@roadrunner.com";
@@ -93,6 +95,7 @@ class ChatControllerIntegrationTest {
         // --- POST /api/chats ---
 
         @Test
+        @DisplayName("TC-USI-ChatCreate: Chat oluşturma başarılı")
         void shouldReturn201AndChat_whenRequestIsValid() throws Exception {
                 // given
                 CreateChatRequest req = CreateChatRequest.builder()
@@ -111,6 +114,7 @@ class ChatControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-ChatCreate: Duration opsiyoneldir")
         void shouldReturn201WithNullDuration_whenDurationIsNotProvided() throws Exception {
                 // given
                 CreateChatRequest req = CreateChatRequest.builder()
@@ -126,6 +130,7 @@ class ChatControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-ChatCreate: Title boş olamaz")
         void shouldReturn400_whenTitleIsBlank() throws Exception {
                 // given
                 CreateChatRequest req = CreateChatRequest.builder()
@@ -140,6 +145,7 @@ class ChatControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-ChatCreate: Auth gerekli")
         void shouldReturn401_whenNotAuthenticatedForChatCreation() throws Exception {
                 mockMvc.perform(post("/api/chats/new")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -150,6 +156,7 @@ class ChatControllerIntegrationTest {
         // --- GET /api/chats ---
 
         @Test
+        @DisplayName("TC-USI-029: Chat listesi integration seviyesinde doğru sırada geliyor mu")
         void shouldReturn200AndOrderedChatList_whenUserHasChats() throws Exception {
                 // given — create 3 chats with distinct timestamps (insertion order determines
                 // updatedAt)
@@ -169,6 +176,7 @@ class ChatControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-029b: Hiç chat yoksa boş liste dönüyor mu")
         void shouldReturn200AndEmptyList_whenUserHasNoChats() throws Exception {
                 mockMvc.perform(withAuth(get("/api/chats"), testToken))
                                 .andExpect(status().isOk())
@@ -176,12 +184,14 @@ class ChatControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-030: Auth olmadan chat listesi istenince 401 dönüyor mu")
         void shouldReturn401_whenNotAuthenticatedForChatList() throws Exception {
                 mockMvc.perform(get("/api/chats"))
                                 .andExpect(status().isUnauthorized());
         }
 
         @Test
+        @DisplayName("TC-USI-031: Chat izolasyonu var mı, kullanıcı sadece kendi chat’lerini görüyor mu")
         void shouldNotReturnChatsOfOtherUsers() throws Exception {
                 // given
                 createChatForUser(testUser, "My Chat");
@@ -197,6 +207,7 @@ class ChatControllerIntegrationTest {
         // --- GET /api/chats/{chatId} ---
 
         @Test
+        @DisplayName("TC-USI-032: Tek bir chat, mesajlarıyla birlikte getirilebiliyor mu")
         void shouldReturn200AndChatWithMessages_whenChatBelongsToUser() throws Exception {
                 // given
                 Chat chat = createChatForUser(testUser, "Trip");
@@ -210,6 +221,7 @@ class ChatControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-031b: Başkasının chatine erişim 403 dönüyor mu")
         void shouldReturn403_whenChatBelongsToAnotherUser() throws Exception {
                 // given
                 Chat otherChat = createChatForUser(otherUser, "Other Trip");
@@ -220,6 +232,7 @@ class ChatControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-033: Olmayan chat istenince 404 dönüyor mu")
         void shouldReturn404_whenChatDoesNotExist() throws Exception {
                 mockMvc.perform(withAuth(get("/api/chats/nonexistent-id"), testToken))
                                 .andExpect(status().isNotFound());
@@ -228,6 +241,7 @@ class ChatControllerIntegrationTest {
         // --- DELETE /api/chats/{chatId} ---
 
         @Test
+        @DisplayName("TC-USI-034: Chat silme başarılı mı, sonrasında GET 404 veriyor mu")
         void shouldReturn204_whenDeletionIsValid() throws Exception {
                 // given
                 Chat chat = createChatForUser(testUser, "To Delete");
@@ -242,6 +256,7 @@ class ChatControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-034b: Başkasının chatini silme 403 dönüyor mu")
         void shouldReturn403_whenDeletingChatOfAnotherUser() throws Exception {
                 // given
                 Chat otherChat = createChatForUser(otherUser, "Other Trip");
@@ -254,6 +269,7 @@ class ChatControllerIntegrationTest {
         // --- PUT /api/chats/{chatId}/title ---
 
         @Test
+        @DisplayName("TC-USI-035: Chat title güncelleme başarılı mı")
         void shouldReturn200AndUpdatedTitle_whenTitleChangeIsValid() throws Exception {
                 // given
                 Chat chat = createChatForUser(testUser, "Old Title");
@@ -269,6 +285,7 @@ class ChatControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-035b: Başkasının chat titleını güncelleme 403 dönüyor mu")
         void shouldReturn403_whenUpdatingTitleOfAnotherUsersChat() throws Exception {
                 // given
                 Chat otherChat = createChatForUser(otherUser, "Other Title");
@@ -285,6 +302,7 @@ class ChatControllerIntegrationTest {
         // --- POST /api/chats/{chatId}/messages ---
 
         @Test
+        @DisplayName("TC-USI-ChatMsg: Mesaj ekleme başarılı mı")
         void shouldReturn201AndUpdatedChat_whenMessageIsAdded() throws Exception {
                 // given
                 Chat chat = createChatForUser(testUser, "Trip");
@@ -304,6 +322,7 @@ class ChatControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-ChatMsg: Assistant rolü ile mesaj eklenebilir mi")
         void shouldReturn201AndAssistantMessage_whenAssistantRoleIsUsed() throws Exception {
                 // given
                 Chat chat = createChatForUser(testUser, "Trip");
@@ -322,6 +341,7 @@ class ChatControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-ChatMsg: Null role mesajı 400 döner")
         void shouldReturn400_whenRoleIsBlank() throws Exception {
                 // given
                 Chat chat = createChatForUser(testUser, "Trip");
@@ -339,6 +359,7 @@ class ChatControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-ChatMsg: Boş içerik 400 döner")
         void shouldReturn400_whenContentIsBlank() throws Exception {
                 // given
                 Chat chat = createChatForUser(testUser, "Trip");
@@ -356,6 +377,7 @@ class ChatControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-ChatMsg: Başkasının chatine mesaj 403 döner")
         void shouldReturn403_whenAddingMessageToChatOfAnotherUser() throws Exception {
                 // given
                 Chat otherChat = createChatForUser(otherUser, "Other Trip");
@@ -373,6 +395,7 @@ class ChatControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-ChatMsg: Olmayan chate mesaj 404 döner")
         void shouldReturn404_whenAddingMessageToNonexistentChat() throws Exception {
                 // given
                 AddMessageRequest req = AddMessageRequest.builder()
@@ -388,6 +411,7 @@ class ChatControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-ChatMsg: Mesaj eklendiğinde updatedAt güncellenir")
         void shouldUpdateChatUpdatedAt_whenMessageIsAdded() throws Exception {
                 // given
                 Chat chat = createChatForUser(testUser, "Trip");

@@ -22,7 +22,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import Header from '../components/Header';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { updateTravelPersona, updateUser, clearNewSignup } from '../store/authSlice';
+import { updateTravelPersona, updateUser, clearNewSignup, saveTravelPersona } from '../store/authSlice';
 import type { TravelPersona } from '../store/authSlice';
 
 const travelStyles = [
@@ -124,7 +124,7 @@ const TravelPersonaPage = () => {
             preferredPace: pace,
         };
 
-        dispatch(updateTravelPersona(persona));
+        dispatch(saveTravelPersona(persona));
 
         if (avatarPreview) {
             dispatch(updateUser({ avatar: avatarPreview }));

@@ -14,7 +14,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import ChatMessage from './ChatMessage';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { addMessageLocal, addMessageAsync, setLoading, toggleSidebar } from '../../store/chatSlice';
-import { saveDestination } from '../../store/savedSlice';
+import { toggleSaveDestination, syncToggleToBackend } from '../../store/savedSlice';
 import { sendMessage, type ChatMessage as GeminiMessage, type ToolCallResult } from '../../services/geminiService';
 
 interface ChatPanelProps {
@@ -86,9 +86,10 @@ const ChatPanel = ({
             // Get AI response (now returns ToolCallResult)
             const response: ToolCallResult = await sendMessage(userMessage, history);
 
-            // If AI saved a destination via tool call, add it to savedSlice
+            // If AI saved a destination via tool call, add it to savedSlice and sync
             if (response.type === 'destination_saved' && response.savedDestination) {
-                dispatch(saveDestination(response.savedDestination));
+                dispatch(toggleSaveDestination(response.savedDestination));
+                dispatch(syncToggleToBackend(response.savedDestination));
             }
 
             // Add AI response message to backend

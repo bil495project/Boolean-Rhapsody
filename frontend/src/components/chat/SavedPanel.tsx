@@ -12,7 +12,7 @@ import PlaceIcon from '@mui/icons-material/Place';
 import MenuIcon from '@mui/icons-material/Menu';
 import BookmarkRemoveIcon from '@mui/icons-material/BookmarkRemove';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { toggleSaveDestination } from '../../store/savedSlice';
+import { toggleSaveDestination, syncToggleToBackend } from '../../store/savedSlice';
 import { toggleSidebar } from '../../store/chatSlice';
 import type { MapDestination } from '../../data/destinations';
 
@@ -35,6 +35,7 @@ const SavedPanel = ({
     const handleUnsave = (destination: MapDestination, e: React.MouseEvent) => {
         e.stopPropagation();
         dispatch(toggleSaveDestination(destination));
+        dispatch(syncToggleToBackend(destination));
     };
 
     const handleMenuClick = () => {

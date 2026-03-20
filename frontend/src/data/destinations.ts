@@ -216,4 +216,13 @@ export function getDestinationById(id: string): MapDestination | undefined {
     return allDestinations.find(d => d.id === id);
 }
 
-export const categories = ['All', 'Historical', 'Museum', 'Park', 'Culture', 'Nature', 'Landmark', 'Cafe'];
+export const categories = [
+    'All',
+    'Bars & Nightclubs',
+    'Cafes & Desserts',
+    'Historic Places',
+    'Hotels',
+    'Landmarks',
+    'Parks',
+    'Restaurants'
+];
