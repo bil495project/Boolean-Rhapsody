@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Box, Card, Typography, AspectRatio, Chip } from '@mui/joy';
 import StarIcon from '@mui/icons-material/Star';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
@@ -24,6 +25,12 @@ interface DestinationCardProps {
 
 const DestinationCard = ({ destination, onClick }: DestinationCardProps) => {
     const priceLabel = '$'.repeat(destination.priceLevel);
+    const [imgSrc, setImgSrc] = useState(destination.image);
+
+    const handleImageError = () => {
+        // Fallback to a reliable generic travel image if the specific one fails
+        setImgSrc('https://images.unsplash.com/photo-1488085061387-422e29b40080?w=800');
+    };
 
     return (
         <Card
@@ -50,8 +57,9 @@ const DestinationCard = ({ destination, onClick }: DestinationCardProps) => {
                 <Box
                     component="img"
                     className="destination-image"
-                    src={destination.image}
+                    src={imgSrc}
                     alt={destination.name}
+                    onError={handleImageError}
                     sx={{
                         objectFit: 'cover',
                         transition: 'transform 0.4s ease-in-out',

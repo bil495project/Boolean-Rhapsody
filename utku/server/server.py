@@ -41,16 +41,27 @@ def index():
 def handle_chat():
     data = request.json
     user_query = data.get("query", "")
+    history = data.get("history", [])  # List of {role, content} dicts from frontend
     
     if not user_query:
         return jsonify({"status": "error", "message": "Query is empty"}), 400
     
     try:
-        # 1. Start message history
+        # 1. Start message history with system prompt
         messages = [
             {"role": "system", "content": "You are a helpful assistant with access to tools."},
-            {"role": "user", "content": user_query}
         ]
+        
+        # 2. Append previous conversation history (last N messages from frontend)
+        for msg in history:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if role == "assistant":
+                role = "assistant"  # keep as-is for the LLM
+            messages.append({"role": role, "content": content})
+        
+        # 3. Append the current user query
+        messages.append({"role": "user", "content": user_query})
 
         # 2. First LLM Call
         llm_output = ask_question(messages)

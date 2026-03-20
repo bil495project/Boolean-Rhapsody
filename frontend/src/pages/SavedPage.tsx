@@ -8,7 +8,7 @@ import MapPanel from '../components/chat/MapPanel';
 import ResizableDivider from '../components/chat/ResizableDivider';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { createChatAsync, addMessageAsync, setActiveChat, setLoading, toggleSidebar } from '../store/chatSlice';
-import { sendMessage, generateTripTitle } from '../services/geminiService';
+import { sendMessage, generateTripTitle } from '../services/llmService';
 import type { MapDestination } from '../data/destinations';
 
 const SavedPage = () => {
@@ -43,7 +43,7 @@ const SavedPage = () => {
     // When user clicks a destination, create a new chat about it
     const handleDestinationSelect = async (destination: MapDestination) => {
         const query = `Tell me more about ${destination.name} in Ankara. What can I do there and what should I know before visiting?`;
-        const title = generateTripTitle(query);
+        const title = await generateTripTitle(query);
 
         // Create the chat on the backend
         const result = await dispatch(createChatAsync({ title })).unwrap();
