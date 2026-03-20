@@ -12,7 +12,12 @@ from chatbot.ai_agents import (
 
 # --- Configuration ---
 MODEL_ID = "Qwen/Qwen2.5-1.5B-Instruct" # Qwen2.5/3 are optimized for tools
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if torch.cuda.is_available():
+    DEVICE = torch.device("cuda")
+elif torch.backends.mps.is_available():
+    DEVICE = torch.device("mps")
+else:
+    DEVICE = torch.device("cpu")
 
 tokenizer = None
 model = None
@@ -25,7 +30,7 @@ def load_model():
     # Best practice: use flash_attention_2 if on GPU for speed
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_ID,
-        torch_dtype=torch.float16 if DEVICE.type == 'cuda' else torch.float32,
+        torch_dtype=torch.float16 if DEVICE.type in ['cuda', 'mps'] else torch.float32,
         device_map="auto"
     )
 
@@ -75,7 +80,7 @@ def ask_question(messages: list): # Accept the whole history
         tokenize=False
     )
 
-    inputs = tokenizer([text], return_tensors="pt").to(DEVICE)
+    inputs = tokenizer([text], return_tensors="pt").to(model.device)
 
     outputs = model.generate(
         **inputs,
