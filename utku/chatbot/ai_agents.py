@@ -49,3 +49,6 @@ class weatherAgent:
         temp = 22 if unit == "celsius" else 72
         return f"The weather in {location} is {temp}° {unit} and sunny."
 
+
+
+
