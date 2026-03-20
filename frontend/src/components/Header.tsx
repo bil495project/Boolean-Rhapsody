@@ -191,6 +191,10 @@ const Header = () => {
                         onClick={toggleTheme}
                         sx={{
                             color: isLandingPage ? '#fff' : 'text.primary',
+                            textShadow: isLandingPage ? '0 1px 4px rgba(0,0,0,0.5)' : 'none',
+                            '&:hover': {
+                                backgroundColor: isLandingPage ? 'rgba(255,255,255,0.1)' : undefined,
+                            },
                         }}
                     >
                         {mode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
@@ -200,6 +204,10 @@ const Header = () => {
                         onClick={() => setMobileMenuOpen(true)}
                         sx={{
                             color: isLandingPage ? '#fff' : 'text.primary',
+                            textShadow: isLandingPage ? '0 1px 4px rgba(0,0,0,0.5)' : 'none',
+                            '&:hover': {
+                                backgroundColor: isLandingPage ? 'rgba(255,255,255,0.1)' : undefined,
+                            },
                         }}
                     >
                         <MenuIcon />

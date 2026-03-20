@@ -7,6 +7,7 @@ import {
     Chip,
     IconButton,
 } from '@mui/joy';
+import { useColorScheme } from '@mui/joy/styles';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import MuseumIcon from '@mui/icons-material/Museum';
 import ParkIcon from '@mui/icons-material/Park';
@@ -21,6 +22,7 @@ const beachBgUrl = 'https://images.unsplash.com/photo-1651757621103-122c41860956
 const LandingPage = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const navigate = useNavigate();
+    const { mode } = useColorScheme();
 
     const quickSuggestions = [
         {
@@ -212,18 +214,20 @@ const LandingPage = () => {
                                 startDecorator={suggestion.icon}
                                 onClick={() => handleSuggestionClick(suggestion.prompt)}
                                 sx={{
-                                    backgroundColor: 'rgba(255,255,255,0.2)',
+                                    backgroundColor: mode === 'light' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.2)',
                                     backdropFilter: 'blur(10px)',
-                                    border: '1px solid rgba(255,255,255,0.3)',
-                                    color: '#fff',
-                                    fontWeight: 500,
+                                    border: mode === 'light' ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.3)',
+                                    color: mode === 'light' ? 'text.primary' : '#fff',
+                                    fontWeight: 600,
                                     py: 1,
-                                    px: 1.5,
+                                    px: 2,
                                     cursor: 'pointer',
                                     transition: 'all 0.2s ease',
+                                    boxShadow: mode === 'light' ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
                                     '&:hover': {
-                                        backgroundColor: 'rgba(255,255,255,0.3)',
+                                        backgroundColor: mode === 'light' ? '#fff' : 'rgba(255,255,255,0.3)',
                                         transform: 'translateY(-2px)',
+                                        boxShadow: mode === 'light' ? '0 4px 12px rgba(0,0,0,0.15)' : '0 4px 12px rgba(0,0,0,0.3)',
                                     },
                                     '& .MuiChip-startDecorator': {
                                         color: suggestion.color,

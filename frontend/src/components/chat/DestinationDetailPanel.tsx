@@ -313,7 +313,7 @@ const DestinationDetailPanel = ({ destination, onClose }: DestinationDetailPanel
                     fullWidth
                     size="lg"
                 >
-                    {isSaved ? 'Kaydedildi' : 'Haritaya Kaydet'}
+                    {isSaved ? 'Saved' : 'Save to Map'}
                 </Button>
             </Box>
         </Card>
