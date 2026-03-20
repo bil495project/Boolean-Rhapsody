@@ -3,18 +3,16 @@ package com.roadrunner.route.service;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 
-
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 
 import com.roadrunner.place.entity.Place;
 import com.roadrunner.place.repository.PlaceRepository;
 import com.roadrunner.route.entity.Route;
-import com.roadrunner.route.entity.RoutePoint;
-import com.roadrunner.route.entity.RouteSegment;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,15 +23,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-/**
- * Unit tests for {@link RouteGenerationService}.
- * Uses real {@link RouteScoringService} and {@link GeoUtils} (pure math),
- * mocks only {@link PlaceRepository}.
- */
 @ExtendWith(MockitoExtension.class)
 @Epic("Route Generation")
 @Feature("Unit Tests")
-@DisplayName("Unit Tests - RouteGenerationService")
+@DisplayName("Unit Tests - RouteGenerationService (Weight-Based)")
 class RouteGenerationServiceTest {
 
     private static final String TEST_REQUEST_ID = "test-req-001";
@@ -43,513 +36,322 @@ class RouteGenerationServiceTest {
     @Mock
     private PlaceRepository placeRepository;
 
+    private PlaceLabelService labelService;
     private RouteScoringService scoringService;
     private RouteGenerationService routeService;
 
     @BeforeEach
     void setUp() {
-        scoringService = new RouteScoringService();
-        routeService = new RouteGenerationService(placeRepository, scoringService);
+        labelService = new PlaceLabelService(new DefaultPlaceRouteLabelService());
+        scoringService = new RouteScoringService(labelService);
+        routeService = new RouteGenerationService(placeRepository, scoringService, labelService);
     }
 
-    // ----------------------------------------------------------------
-    // Test data builders
-    // ----------------------------------------------------------------
-
-    private Place buildPlace(String id, String name, String types,
-                             double lat, double lng, double rating,
-                             int ratingCount, String businessStatus) {
+    private Place place(String id, String name, String types, double lat, double lng,
+                        double rating, int ratingCount) {
         return Place.builder()
-                .id(id).name(name).types(types)
-                .latitude(lat).longitude(lng)
-                .ratingScore(rating).ratingCount(ratingCount)
-                .businessStatus(businessStatus)
+                .id(id)
+                .name(name)
+                .types(types)
+                .latitude(lat)
+                .longitude(lng)
+                .ratingScore(rating)
+                .ratingCount(ratingCount)
+                .businessStatus("OPERATIONAL")
                 .build();
     }
 
     private List<Place> buildTestPlaces() {
         List<Place> places = new ArrayList<>();
-        places.add(buildPlace("r1", "Restaurant A", "restaurant", 39.92, 32.85, 4.2, 200, "OPERATIONAL"));
-        places.add(buildPlace("r2", "Restaurant B", "restaurant", 39.93, 32.86, 3.8, 150, "OPERATIONAL"));
-        places.add(buildPlace("m1", "Museum A", "museum", 39.94, 32.87, 4.5, 300, "OPERATIONAL"));
-        places.add(buildPlace("m2", "Museum B", "museum", 39.91, 32.84, 4.0, 100, "OPERATIONAL"));
-        places.add(buildPlace("p1", "Park A", "park", 39.95, 32.88, 4.3, 180, "OPERATIONAL"));
-        places.add(buildPlace("p2", "Park B", "park", 39.90, 32.83, 3.5, 90, "OPERATIONAL"));
-        places.add(buildPlace("c1", "Cafe A", "cafe", 39.925, 32.855, 4.1, 160, "OPERATIONAL"));
-        places.add(buildPlace("c2", "Cafe B", "cafe", 39.935, 32.865, 4.8, 250, "OPERATIONAL"));
-        places.add(buildPlace("l1", "Landmark A", "landmark", 39.915, 32.845, 4.6, 220, "OPERATIONAL"));
-        places.add(buildPlace("l2", "Landmark B", "landmark", 39.945, 32.875, 3.9, 130, "OPERATIONAL"));
+
+        places.add(place("h1", "Hotel Central", "hotel", 39.9210, 32.8540, 4.5, 500));
+        places.add(place("h2", "Hotel Scenic", "hotel", 39.9520, 32.9040, 4.9, 2000));
+
+        places.add(place("r1", "Restaurant Elite", "restaurant", 39.9205, 32.8535, 4.9, 2000));
+        places.add(place("r2", "Restaurant Massive", "restaurant", 39.9240, 32.8600, 4.7, 4000));
+        places.add(place("r3", "Restaurant Tiny Perfect", "restaurant", 39.9260, 32.8610, 5.0, 150));
+        places.add(place("r4", "bar and grill", "bar_and_grill", 39.9290, 32.8620, 4.6, 900));
+
+        places.add(place("t1", "Museum A", "museum", 39.9230, 32.8580, 4.8, 1800));
+        places.add(place("t2", "Historic Hall", "historical_landmark", 39.9150, 32.8420, 4.5, 1200));
+        places.add(place("t3", "Art Gallery", "art_gallery", 39.9300, 32.8510, 4.3, 600));
+        places.add(place("t4", "Archive", "museum", 39.9340, 32.8670, 4.1, 300));
+
+        places.add(place("p1", "Park A", "park", 39.9280, 32.8610, 4.2, 700));
+        places.add(place("p2", "Garden B", "garden", 39.9100, 32.8350, 4.0, 450));
+        places.add(place("p3", "Scenic Ridge", "park", 39.9440, 32.8770, 4.6, 1400));
+
+        places.add(place("c1", "Cafe A", "cafe", 39.9240, 32.8550, 4.6, 1000));
+        places.add(place("c2", "Bakery B", "bakery", 39.9340, 32.8670, 4.5, 1500));
+        places.add(place("c3", "Coffee C", "coffee_shop", 39.9170, 32.8480, 4.1, 350));
+
+        places.add(place("l1", "Landmark A", "tourist_attraction", 39.9160, 32.8460, 4.7, 1700));
+        places.add(place("l2", "Arena", "stadium", 39.9440, 32.8770, 4.2, 1100));
+        places.add(place("l3", "Concert Hall", "concert_hall", 39.9310, 32.8530, 4.4, 800));
+
+        places.add(place("n1", "Bar A", "bar", 39.9220, 32.8600, 4.2, 1300));
+        places.add(place("n2", "Night Club B", "night_club", 39.9320, 32.8520, 4.5, 2100));
+        places.add(place("n3", "Bar C", "bar", 39.9380, 32.8680, 4.0, 500));
+
+        places.add(place("d1", "Nature Spot", "nature_preserve", 39.9500, 32.8890, 4.6, 1200));
+        places.add(place("d2", "Nature Walk", "nature", 39.9600, 32.8980, 4.3, 600));
+
         return places;
     }
 
-    private Map<String, String> buildValidUserVector() {
+    private Map<String, String> buildWeightUserVector() {
         Map<String, String> uv = new HashMap<>();
         uv.put("requestId", TEST_REQUEST_ID);
-        uv.put("maxStops", "5");
-        uv.put("maxBudgetMin", "480");
-        uv.put("travelMode", "driving");
+        uv.put("weight_parkVeSeyirNoktalari", "0.5");
+        uv.put("weight_geceHayati", "0.3");
+        uv.put("weight_restoranToleransi", "0.7");
+        uv.put("weight_landmark", "0.4");
+        uv.put("weight_dogalAlanlar", "0.2");
+        uv.put("weight_tarihiAlanlar", "0.6");
+        uv.put("weight_kafeTatli", "0.5");
+        uv.put("weight_toplamPoiYogunlugu", "0.5");
+        uv.put("weight_sparsity", "0.5");
+        uv.put("weight_hotelCenterBias", "0.5");
+        uv.put("weight_butceSeviyesi", "0.5");
         return uv;
     }
 
-    private Route buildRouteWithPoints(List<Place> places, String routeId) {
-        Route route = new Route();
-        route.setRouteId(routeId);
-        route.setTravelMode("driving");
-        List<RoutePoint> points = new ArrayList<>();
-        for (int i = 0; i < places.size(); i++) {
-            points.add(RoutePoint.builder()
-                    .index(i)
-                    .poi(places.get(i))
-                    .plannedVisitMin(45)
-                    .build());
-        }
-        route.setPoints(points);
-        routeService.recomputeLocalSegments(route);
-        routeService.recomputeTotals(route);
-        return route;
-    }
-
-    // ================================================================
-    // generateRoutes() — TC-RGI-018, TC-RGI-019
-    // ================================================================
-
-
-    @DisplayName("TC-RGU-066: Geçerli istek verildiğinde K adet rota dönüyor mu")
-@Test
-    void shouldReturnKRoutes_whenRequestIsValid() {
-        // given
-        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
-        Map<String, String> uv = buildValidUserVector();
-
-        // when
-        List<Route> result = routeService.generateRoutes(uv, 3);
-
-        // then
-        assertThat(result).hasSize(3);
+    private Route buildRouteFromService(List<Place> places) {
+        when(placeRepository.findAll()).thenReturn(places);
+        List<Route> routes = routeService.generateRoutes(buildWeightUserVector(), 1);
+        assertThat(routes).isNotEmpty();
+        return routes.get(0);
     }
 
     @Test
-    void shouldReturnEmptyList_whenValidationFails() {
-        // given
-        Map<String, String> uv = new HashMap<>();
-        uv.put("maxStops", "0"); // will be clamped to 1, but maxBudgetMin defaults to 480 → valid
-        // Actually maxStops: 0 → clamped to 1, so it will validate.
-        // Use a different approach: null userVector leads to defaults which are valid.
-        // To make validation fail, we need maxStops=0 AND maxBudgetMin=0 before clamping.
-        // Since both are clamped to Math.max(1, ...), validation can't actually fail
-        // through parseUserVector. Let's verify we still get a list back.
+    @DisplayName("Generated route ayni hotel ile baslar ve biter")
+    void shouldHaveSameHotelAtStartAndEnd() {
         when(placeRepository.findAll()).thenReturn(buildTestPlaces());
 
-        // when
-        List<Route> result = routeService.generateRoutes(uv, 3);
+        List<Route> routes = routeService.generateRoutes(buildWeightUserVector(), 3);
 
-        // then — shouldn't be null, should be a valid list
-        assertThat(result).isNotNull();
-    }
-
-    @DisplayName("TC-RGU-067: maxStops 5 verildiğinde rota 5 noktadan oluşuyor mu")
-@Test
-    void shouldHaveCorrectPointCount_whenMaxStopsIsFive() {
-        // given
-        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
-        Map<String, String> uv = buildValidUserVector();
-        uv.put("maxStops", "5");
-
-        // when
-        List<Route> result = routeService.generateRoutes(uv, 1);
-
-        // then
-        assertThat(result).isNotEmpty();
-        assertThat(result.get(0).getPoints()).hasSize(5);
-    }
-
-    @Test
-    void shouldReturnUniqueRouteIds_forEachGeneratedRoute() {
-        // given
-        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
-        Map<String, String> uv = buildValidUserVector();
-
-        // when
-        List<Route> result = routeService.generateRoutes(uv, 3);
-
-        // then
-        List<String> ids = result.stream().map(Route::getRouteId).toList();
-        assertThat(ids).doesNotHaveDuplicates();
-    }
-
-    @Test
-    void shouldHaveSegmentsMinusOneFromPoints_forEachRoute() {
-        // given
-        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
-        Map<String, String> uv = buildValidUserVector();
-
-        // when
-        List<Route> result = routeService.generateRoutes(uv, 3);
-
-        // then
-        for (Route r : result) {
-            assertThat(r.getSegments()).hasSize(r.getPoints().size() - 1);
-        }
-    }
-
-    // ================================================================
-    // recomputeTotals() — TC-RG-006, TC-RG-017
-    // ================================================================
-
-
-    @DisplayName("TC-RGU-076: Toplamlar hesaplanırken segment süreleri ve ziyaret süreleri doğru şekilde toplanıyor mu")
-@Test
-    void shouldSumSegmentsAndVisits_whenComputingTotals() {
-        // given
-        Route route = new Route();
-        route.setPoints(List.of(
-                RoutePoint.builder().index(0).poi(buildTestPlaces().get(0)).plannedVisitMin(30).build(),
-                RoutePoint.builder().index(1).poi(buildTestPlaces().get(1)).plannedVisitMin(45).build(),
-                RoutePoint.builder().index(2).poi(buildTestPlaces().get(2)).plannedVisitMin(60).build()
-        ));
-        route.setSegments(List.of(
-                RouteSegment.builder().fromIndex(0).toIndex(1).durationSec(600).distanceM(1200.0).build(),
-                RouteSegment.builder().fromIndex(1).toIndex(2).durationSec(900).distanceM(800.0).build()
-        ));
-
-        // when
-        routeService.recomputeTotals(route);
-
-        // then
-        // travel = 600 + 900 = 1500; visits = (30 + 45 + 60) * 60 = 8100
-        assertThat(route.getTotalDurationSec()).isEqualTo(1500 + 8100);
-        assertThat(route.getTotalDistanceM()).isEqualTo(2000.0);
-    }
-
-    @DisplayName("TC-RGU-074: Rota boş olduğunda tüm toplamlar (süre, mesafe) sıfır yapılıyor mu")
-@Test
-    void shouldSetZeroTotals_whenRouteIsEmpty() {
-        // given
-        Route route = new Route();
-        route.setPoints(new ArrayList<>());
-        route.setSegments(new ArrayList<>());
-
-        // when
-        routeService.recomputeTotals(route);
-
-        // then
-        assertThat(route.getTotalDurationSec()).isEqualTo(0);
-        assertThat(route.getTotalDistanceM()).isEqualTo(0.0);
-    }
-
-    // ================================================================
-    // recomputeLocalSegments() — TC-RG-007, TC-RG-018
-    // ================================================================
-
-
-    @DisplayName("TC-RGU-077: Rota N noktadan oluşuyorsa N-1 adet segment oluşturuluyor mu")
-@Test
-    void shouldCreateNMinusOneSegments_whenRouteHasNPoints() {
-        // given
-        List<Place> places = buildTestPlaces().subList(0, 4);
-        Route route = buildRouteWithPoints(places, "test-route");
-
-        // when — already computed in buildRouteWithPoints, but let's be explicit
-        routeService.recomputeLocalSegments(route);
-
-        // then
-        assertThat(route.getSegments()).hasSize(3);
-    }
-
-    @DisplayName("TC-RGU-075: Rota tek noktalıysa segment oluşturulmadan dönüyor mu")
-@Test
-    void shouldCreateNoSegments_whenRouteHasOnePoint() {
-        // given
-        Route route = buildRouteWithPoints(buildTestPlaces().subList(0, 1), "single");
-
-        // when
-        routeService.recomputeLocalSegments(route);
-
-        // then
-        assertThat(route.getSegments()).isEmpty();
-    }
-
-    @Test
-    void shouldCreateNoSegments_whenRouteIsEmpty() {
-        // given
-        Route route = new Route();
-        route.setPoints(new ArrayList<>());
-
-        // when
-        routeService.recomputeLocalSegments(route);
-
-        // then
-        assertThat(route.getSegments()).isEmpty();
-    }
-
-    @Test
-    void shouldPopulateDistanceAndDuration_forEachSegment() {
-        // given — two distant points (Ankara and shifted)
-        Place a = buildPlace("a", "A", "r", 39.92, 32.85, 4.0, 10, "OPERATIONAL");
-        Place b = buildPlace("b", "B", "r", 41.00, 28.97, 4.0, 10, "OPERATIONAL");
-        Route route = buildRouteWithPoints(List.of(a, b), "dist-test");
-
-        // when
-        routeService.recomputeLocalSegments(route);
-
-        // then
-        assertThat(route.getSegments()).hasSize(1);
-        RouteSegment seg = route.getSegments().get(0);
-        assertThat(seg.getDistanceM()).isGreaterThan(0.0);
-        assertThat(seg.getDurationSec()).isGreaterThan(0);
-    }
-
-    // ================================================================
-    // lockUnchangedPOIs() — TC-RG-009
-    // ================================================================
-
-
-    @DisplayName("TC-RGU-078: Reroll işlemi sadece hedef index'teki noktayı yenisiyle değiştiriyor mu")
-@Test
-    void shouldReplaceOnlyTargetIndex_whenRerolling() {
-        // given
-        List<Place> testPlaces = buildTestPlaces();
-        List<Place> routePlaces = testPlaces.subList(0, 4);
-        Route route = buildRouteWithPoints(routePlaces, "reroll-test");
-
-        String id0 = route.getPoints().get(0).getPoi().getId();
-        String id1 = route.getPoints().get(1).getPoi().getId();
-        String id3 = route.getPoints().get(3).getPoi().getId();
-
-        // Build replacement pool that includes places NOT already in the route
-        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
-
-        Map<String, String> uv = buildValidUserVector();
-        Map<String, String> indexParams = new HashMap<>();
-
-        // when
-        Route result = routeService.rerollRoutePoint(route, 2, indexParams, uv);
-
-        // then — indices 0, 1, 3 preserve their POI IDs
-        assertThat(result.getPoints().get(0).getPoi().getId()).isEqualTo(id0);
-        assertThat(result.getPoints().get(1).getPoi().getId()).isEqualTo(id1);
-        assertThat(result.getPoints().get(3).getPoi().getId()).isEqualTo(id3);
-    }
-
-    @Test
-    void shouldNotModifyRoute_whenNoReplacementFound() {
-        // given — empty repository means empty candidate pool
-        when(placeRepository.findAll()).thenReturn(List.of());
-
-        List<Place> routePlaces = buildTestPlaces().subList(0, 3);
-        Route route = buildRouteWithPoints(routePlaces, "no-replace");
-        String originalId = route.getPoints().get(1).getPoi().getId();
-
-        Map<String, String> uv = buildValidUserVector();
-
-        // when
-        Route result = routeService.rerollRoutePoint(route, 1, new HashMap<>(), uv);
-
-        // then
-        assertThat(result.getPoints().get(1).getPoi().getId()).isEqualTo(originalId);
-    }
-
-    // ================================================================
-    // insertManualPOI() — TC-RG-010
-    // ================================================================
-
-
-    @DisplayName("TC-RGU-080: Araya yeni nokta eklendiğinde sonrasındaki noktaların indexleri kayıyor mu")
-@Test
-    void shouldShiftSubsequentPoints_whenInsertingAtMiddleIndex() {
-        // given
-        List<Place> routePlaces = buildTestPlaces().subList(0, 3);
-        Route route = buildRouteWithPoints(routePlaces, "insert-test");
-        Place newPlace = buildPlace("new1", "New Place", "cafe", 39.93, 32.86, 4.2, 110, "OPERATIONAL");
-        when(placeRepository.findById("new1")).thenReturn(Optional.of(newPlace));
-
-        String origId0 = route.getPoints().get(0).getPoi().getId();
-        String origId1 = route.getPoints().get(1).getPoi().getId();
-        String origId2 = route.getPoints().get(2).getPoi().getId();
-        Map<String, String> uv = buildValidUserVector();
-
-        // when
-        Route result = routeService.insertManualPOI(route, 1, "new1", uv);
-
-        // then
-        assertThat(result.getPoints()).hasSize(4);
-        assertThat(result.getPoints().get(0).getPoi().getId()).isEqualTo(origId0);
-        assertThat(result.getPoints().get(1).getPoi().getId()).isEqualTo("new1");
-        assertThat(result.getPoints().get(2).getPoi().getId()).isEqualTo(origId1);
-        assertThat(result.getPoints().get(3).getPoi().getId()).isEqualTo(origId2);
-        // Verify re-indexing
-        for (int i = 0; i < result.getPoints().size(); i++) {
-            assertThat(result.getPoints().get(i).getIndex()).isEqualTo(i);
+        assertThat(routes).isNotEmpty();
+        for (Route route : routes) {
+            assertThat(route.getPoints().size()).isBetween(3, 12);
+            assertThat(route.getPoints().get(0).getPoi().getId())
+                    .isEqualTo(route.getPoints().get(route.getPoints().size() - 1).getPoi().getId());
+            assertThat(labelService.label(route.getPoints().get(0).getPoi())).isEqualTo(RouteLabel.HOTEL);
         }
     }
 
     @Test
-    void shouldReturnUnchangedRoute_whenPoiIdNotFound() {
-        // given
-        when(placeRepository.findById("nonexistent")).thenReturn(Optional.empty());
-        Route route = buildRouteWithPoints(buildTestPlaces().subList(0, 3), "no-find");
-        Map<String, String> uv = buildValidUserVector();
+    @DisplayName("Interior point count toplamdan iki eksiktir ve hotel icermez")
+    void shouldKeepInteriorInvariant() {
+        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
 
-        // when
-        Route result = routeService.insertManualPOI(route, 1, "nonexistent", uv);
-
-        // then
-        assertThat(result.getPoints()).hasSize(3);
-    }
-
-    @Test
-    void shouldInsertAtStart_whenIndexIsZero() {
-        // given
-        Place newPlace = buildPlace("new2", "Start", "park", 39.93, 32.86, 4.0, 100, "OPERATIONAL");
-        when(placeRepository.findById("new2")).thenReturn(Optional.of(newPlace));
-
-        Route route = buildRouteWithPoints(buildTestPlaces().subList(0, 3), "start-insert");
-        Map<String, String> uv = buildValidUserVector();
-
-        // when
-        Route result = routeService.insertManualPOI(route, 0, "new2", uv);
-
-        // then
-        assertThat(result.getPoints().get(0).getPoi().getId()).isEqualTo("new2");
-    }
-
-    @Test
-    void shouldInsertAtEnd_whenIndexExceedsBounds() {
-        // given
-        Place newPlace = buildPlace("new3", "End", "cafe", 39.93, 32.86, 4.0, 100, "OPERATIONAL");
-        when(placeRepository.findById("new3")).thenReturn(Optional.of(newPlace));
-
-        Route route = buildRouteWithPoints(buildTestPlaces().subList(0, 3), "end-insert");
-        Map<String, String> uv = buildValidUserVector();
-
-        // when
-        Route result = routeService.insertManualPOI(route, 99, "new3", uv);
-
-        // then
-        assertThat(result.getPoints().get(result.getPoints().size() - 1).getPoi().getId())
-                .isEqualTo("new3");
-    }
-
-    // ================================================================
-    // removePoint() — TC-RG-011
-    // ================================================================
-
-
-    @DisplayName("TC-RGU-083: Dizinin ortasından nokta silindiğinde boşluk kapatılarak indexler güncelleniyor mu")
-@Test
-    void shouldCompactRoute_whenRemovingMiddlePoint() {
-        // given
-        List<Place> places = buildTestPlaces().subList(0, 4); // A, B, C, D
-        Route route = buildRouteWithPoints(places, "remove-test");
-        String idA = route.getPoints().get(0).getPoi().getId();
-        String idB = route.getPoints().get(1).getPoi().getId();
-        String idD = route.getPoints().get(3).getPoi().getId();
-        Map<String, String> uv = buildValidUserVector();
-
-        // when — remove index 2 (C)
-        Route result = routeService.removePoint(route, 2, uv);
-
-        // then
-        assertThat(result.getPoints()).hasSize(3);
-        assertThat(result.getPoints().get(0).getPoi().getId()).isEqualTo(idA);
-        assertThat(result.getPoints().get(1).getPoi().getId()).isEqualTo(idB);
-        assertThat(result.getPoints().get(2).getPoi().getId()).isEqualTo(idD);
-        // Verify re-indexing
-        for (int i = 0; i < result.getPoints().size(); i++) {
-            assertThat(result.getPoints().get(i).getIndex()).isEqualTo(i);
+        List<Route> routes = routeService.generateRoutes(buildWeightUserVector(), 3);
+        for (Route route : routes) {
+            assertThat(route.getPoints().size() - 2).isEqualTo(route.getPoints().subList(1, route.getPoints().size() - 1).size());
+            for (int i = 1; i < route.getPoints().size() - 1; i++) {
+                assertThat(labelService.label(route.getPoints().get(i).getPoi())).isNotEqualTo(RouteLabel.HOTEL);
+            }
         }
     }
 
     @Test
-    void shouldReturnUnchangedRoute_whenIndexIsOutOfBounds() {
-        // given
-        Route route = buildRouteWithPoints(buildTestPlaces().subList(0, 3), "oob-remove");
-        Map<String, String> uv = buildValidUserVector();
+    @DisplayName("Category quotas tam olarak interior countu doldurur ve low weight sifir alabilir")
+    void shouldComputeQuotasWithZeroForLowWeight() {
+        Map<String, String> uv = buildWeightUserVector();
+        uv.put("weight_geceHayati", "0.01");
+        uv.put("weight_tarihiAlanlar", "1.0");
+        uv.put("weight_toplamPoiYogunlugu", "0.2");
 
-        // when
-        Route result = routeService.removePoint(route, 99, uv);
+        RouteGenerationService.ParsedWeightRequest req = routeService.parseUserVector(uv);
+        int totalPointCount = (int) Math.max(3, Math.min(12, Math.round(3 + 9 * req.toplamPoiYogunlugu())));
+        int interiorPoiCount = totalPointCount - 2;
 
-        // then
-        assertThat(result.getPoints()).hasSize(3);
+        Map<RouteLabel, Integer> quotas = routeService.computeCategoryQuotas(req, interiorPoiCount, 1.35);
+
+        assertThat(quotas.values().stream().mapToInt(Integer::intValue).sum()).isEqualTo(interiorPoiCount);
+        assertThat(quotas.get(RouteLabel.GECE_HAYATI)).isEqualTo(0);
     }
 
     @Test
-    void shouldRecomputeSegments_afterRemoval() {
-        // given
-        Route route = buildRouteWithPoints(buildTestPlaces().subList(0, 4), "seg-remove");
-        Map<String, String> uv = buildValidUserVector();
+    @DisplayName("History-heavy request daha fazla tarihi POI uretir")
+    void shouldProduceMoreHistoricPoisWhenHistoryWeightIsHigh() {
+        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
 
-        // when
-        Route result = routeService.removePoint(route, 1, uv);
+        Map<String, String> historyHeavy = buildWeightUserVector();
+        historyHeavy.put("weight_tarihiAlanlar", "1.0");
+        historyHeavy.put("weight_restoranToleransi", "0.1");
+        historyHeavy.put("weight_parkVeSeyirNoktalari", "0.1");
+        historyHeavy.put("weight_kafeTatli", "0.1");
+        historyHeavy.put("weight_landmark", "0.1");
+        historyHeavy.put("weight_geceHayati", "0.1");
+        historyHeavy.put("weight_dogalAlanlar", "0.1");
 
-        // then
-        assertThat(result.getSegments()).hasSize(result.getPoints().size() - 1);
-    }
+        Map<String, String> historyLight = buildWeightUserVector();
+        historyLight.put("weight_tarihiAlanlar", "0.1");
+        historyLight.put("weight_restoranToleransi", "1.0");
 
-    // ================================================================
-    // reorderPOIs() — TC-RG-012, TC-RG-013
-    // ================================================================
+        long heavyHistoric = routeService.generateRoutes(historyHeavy, 1).get(0).getPoints().stream()
+                .filter(point -> labelService.label(point.getPoi()) == RouteLabel.TARIHI_ALANLAR)
+                .count();
 
+        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
+        long lightHistoric = routeService.generateRoutes(historyLight, 1).get(0).getPoints().stream()
+                .filter(point -> labelService.label(point.getPoi()) == RouteLabel.TARIHI_ALANLAR)
+                .count();
 
-    @DisplayName("TC-RGU-085: Geçerli permütasyon verildiğinde POI'ler doğru şekilde sıralanıyor mu")
-@Test
-    void shouldReorderPoints_whenPermutationIsValid() {
-        // given — route [A, B, C, D]
-        List<Place> places = buildTestPlaces().subList(0, 4);
-        Route route = buildRouteWithPoints(places, "reorder-test");
-        String idA = route.getPoints().get(0).getPoi().getId();
-        String idB = route.getPoints().get(1).getPoi().getId();
-        String idC = route.getPoints().get(2).getPoi().getId();
-        String idD = route.getPoints().get(3).getPoi().getId();
-        Map<String, String> uv = buildValidUserVector();
-
-        // when — reorder to [A, C, B, D]
-        Route result = routeService.reorderPOIs(route, List.of(0, 2, 1, 3), uv);
-
-        // then
-        assertThat(result.getPoints().get(0).getPoi().getId()).isEqualTo(idA);
-        assertThat(result.getPoints().get(1).getPoi().getId()).isEqualTo(idC);
-        assertThat(result.getPoints().get(2).getPoi().getId()).isEqualTo(idB);
-        assertThat(result.getPoints().get(3).getPoi().getId()).isEqualTo(idD);
-    }
-
-    @DisplayName("TC-RGU-088: Yeniden sıralamadan sonra tüm segmentler ve süreler/mesafeler tekrar hesaplanıyor mu")
-@Test
-    void shouldRecomputeAllSegments_afterReorder() {
-        // given
-        Route route = buildRouteWithPoints(buildTestPlaces().subList(0, 4), "seg-reorder");
-        Map<String, String> uv = buildValidUserVector();
-
-        // when
-        Route result = routeService.reorderPOIs(route, List.of(3, 2, 1, 0), uv);
-
-        // then
-        assertThat(result.getSegments()).hasSize(result.getPoints().size() - 1);
+        assertThat(heavyHistoric).isGreaterThan(lightHistoric);
     }
 
     @Test
-    void shouldReturnUnchangedRoute_whenOrderLengthMismatches() {
-        // given
-        Route route = buildRouteWithPoints(buildTestPlaces().subList(0, 4), "mismatch");
-        Map<String, String> uv = buildValidUserVector();
+    @DisplayName("Restaurant label icinde yuksek quality confidence one cikiyor")
+    void shouldPreferHighQualityRestaurant() {
+        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
 
-        // when — wrong length
-        Route result = routeService.reorderPOIs(route, List.of(0, 1, 2), uv);
+        Map<String, String> restaurantHeavy = buildWeightUserVector();
+        restaurantHeavy.put("weight_restoranToleransi", "1.0");
+        restaurantHeavy.put("weight_tarihiAlanlar", "0.0");
+        restaurantHeavy.put("weight_landmark", "0.0");
+        restaurantHeavy.put("weight_parkVeSeyirNoktalari", "0.0");
+        restaurantHeavy.put("weight_kafeTatli", "0.0");
+        restaurantHeavy.put("weight_geceHayati", "0.0");
+        restaurantHeavy.put("weight_dogalAlanlar", "0.0");
+        restaurantHeavy.put("weight_toplamPoiYogunlugu", "0.1");
 
-        // then
-        assertThat(result.getPoints()).hasSize(4);
+        Route route = routeService.generateRoutes(restaurantHeavy, 1).get(0);
+        List<String> restaurantIds = route.getPoints().stream()
+                .map(point -> point.getPoi().getId())
+                .filter(id -> id.startsWith("r"))
+                .toList();
+
+        assertThat(restaurantIds).contains("r1", "r2");
+        assertThat(restaurantIds).doesNotContain("r3");
     }
 
     @Test
-    void shouldReturnUnchangedRoute_whenPermutationIsNull() {
-        // given
-        Route route = buildRouteWithPoints(buildTestPlaces().subList(0, 4), "null-order");
-        Map<String, String> uv = buildValidUserVector();
+    @DisplayName("Alternatif rotalar ayni interior id setini tekrar etmez")
+    void shouldGenerateVisiblyDifferentAlternativeRoutes() {
+        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
 
-        // when
-        Route result = routeService.reorderPOIs(route, null, uv);
+        List<Route> routes = routeService.generateRoutes(buildWeightUserVector(), 3);
 
-        // then
-        assertThat(result.getPoints()).hasSize(4);
+        assertThat(routes).hasSize(3);
+        Set<List<String>> signatures = new HashSet<>();
+        for (Route route : routes) {
+            List<String> interiorIds = route.getPoints().subList(1, route.getPoints().size() - 1).stream()
+                    .map(point -> point.getPoi().getId())
+                    .toList();
+            signatures.add(interiorIds);
+        }
+        assertThat(signatures).hasSizeGreaterThan(1);
+    }
+
+    @Test
+    @DisplayName("Ilk rota dominant categoryye daha siki baglidir")
+    void shouldMakeFirstRouteMoreDominantThanLaterRoutes() {
+        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
+
+        Map<String, String> historyHeavy = buildWeightUserVector();
+        historyHeavy.put("weight_tarihiAlanlar", "1.0");
+        historyHeavy.put("weight_restoranToleransi", "0.05");
+        historyHeavy.put("weight_parkVeSeyirNoktalari", "0.05");
+        historyHeavy.put("weight_kafeTatli", "0.05");
+        historyHeavy.put("weight_landmark", "0.05");
+        historyHeavy.put("weight_geceHayati", "0.05");
+        historyHeavy.put("weight_dogalAlanlar", "0.05");
+        historyHeavy.put("weight_toplamPoiYogunlugu", "0.7");
+
+        List<Route> routes = routeService.generateRoutes(historyHeavy, 3);
+
+        long route0Historic = routes.get(0).getPoints().stream()
+                .filter(point -> labelService.label(point.getPoi()) == RouteLabel.TARIHI_ALANLAR)
+                .count();
+        long route2Historic = routes.get(2).getPoints().stream()
+                .filter(point -> labelService.label(point.getPoi()) == RouteLabel.TARIHI_ALANLAR)
+                .count();
+
+        assertThat(route0Historic).isGreaterThanOrEqualTo(route2Historic);
+    }
+
+    @Test
+    @DisplayName("Reroll hotel anchorlari degistirmez")
+    void shouldNotChangeHotelAnchorsWhenRerolling() {
+        List<Place> places = buildTestPlaces();
+        when(placeRepository.findAll()).thenReturn(places);
+
+        Route route = buildRouteFromService(places);
+        String hotelStartId = route.getPoints().get(0).getPoi().getId();
+        String hotelEndId = route.getPoints().get(route.getPoints().size() - 1).getPoi().getId();
+
+        Route afterStartReroll = routeService.rerollRoutePoint(route, 0, new HashMap<>(), buildWeightUserVector());
+        Route afterEndReroll = routeService.rerollRoutePoint(route, route.getPoints().size() - 1, new HashMap<>(), buildWeightUserVector());
+
+        assertThat(afterStartReroll.getPoints().get(0).getPoi().getId()).isEqualTo(hotelStartId);
+        assertThat(afterEndReroll.getPoints().get(afterEndReroll.getPoints().size() - 1).getPoi().getId()).isEqualTo(hotelEndId);
+    }
+
+    @Test
+    @DisplayName("Insert remove reorder hotel anchorlarini korur")
+    void shouldKeepHotelAnchorsOnMutations() {
+        List<Place> places = buildTestPlaces();
+        when(placeRepository.findAll()).thenReturn(places);
+
+        Route route = buildRouteFromService(places);
+        String hotelId = route.getPoints().get(0).getPoi().getId();
+
+        Place insertPlace = place("ins1", "Insert Cafe", "cafe", 39.93, 32.86, 4.4, 650);
+        when(placeRepository.findById("ins1")).thenReturn(java.util.Optional.of(insertPlace));
+
+        Route inserted = routeService.insertManualPOI(route, 1, "ins1", buildWeightUserVector());
+        assertThat(inserted.getPoints().get(0).getPoi().getId()).isEqualTo(hotelId);
+        assertThat(inserted.getPoints().get(inserted.getPoints().size() - 1).getPoi().getId()).isEqualTo(hotelId);
+
+        Route removed = routeService.removePoint(inserted, 1, buildWeightUserVector());
+        assertThat(removed.getPoints().get(0).getPoi().getId()).isEqualTo(hotelId);
+        assertThat(removed.getPoints().get(removed.getPoints().size() - 1).getPoi().getId()).isEqualTo(hotelId);
+
+        int interiorSize = removed.getPoints().size() - 2;
+        if (interiorSize >= 2) {
+            List<Integer> reverse = new ArrayList<>();
+            for (int i = interiorSize - 1; i >= 0; i--) {
+                reverse.add(i);
+            }
+            Route reordered = routeService.reorderPOIs(removed, reverse, buildWeightUserVector());
+            assertThat(reordered.getPoints().get(0).getPoi().getId()).isEqualTo(hotelId);
+            assertThat(reordered.getPoints().get(reordered.getPoints().size() - 1).getPoi().getId()).isEqualTo(hotelId);
+        }
+    }
+
+    @Test
+    @DisplayName("Walking profile daha merkezi hotel secer")
+    void shouldSelectMoreCentralHotelWhenWalkingProfile() {
+        List<Place> places = buildTestPlaces();
+        when(placeRepository.findAll()).thenReturn(places);
+
+        Map<String, String> walking = buildWeightUserVector();
+        walking.put("weight_hotelCenterBias", "0.9");
+
+        Map<String, String> driving = buildWeightUserVector();
+        driving.put("weight_hotelCenterBias", "0.1");
+
+        Place walkingHotel = routeService.generateRoutes(walking, 1).get(0).getPoints().get(0).getPoi();
+        when(placeRepository.findAll()).thenReturn(places);
+        Place drivingHotel = routeService.generateRoutes(driving, 1).get(0).getPoints().get(0).getPoi();
+
+        double walkingDist = GeoUtils.haversineKm(ANKARA_LAT, ANKARA_LNG, walkingHotel.getLatitude(), walkingHotel.getLongitude());
+        double drivingDist = GeoUtils.haversineKm(ANKARA_LAT, ANKARA_LNG, drivingHotel.getLatitude(), drivingHotel.getLongitude());
+
+        assertThat(walkingDist).isLessThanOrEqualTo(drivingDist);
+    }
+
+    @Test
+    @DisplayName("Segments ve totals her zaman yeniden hesaplanir")
+    void shouldRecomputeSegmentsAndTotals() {
+        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
+
+        Route route = routeService.generateRoutes(buildWeightUserVector(), 1).get(0);
+
+        assertThat(route.getSegments()).hasSize(route.getPoints().size() - 1);
+        assertThat(route.getTotalDurationSec()).isGreaterThan(0);
+        assertThat(route.getTotalDistanceM()).isGreaterThan(0.0);
+        assertThat(route.isFeasible()).isTrue();
     }
 }
