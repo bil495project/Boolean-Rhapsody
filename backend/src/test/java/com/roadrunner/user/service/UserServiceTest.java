@@ -13,6 +13,7 @@ import com.roadrunner.user.entity.User;
 import com.roadrunner.user.repository.TravelPersonaRepository;
 import com.roadrunner.user.repository.TravelPlanRepository;
 import com.roadrunner.user.repository.UserRepository;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -35,6 +36,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings("null")
+@DisplayName("Unit Tests - UserService")
 class UserServiceTest {
 
     private static final String TEST_USER_ID = "user-id-123";
@@ -61,6 +63,7 @@ class UserServiceTest {
     // --- getCurrentUser ---
 
     @Test
+    @DisplayName("TC-US-007: Geçerli kullanıcı ID'si ile mevcut kullanıcı bilgisi getiriliyor")
     void shouldReturnUserResponse_whenUserExists() {
         // given
         User user = buildTestUser();
@@ -77,6 +80,7 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("TC-US-008: Olmayan kullanıcı ID'sinde 404 dönülüyor")
     void shouldThrowNotFound_whenUserDoesNotExist() {
         // given
         when(userRepository.findById(TEST_USER_ID)).thenReturn(Optional.empty());
@@ -90,6 +94,7 @@ class UserServiceTest {
     // --- updateProfile ---
 
     @Test
+    @DisplayName("TC-US-009: Profil adı güncelleme başarılı")
     void shouldReturnUpdatedUserResponse_whenProfileUpdateIsValid() {
         // given
         User user = buildTestUser();
@@ -110,6 +115,7 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("TC-US-010: Başka kullanıcıya ait alınmış e-posta ile profil güncelleme conflict veriyor")
     void shouldThrowConflict_whenNewEmailIsAlreadyTakenByAnotherUser() {
         // given
         User user = buildTestUser();
@@ -128,6 +134,7 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("TC-US-011: Kullanıcının kendi mevcut e-postasını tekrar vermesi conflict üretmeden kabul ediliyor")
     void shouldAllowEmailUpdate_whenNewEmailBelongsToSameUser() {
         // given
         User user = buildTestUser();
@@ -149,6 +156,7 @@ class UserServiceTest {
     // --- changePassword ---
 
     @Test
+    @DisplayName("TC-US-012: Eski şifre doğruysa şifre başarıyla değişiyor")
     void shouldChangePassword_whenOldPasswordMatches() {
         // given
         User user = buildTestUser();
@@ -169,6 +177,7 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("TC-US-013: Eski şifre yanlışsa şifre değişikliği reddediliyor")
     void shouldThrowUnauthorized_whenOldPasswordIsIncorrect() {
         // given
         User user = buildTestUser();
@@ -206,8 +215,8 @@ class UserServiceTest {
         TravelPersona savedPersona = TravelPersona.builder()
                 .id("persona-id-1")
                 .user(user)
-                .travelStyles("adventure,relaxation")
-                .interests("history,food")
+                .travelStyles(Arrays.asList("adventure", "relaxation"))
+                .interests(Arrays.asList("history", "food"))
                 .travelFrequency("monthly")
                 .preferredPace("fast")
                 .build();
@@ -247,8 +256,8 @@ class UserServiceTest {
         TravelPersona persona = TravelPersona.builder()
                 .id("persona-id-1")
                 .user(user)
-                .travelStyles("old")
-                .interests("old")
+                .travelStyles(Arrays.asList("old"))
+                .interests(Arrays.asList("old"))
                 .build();
 
         when(travelPersonaRepository.findById("persona-id-1")).thenReturn(Optional.of(persona));
@@ -356,9 +365,9 @@ class UserServiceTest {
         when(userRepository.findById(TEST_USER_ID)).thenReturn(Optional.of(user));
 
         List<TravelPersona> personas = Arrays.asList(
-                TravelPersona.builder().id("p1").user(user).travelStyles("a").interests("b").build(),
-                TravelPersona.builder().id("p2").user(user).travelStyles("c").interests("d").build(),
-                TravelPersona.builder().id("p3").user(user).travelStyles("e").interests("f").build());
+                TravelPersona.builder().id("p1").user(user).travelStyles(Arrays.asList("a")).interests(Arrays.asList("b")).build(),
+                TravelPersona.builder().id("p2").user(user).travelStyles(Arrays.asList("c")).interests(Arrays.asList("d")).build(),
+                TravelPersona.builder().id("p3").user(user).travelStyles(Arrays.asList("e")).interests(Arrays.asList("f")).build());
         when(travelPersonaRepository.findByUserId(TEST_USER_ID)).thenReturn(personas);
 
         // when
@@ -385,6 +394,7 @@ class UserServiceTest {
     // --- createTravelPlan ---
 
     @Test
+    @DisplayName("TC-US-014: Kullanıcı seçili place ID'leriyle travel plan oluşturabiliyor")
     void shouldReturnTravelPlanResponse_whenPlanIsCreated() {
         // given
         User user = buildTestUser();
@@ -397,7 +407,7 @@ class UserServiceTest {
         TravelPlan savedPlan = TravelPlan.builder()
                 .id("plan-id-1")
                 .user(user)
-                .selectedPlaceIds("place1,place2")
+                .selectedPlaceIds(Arrays.asList("place1", "place2"))
                 .createdAt(System.currentTimeMillis())
                 .build();
 
@@ -425,7 +435,7 @@ class UserServiceTest {
         TravelPlan savedPlan = TravelPlan.builder()
                 .id("plan-id-1")
                 .user(user)
-                .selectedPlaceIds("id1,id2,id3")
+                .selectedPlaceIds(Arrays.asList("id1", "id2", "id3"))
                 .createdAt(System.currentTimeMillis())
                 .build();
         when(travelPlanRepository.save(any(TravelPlan.class))).thenReturn(savedPlan);
@@ -437,19 +447,20 @@ class UserServiceTest {
 
         // then
         verify(travelPlanRepository).save(planCaptor.capture());
-        assertThat(planCaptor.getValue().getSelectedPlaceIds()).isEqualTo("id1,id2,id3");
+        assertThat(planCaptor.getValue().getSelectedPlaceIds()).containsExactly("id1", "id2", "id3");
     }
 
     // --- getTravelPlanById ---
 
     @Test
+    @DisplayName("TC-US-015: Kullanıcı kendisine ait travel plan'i ID ile alabiliyor")
     void shouldReturnPlan_whenOwnershipIsValid() {
         // given
         User user = buildTestUser();
         TravelPlan plan = TravelPlan.builder()
                 .id("plan-id-1")
                 .user(user)
-                .selectedPlaceIds("p1,p2")
+                .selectedPlaceIds(Arrays.asList("p1", "p2"))
                 .createdAt(System.currentTimeMillis())
                 .build();
 
@@ -464,6 +475,7 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("TC-US-016: Başkasına ait travel plan'e erişim forbidden veriyor")
     void shouldThrowForbidden_whenPlanBelongsToDifferentUser() {
         // given
         User otherUser = User.builder().id(OTHER_USER_ID).email("other@test.com").build();
@@ -481,6 +493,7 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("TC-US-017: Olmayan travel plan istendiğinde 404 dönüyor")
     void shouldThrowNotFound_whenPlanDoesNotExist() {
         // given
         when(travelPlanRepository.findById("nonexistent")).thenReturn(Optional.empty());
@@ -494,6 +507,7 @@ class UserServiceTest {
     // --- deleteTravelPlan ---
 
     @Test
+    @DisplayName("TC-US-018: Kullanıcı kendine ait travel plan'i silebiliyor")
     void shouldDeletePlan_whenOwnershipIsValid() {
         // given
         User user = buildTestUser();
@@ -512,6 +526,7 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("TC-US-019: Başkasına ait travel plan'i silmeye çalışınca forbidden veriyor")
     void shouldThrowForbidden_whenDeletingPlanBelongsToDifferentUser() {
         // given
         User otherUser = User.builder().id(OTHER_USER_ID).email("other@test.com").build();

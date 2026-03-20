@@ -99,21 +99,8 @@ public class AuthService {
                                                                                 .map(p -> TravelPersonaResponse
                                                                                                 .builder()
                                                                                                 .id(p.getId())
-                                                                                                .travelStyles(
-                                                                                                                p.getTravelStyles() != null
-                                                                                                                                && !p.getTravelStyles()
-                                                                                                                                                .isEmpty()
-                                                                                                                                                                ? java.util.Arrays
-                                                                                                                                                                                .asList(p.getTravelStyles()
-                                                                                                                                                                                                .split(","))
-                                                                                                                                                                : Collections.emptyList())
-                                                                                                .interests(p.getInterests() != null
-                                                                                                                && !p.getInterests()
-                                                                                                                                .isEmpty()
-                                                                                                                                                ? java.util.Arrays
-                                                                                                                                                                .asList(p.getInterests()
-                                                                                                                                                                                .split(","))
-                                                                                                                                                : Collections.emptyList())
+                                                                                                .travelStyles(p.getTravelStyles() != null ? p.getTravelStyles() : Collections.emptyList())
+                                                                                                .interests(p.getInterests() != null ? p.getInterests() : Collections.emptyList())
                                                                                                 .travelFrequency(p
                                                                                                                 .getTravelFrequency())
                                                                                                 .preferredPace(p.getPreferredPace())

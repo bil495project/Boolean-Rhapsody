@@ -83,9 +83,11 @@ public class ChatService {
     }
 
     public void deleteChat(String userId, String chatId) {
+        System.out.println("Deleting chat: " + chatId + " for user: " + userId);
         Chat chat = findChatById(chatId);
         verifyOwnership(chat, userId);
         chatRepository.delete(chat);
+        System.out.println("Chat deleted successfully: " + chatId);
     }
 
     public ChatResponse updateChatTitle(String userId, String chatId, String newTitle) {

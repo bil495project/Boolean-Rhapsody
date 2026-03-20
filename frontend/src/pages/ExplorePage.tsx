@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Box, Drawer } from '@mui/joy';
 import { useMediaQuery } from '@mui/system';
@@ -10,7 +10,7 @@ import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { createChatAsync, addMessageAsync, setActiveChat, setLoading, toggleSidebar } from '../store/chatSlice';
 import { sendMessage, generateTripTitle } from '../services/geminiService';
 import type { MapDestination } from '../data/destinations';
-import { ankaraDestinations } from '../data/destinations';
+import { fetchAllPlaces } from '../store/placesSlice';
 
 const ExplorePage = () => {
   const navigate = useNavigate();
@@ -18,10 +18,18 @@ const ExplorePage = () => {
 
   const { isAuthenticated } = useAppSelector((state) => state.auth);
   const { sidebarOpen, mapFullscreen, chatPanelWidth } = useAppSelector((state) => state.chat);
+  const { destinations } = useAppSelector((state) => state.places);
 
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [highlightedDestination, setHighlightedDestination] = useState<MapDestination | null>(null);
+
+  // Fetch destinations from backend on component mount
+  useEffect(() => {
+    if (destinations.length === 0) {
+      dispatch(fetchAllPlaces());
+    }
+  }, [dispatch, destinations.length]);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -118,6 +126,7 @@ const ExplorePage = () => {
             {!mapFullscreen && (
               <Box sx={{ flex: 1, overflow: 'hidden' }}>
                 <ExplorePanel
+                  destinations={destinations}
                   onDestinationSelect={handleDestinationSelect}
                   onDestinationHover={setHighlightedDestination}
                   onMenuClick={handleMobileMenuClick}
@@ -129,7 +138,7 @@ const ExplorePage = () => {
             {mapFullscreen && (
               <Box sx={{ flex: 1, overflow: 'hidden' }}>
                 <MapPanel
-                  destinations={ankaraDestinations}
+                  destinations={destinations}
                   highlightedDestination={highlightedDestination}
                   onDestinationSelect={handleDestinationSelect}
                 />
@@ -150,6 +159,7 @@ const ExplorePage = () => {
                 }}
               >
                 <ExplorePanel
+                  destinations={destinations}
                   onDestinationSelect={handleDestinationSelect}
                   onDestinationHover={setHighlightedDestination}
                   showMenuButton={!sidebarOpen}
@@ -174,7 +184,7 @@ const ExplorePage = () => {
               }}
             >
               <MapPanel
-                destinations={ankaraDestinations}
+                destinations={destinations}
                 highlightedDestination={highlightedDestination}
                 onDestinationSelect={handleDestinationSelect}
               />

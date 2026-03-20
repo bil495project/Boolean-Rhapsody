@@ -8,6 +8,7 @@ import {
     CardContent,
     CardCover,
     IconButton,
+    Button,
 } from '@mui/joy';
 import SearchIcon from '@mui/icons-material/Search';
 import StarIcon from '@mui/icons-material/Star';
@@ -15,9 +16,9 @@ import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import PlaceIcon from '@mui/icons-material/Place';
 import MenuIcon from '@mui/icons-material/Menu';
-import { ankaraDestinations, categories, type MapDestination } from '../../data/destinations';
+import { categories, type MapDestination } from '../../data/destinations';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { toggleSaveDestination } from '../../store/savedSlice';
+import { toggleSaveDestination, syncToggleToBackend } from '../../store/savedSlice';
 import { toggleSidebar } from '../../store/chatSlice';
 
 interface ExplorePanelProps {
@@ -25,27 +26,45 @@ interface ExplorePanelProps {
     onDestinationHover?: (destination: MapDestination | null) => void;
     onMenuClick?: () => void;
     showMenuButton?: boolean;
+    destinations?: MapDestination[];
 }
 
 const ExplorePanel = ({
     onDestinationSelect,
     onDestinationHover,
     onMenuClick,
-    showMenuButton = false
+    showMenuButton = false,
+    destinations = []
 }: ExplorePanelProps) => {
     const dispatch = useAppDispatch();
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('All');
     const { destinations: savedDestinations } = useAppSelector((state) => state.saved);
 
+    const [page, setPage] = useState(1);
+    const itemsPerPage = 20;
+
     const filteredDestinations = useMemo(() => {
-        return ankaraDestinations.filter((dest) => {
-            const matchesSearch = dest.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                dest.location.toLowerCase().includes(searchQuery.toLowerCase());
+        return destinations.filter((dest) => {
+            const nameMatch = (dest.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+            const locMatch = (dest.location || '').toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesSearch = nameMatch || locMatch;
             const matchesCategory = selectedCategory === 'All' || dest.category === selectedCategory;
             return matchesSearch && matchesCategory;
         });
+    }, [destinations, searchQuery, selectedCategory]);
+
+    // Reset to page 1 when filters change
+    useMemo(() => {
+        setPage(1);
     }, [searchQuery, selectedCategory]);
+
+    const totalPages = Math.ceil(filteredDestinations.length / itemsPerPage);
+    
+    const paginatedDestinations = useMemo(() => {
+        const start = (page - 1) * itemsPerPage;
+        return filteredDestinations.slice(start, start + itemsPerPage);
+    }, [filteredDestinations, page]);
 
     const isDestinationSaved = (destinationId: string) => {
         return savedDestinations.some(d => d.id === destinationId);
@@ -54,6 +73,7 @@ const ExplorePanel = ({
     const handleSaveClick = (destination: MapDestination, e: React.MouseEvent) => {
         e.stopPropagation();
         dispatch(toggleSaveDestination(destination));
+        dispatch(syncToggleToBackend(destination));
     };
 
     const handleMenuClick = () => {
@@ -122,7 +142,7 @@ const ExplorePanel = ({
                         gap: 2,
                     }}
                 >
-                    {filteredDestinations.map((destination) => {
+                    {paginatedDestinations.map((destination) => {
                         const isSaved = isDestinationSaved(destination.id);
                         return (
                             <Card
@@ -212,6 +232,33 @@ const ExplorePanel = ({
                         <Typography level="body-lg" sx={{ color: 'text.secondary' }}>
                             No destinations found
                         </Typography>
+                    </Box>
+                )}
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mt: 3, pb: 2 }}>
+                        <Button
+                            variant="outlined"
+                            color="neutral"
+                            size="sm"
+                            disabled={page === 1}
+                            onClick={() => setPage(p => p - 1)}
+                        >
+                            Previous
+                        </Button>
+                        <Typography level="body-sm" sx={{ fontWeight: 500 }}>
+                            Page {page} of {totalPages}
+                        </Typography>
+                        <Button
+                            variant="outlined"
+                            color="neutral"
+                            size="sm"
+                            disabled={page === totalPages}
+                            onClick={() => setPage(p => p + 1)}
+                        >
+                            Next
+                        </Button>
                     </Box>
                 )}
             </Box>

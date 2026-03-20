@@ -10,6 +10,7 @@ import com.roadrunner.user.repository.TravelPersonaRepository;
 import com.roadrunner.user.repository.TravelPlanRepository;
 import com.roadrunner.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -33,6 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
+@DisplayName("Integration Tests - UserController")
 class UserControllerIntegrationTest {
 
         private static final String TEST_EMAIL = "user-test@roadrunner.com";
@@ -92,6 +94,7 @@ class UserControllerIntegrationTest {
         // --- GET /api/users/me ---
 
         @Test
+        @DisplayName("TC-USI-011: Token ile GET /api/users/me çağrısı başarılı mı, passwordHash gizli mi")
         void shouldReturn200AndUserData_whenTokenIsValid() throws Exception {
                 // given / when / then
                 String responseBody = mockMvc.perform(withAuth(get("/api/users/me"), testToken))
@@ -106,18 +109,21 @@ class UserControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-012: Token yoksa veya token expired ise /api/users/me 401 veriyor mu")
         void shouldReturn401_whenNoTokenIsProvided() throws Exception {
                 mockMvc.perform(get("/api/users/me"))
                                 .andExpect(status().isUnauthorized());
         }
 
         @Test
+        @DisplayName("TC-USI-012: Token malformed ise /api/users/me 401 veriyor mu")
         void shouldReturn401_whenTokenIsMalformed() throws Exception {
                 mockMvc.perform(withAuth(get("/api/users/me"), "notavalidtoken"))
                                 .andExpect(status().isUnauthorized());
         }
 
         @Test
+        @DisplayName("TC-USI-012: Token expired ise /api/users/me 401 veriyor mu")
         void shouldReturn401_whenTokenIsExpired() throws Exception {
                 // given
                 JwtTokenProvider expiredProvider = new JwtTokenProvider(
@@ -132,6 +138,7 @@ class UserControllerIntegrationTest {
         // --- PUT /api/users/me ---
 
         @Test
+        @DisplayName("TC-USI-013: PUT /api/users/me ile profil güncelleme başarılı mı")
         void shouldReturn200_whenProfileUpdateIsValid() throws Exception {
                 // given
                 UpdateProfileRequest req = UpdateProfileRequest.builder()
@@ -147,6 +154,7 @@ class UserControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-013b: Başka kullanıcının e-postasıyla update 409 dönüyor mu")
         void shouldReturn409_whenUpdatingToEmailAlreadyUsedByAnotherUser() throws Exception {
                 // given
                 UpdateProfileRequest req = UpdateProfileRequest.builder()
@@ -161,6 +169,7 @@ class UserControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-014: Auth olmadan profil güncelleme 401 veriyor mu")
         void shouldReturn401_whenNotAuthenticatedForProfileUpdate() throws Exception {
                 mockMvc.perform(put("/api/users/me")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -171,6 +180,7 @@ class UserControllerIntegrationTest {
         // --- PUT /api/users/me/password ---
 
         @Test
+        @DisplayName("TC-USI-015: Şifre değiştirme endpoint’i doğru eski şifre ile 204 dönüyor mu")
         void shouldReturn204_whenPasswordChangeIsValid() throws Exception {
                 // given
                 ChangePasswordRequest req = ChangePasswordRequest.builder()
@@ -197,6 +207,7 @@ class UserControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-016: Yanlış eski şifreyle password change 401 veriyor mu")
         void shouldReturn401_whenOldPasswordIsWrong() throws Exception {
                 // given
                 ChangePasswordRequest req = ChangePasswordRequest.builder()
@@ -212,6 +223,7 @@ class UserControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-016b: Kısa yeni şifre ile password change 400 veriyor mu")
         void shouldReturn400_whenNewPasswordIsTooShort() throws Exception {
                 // given
                 ChangePasswordRequest req = ChangePasswordRequest.builder()
@@ -227,6 +239,7 @@ class UserControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-017: Auth olmadan password change 401 veriyor mu")
         void shouldReturn401_whenNotAuthenticatedForPasswordChange() throws Exception {
                 mockMvc.perform(put("/api/users/me/password")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -237,6 +250,7 @@ class UserControllerIntegrationTest {
         // --- POST /api/users/me/personas ---
 
         @Test
+        @DisplayName("TC-USI-018: Yeni persona oluşturma başarılı mı")
         void shouldReturn201AndPersona_whenRequestIsValid() throws Exception {
                 // given
                 TravelPersonaRequest req = TravelPersonaRequest.builder()
@@ -255,6 +269,7 @@ class UserControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-019: Auth olmadan persona oluşturma 401 veriyor mu")
         void shouldReturn401_whenNotAuthenticatedForPersonaCreation() throws Exception {
                 mockMvc.perform(post("/api/users/me/personas/new")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -263,6 +278,7 @@ class UserControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-020: Tüm personalar listelenebiliyor mu")
         void shouldReturn200AndPersonaList_whenGettingAllPersonas() throws Exception {
                 // given — create 2 personas
                 createPersonaForUser(testUser);
@@ -277,6 +293,7 @@ class UserControllerIntegrationTest {
         // --- PUT /api/users/me/personas/{personaId} ---
 
         @Test
+        @DisplayName("TC-USI-021: Persona güncelleme başarılı mı")
         void shouldReturn200AndUpdatedPersona_whenUpdateIsValid() throws Exception {
                 // given
                 TravelPersona persona = createPersonaForUser(testUser);
@@ -294,6 +311,7 @@ class UserControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-039: Başka user'ın personasını update 403 veriyor mu")
         void shouldReturn403_whenPersonaBelongsToAnotherUser() throws Exception {
                 // given
                 TravelPersona otherPersona = createPersonaForUser(otherUser);
@@ -310,6 +328,7 @@ class UserControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-022: Olmayan persona güncellenmeye çalışılınca 404 dönüyor mu")
         void shouldReturn404_whenPersonaDoesNotExist() throws Exception {
                 // given
                 TravelPersonaRequest req = TravelPersonaRequest.builder().build();
@@ -324,6 +343,7 @@ class UserControllerIntegrationTest {
         // --- DELETE /api/users/me/personas/{personaId} ---
 
         @Test
+        @DisplayName("TC-USI-023: Persona silme başarılı mı")
         void shouldReturn204_whenDeletingOwnPersona() throws Exception {
                 // given
                 TravelPersona persona = createPersonaForUser(testUser);
@@ -334,6 +354,7 @@ class UserControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-041: Başka user'ın personasını silme 403 veriyor mu")
         void shouldReturn403_whenDeletingPersonaBelongsToAnotherUser() throws Exception {
                 // given
                 TravelPersona otherPersona = createPersonaForUser(otherUser);
@@ -344,6 +365,7 @@ class UserControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-024: Olmayan persona silinmeye çalışılınca 404 dönüyor mu")
         void shouldReturn404_whenDeletingNonexistentPersona() throws Exception {
                 mockMvc.perform(withAuth(delete("/api/users/me/personas/nonexistent-id"), testToken))
                                 .andExpect(status().isNotFound());
@@ -352,6 +374,7 @@ class UserControllerIntegrationTest {
         // --- POST /api/users/me/plans ---
 
         @Test
+        @DisplayName("TC-USI-025: Travel plan oluşturma endpoint’i başarılı mı")
         void shouldReturn201AndPlan_whenRequestIsValid() throws Exception {
                 // given
                 CreateTravelPlanRequest req = CreateTravelPlanRequest.builder()
@@ -368,6 +391,7 @@ class UserControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-025b: Auth olmadan travel plan oluşturma 401 veriyor mu")
         void shouldReturn401_whenNotAuthenticatedForPlanCreation() throws Exception {
                 mockMvc.perform(post("/api/users/me/plans/new")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -378,6 +402,7 @@ class UserControllerIntegrationTest {
         // --- GET /api/users/me/plans/{planId} ---
 
         @Test
+        @DisplayName("TC-USI-026: Kullanıcı kendine ait planı getirebiliyor mu")
         void shouldReturn200AndPlan_whenPlanBelongsToUser() throws Exception {
                 // given
                 TravelPlan plan = createPlanForUser(testUser);
@@ -389,6 +414,7 @@ class UserControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-026b: Başkasının travel planına erişim 403 dönüyor mu")
         void shouldReturn403_whenPlanBelongsToAnotherUser() throws Exception {
                 // given
                 TravelPlan otherPlan = createPlanForUser(otherUser);
@@ -399,6 +425,7 @@ class UserControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-027: Olmayan plan çağrılınca 404 dönüyor mu")
         void shouldReturn404_whenPlanDoesNotExist() throws Exception {
                 mockMvc.perform(withAuth(get("/api/users/me/plans/nonexistent-id"), testToken))
                                 .andExpect(status().isNotFound());
@@ -407,6 +434,7 @@ class UserControllerIntegrationTest {
         // --- DELETE /api/users/me/plans/{planId} ---
 
         @Test
+        @DisplayName("TC-USI-028: Plan silme başarılı mı")
         void shouldReturn204_whenDeletingOwnPlan() throws Exception {
                 // given
                 TravelPlan plan = createPlanForUser(testUser);
@@ -417,6 +445,7 @@ class UserControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-028b: Başkasının planını silmeye çalışma 403 dönüyor mu")
         void shouldReturn403_whenDeletingPlanBelongsToAnotherUser() throws Exception {
                 // given
                 TravelPlan otherPlan = createPlanForUser(otherUser);
@@ -435,8 +464,8 @@ class UserControllerIntegrationTest {
         private TravelPersona createPersonaForUser(User user) {
                 TravelPersona persona = TravelPersona.builder()
                                 .user(user)
-                                .travelStyles("adventure")
-                                .interests("history")
+                                .travelStyles(Arrays.asList("adventure"))
+                                .interests(Arrays.asList("history"))
                                 .travelFrequency("monthly")
                                 .preferredPace("fast")
                                 .build();
@@ -446,7 +475,7 @@ class UserControllerIntegrationTest {
         private TravelPlan createPlanForUser(User user) {
                 TravelPlan plan = TravelPlan.builder()
                                 .user(user)
-                                .selectedPlaceIds("place1,place2")
+                                .selectedPlaceIds(Arrays.asList("place1", "place2"))
                                 .build();
                 return travelPlanRepository.save(plan);
         }

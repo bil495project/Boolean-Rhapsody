@@ -1,7 +1,5 @@
 package com.roadrunner.user.entity;
 
-import java.util.UUID;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -10,11 +8,15 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Convert;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import java.util.UUID;
+import java.util.List;
+import com.roadrunner.user.entity.converter.JsonListConverter;
 
 @Entity
 @Table(name = "travel_personas")
@@ -33,11 +35,13 @@ public class TravelPersona {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Convert(converter = JsonListConverter.class)
     @Column(name = "travel_styles", columnDefinition = "TEXT")
-    private String travelStyles;
+    private List<String> travelStyles;
 
+    @Convert(converter = JsonListConverter.class)
     @Column(columnDefinition = "TEXT")
-    private String interests;
+    private List<String> interests;
 
     @Column(name = "travel_frequency")
     private String travelFrequency;

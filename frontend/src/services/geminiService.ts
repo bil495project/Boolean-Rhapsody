@@ -1,7 +1,8 @@
 import { GoogleGenerativeAI, SchemaType, type FunctionDeclaration } from '@google/generative-ai';
-import { searchDestinations, getDestinationById, type MapDestination } from '../data/destinations';
+import { type MapDestination } from '../data/destinations';
+import { placeService } from './placeService';
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const API_KEY = "AIzaSyDFy90_WVDQAHDMXm1lnjPsOTGKXgK0KXY";
 const MODEL_NAME = import.meta.env.VITE_GEMINI_MODEL;
 
 if (!API_KEY) {
@@ -10,24 +11,16 @@ if (!API_KEY) {
 
 const genAI = new GoogleGenerativeAI(API_KEY || '');
 
-const SYSTEM_PROMPT = `You are a helpful travel planning assistant for Ankara, Turkey. Your role is to help users:
-- Find and recommend destinations, cafes, museums, parks, and attractions
+const SYSTEM_PROMPT = `You are a helpful travel planning assistant. Your role is:
+- Find and recommend destinations, cafes, museums, parks, and attractions using the search_destinations tool
 - Provide travel tips and recommendations
-- Save places to their map
+- Save places to their map using the save_destination tool
 
-When a user asks for recommendations (like "recommend a cafe" or "find a museum"), you MUST use the search_destinations tool to find matching places.
-When the user wants to save a place, use the save_destination tool with the EXACT destination ID.
+When a user asks for recommendations (like "recommend a cafe" or "find a museum"), you MUST use the search_destinations tool to find matching places from the actual database.
+When the user wants to save a place, use the save_destination tool with the EXACT destination ID returned from your search.
 
 IMPORTANT - Destination IDs:
-Cafes: cafe-1 (Cafe Nero Tunalı), cafe-2 (Starbucks Kızılay), cafe-3 (Kahve Dünyası Bahçelievler), cafe-4 (MOC Tunalı), cafe-5 (Espresso Lab)
-Historical: 1 (Anıtkabir), 2 (Kocatepe Mosque), 3 (Ankara Castle)
-Museums: 4 (Museum of Anatolian Civilizations), 7 (Erimtan Archaeology Museum), 12 (CerModern)
-Parks: 5 (Gençlik Parkı), 11 (Seğmenler Park)
-Landmarks: 6 (Atakule Tower)
-Culture: 8 (Hamamönü), 9 (Beypazarı)
-Nature: 10 (Eymir Lake)
-
-When saving a destination, ALWAYS use the correct ID format (e.g., "cafe-4" for MOC Tunalı, "1" for Anıtkabir).
+When saving a destination, ALWAYS use the precise ID format provided by the search results (which might be UUID strings). DO NOT make up generic IDs.
 
 Keep your responses friendly and concise. Always include relevant details like ratings when recommending places.`;
 
@@ -83,27 +76,38 @@ export interface ToolCallResult {
     message: string;
 }
 
-// Execute tool calls
-function executeToolCall(name: string, args: Record<string, string>): { result: unknown; destinations?: MapDestination[] } {
+// Execute tool calls asynchronously
+async function executeToolCall(name: string, args: Record<string, string>): Promise<{ result: unknown; destinations?: MapDestination[] }> {
     switch (name) {
         case 'search_destinations': {
-            const destinations = searchDestinations(args.query, args.category);
-            return {
-                result: destinations.length > 0
-                    ? `Found ${destinations.length} places: ${destinations.map(d => d.name).join(', ')}`
-                    : 'No destinations found matching your criteria.',
-                destinations,
-            };
+            try {
+                // Ignore category filter if there is a query for simpler UI, or we can use it both
+                const destinations = await placeService.searchPlaces(args.query || args.category || '');
+                return {
+                    result: destinations.length > 0
+                        ? `Found ${destinations.length} places: ${destinations.map(d => `${d.name} (ID: ${d.id}) - ${d.category} - ${'$'.repeat(d.priceLevel)}`).join(', ')}`
+                        : 'No destinations found matching your criteria.',
+                    destinations: destinations.slice(0, 5), // Return top 5 to avoid overloading context
+                };
+            } catch (err) {
+                console.error("Tool execution failed: search", err);
+                return { result: "Failed to search places." };
+            }
         }
         case 'save_destination': {
-            const destination = getDestinationById(args.destinationId);
-            if (destination) {
-                return {
-                    result: `Successfully saved ${destination.name} to your map!`,
-                    destinations: [destination],
-                };
+            try {
+                const destination = await placeService.getPlaceById(args.destinationId);
+                if (destination) {
+                    return {
+                        result: `Successfully saved ${destination.name} to your map!`,
+                        destinations: [destination],
+                    };
+                }
+                return { result: 'Destination not found.' };
+            } catch (err) {
+                console.error("Tool execution failed: save", err);
+                return { result: 'Destination not found or failed to load.' };
             }
-            return { result: 'Destination not found.' };
         }
         default:
             return { result: 'Unknown tool' };
@@ -116,7 +120,7 @@ export async function sendMessage(
 ): Promise<ToolCallResult> {
     try {
         const model = genAI.getGenerativeModel({
-            model: MODEL_NAME || 'gemini-2.5-flash-preview-09-2025',
+            model: MODEL_NAME || 'gemini-2.0-flash',
             tools,
         });
 
@@ -147,7 +151,7 @@ export async function sendMessage(
             const call = functionCalls[0];
             console.log('Tool call received:', call.name, call.args);
 
-            const { result: toolResult, destinations } = executeToolCall(
+            const { result: toolResult, destinations } = await executeToolCall(
                 call.name,
                 call.args as Record<string, string>
             );

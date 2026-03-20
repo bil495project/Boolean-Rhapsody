@@ -7,6 +7,7 @@ import com.roadrunner.user.dto.request.RegisterRequest;
 import com.roadrunner.user.dto.response.AuthResponse;
 import com.roadrunner.user.entity.User;
 import com.roadrunner.user.repository.UserRepository;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -27,6 +28,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings("null")
+@DisplayName("Unit Tests - AuthService")
 class AuthServiceTest {
 
         private static final String TEST_EMAIL = "test@roadrunner.com";
@@ -54,6 +56,7 @@ class AuthServiceTest {
         // --- register ---
 
         @Test
+        @DisplayName("TC-US-001: Geçerli verilerle kullanıcı kaydı başarılı, JWT ve hashed password üretiliyor")
         void shouldReturnAuthResponse_whenRegistrationDataIsValid() {
                 // given
                 RegisterRequest req = RegisterRequest.builder()
@@ -88,6 +91,7 @@ class AuthServiceTest {
         }
 
         @Test
+        @DisplayName("TC-US-002: Aynı e-posta ile ikinci kayıt denemesinde conflict hatası veriliyor")
         void shouldThrowConflict_whenEmailAlreadyExists() {
                 // given
                 RegisterRequest req = RegisterRequest.builder()
@@ -110,6 +114,7 @@ class AuthServiceTest {
         }
 
         @Test
+        @DisplayName("TC-US-003: Şifre düz metin değil, bcrypt hash olarak saklanıyor")
         void shouldStoreHashedPassword_notPlaintext() {
                 // given
                 RegisterRequest req = RegisterRequest.builder()
@@ -147,6 +152,7 @@ class AuthServiceTest {
         // --- login ---
 
         @Test
+        @DisplayName("TC-US-004: Doğru giriş bilgileriyle login başarılı, token dönüyor")
         void shouldReturnAuthResponse_whenCredentialsAreValid() {
                 // given
                 LoginRequest req = LoginRequest.builder()
@@ -177,6 +183,7 @@ class AuthServiceTest {
         }
 
         @Test
+        @DisplayName("TC-US-006: Sistemde olmayan e-posta ile login reddediliyor")
         void shouldThrowUnauthorized_whenEmailDoesNotExist() {
                 // given
                 LoginRequest req = LoginRequest.builder()
@@ -196,6 +203,7 @@ class AuthServiceTest {
         }
 
         @Test
+        @DisplayName("TC-US-005: Yanlış şifre ile login reddediliyor")
         void shouldThrowUnauthorized_whenPasswordIsIncorrect() {
                 // given
                 LoginRequest req = LoginRequest.builder()

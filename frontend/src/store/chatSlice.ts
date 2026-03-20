@@ -78,6 +78,7 @@ export const createChatAsync = createAsyncThunk(
 export const deleteChatAsync = createAsyncThunk(
     'chat/deleteChatAsync',
     async (chatId: string) => {
+        console.log('Dispatching deleteChatAsync for ID:', chatId);
         await chatApi.delete(chatId);
         return chatId;
     }
@@ -249,6 +250,28 @@ const chatSlice = createSlice({
             if (state.activeChat?.id === action.payload.id) {
                 state.activeChat = action.payload;
             }
+        });
+
+        // Rejected Handlers for Diagnostics
+        builder.addCase(fetchChats.rejected, (state, action) => {
+            console.error('fetchChats failed:', action.error);
+            state.error = action.error.message || 'Failed to fetch chats';
+        });
+        builder.addCase(createChatAsync.rejected, (state, action) => {
+            console.error('createChatAsync failed:', action.error);
+            state.error = action.error.message || 'Failed to create chat';
+        });
+        builder.addCase(deleteChatAsync.rejected, (state, action) => {
+            console.error('deleteChatAsync failed:', action.error);
+            state.error = action.error.message || 'Failed to delete chat';
+        });
+        builder.addCase(updateChatTitleAsync.rejected, (state, action) => {
+            console.error('updateChatTitleAsync failed:', action.error);
+            state.error = action.error.message || 'Failed to update chat title';
+        });
+        builder.addCase(addMessageAsync.rejected, (state, action) => {
+            console.error('addMessageAsync failed:', action.error);
+            state.error = action.error.message || 'Failed to add message';
         });
     },
 });
