@@ -17,7 +17,7 @@ import {
     setLoading,
     toggleSidebar,
 } from '../store/chatSlice';
-import { sendMessage, generateTripTitle } from '../services/geminiService';
+import { sendMessage, generateTripTitle, type ToolCallResult } from '../services/llmService';
 import type { MapDestination } from '../data/destinations';
 import { fetchAllPlaces } from '../store/placesSlice';
 
@@ -70,7 +70,7 @@ const ChatPage = () => {
                 }
 
                 // Create chat via backend
-                const title = generateTripTitle(initialQuery);
+                const title = await generateTripTitle(initialQuery);
                 const result = await dispatch(createChatAsync({ title })).unwrap();
                 const newId = result.id;
                 navigate(`/chat/${newId}`, { replace: true });
@@ -82,7 +82,7 @@ const ChatPage = () => {
                 // Get AI response
                 dispatch(setLoading(true));
                 try {
-                    const response = await sendMessage(initialQuery);
+                    const response: ToolCallResult = await sendMessage(initialQuery);
                     await dispatch(addMessageAsync({
                         chatId: newId,
                         role: 'assistant',
@@ -135,40 +135,6 @@ const ChatPage = () => {
         dispatch(toggleSidebar());
     };
 
-    // Called when user sends first message in new chat mode
-    const handleCreateChat = async (firstMessage: string) => {
-        const title = generateTripTitle(firstMessage);
-
-        // Create the chat on the backend
-        const result = await dispatch(createChatAsync({ title })).unwrap();
-        const newChatId = result.id;
-
-        // Navigate to the new chat
-        navigate(`/chat/${newChatId}`, { replace: true });
-
-        // Add user message to backend
-        await dispatch(addMessageAsync({ chatId: newChatId, role: 'user', content: firstMessage }));
-
-        // Send to AI
-        dispatch(setLoading(true));
-        try {
-            const response = await sendMessage(firstMessage);
-            await dispatch(addMessageAsync({
-                chatId: newChatId,
-                role: 'assistant',
-                content: response.message,
-            }));
-        } catch {
-            await dispatch(addMessageAsync({
-                chatId: newChatId,
-                role: 'assistant',
-                content: 'Welcome! I\'m excited to help you plan your trip. What would you like to explore?',
-            }));
-        } finally {
-            dispatch(setLoading(false));
-        }
-    };
-
     const handleDestinationSelect = (destination: MapDestination) => {
         // Open the detail panel
         setSelectedDestination(destination);
@@ -181,10 +147,7 @@ const ChatPage = () => {
     const handleAskAboutDestination = async (destination: MapDestination) => {
         const query = `Tell me more about ${destination.name} in Ankara. What can I do there and what should I know before visiting?`;
 
-        if (isNewChatMode) {
-            // Create new chat with destination query
-            handleCreateChat(query);
-        } else if (activeChat) {
+        if (activeChat) {
             // Add user message optimistically
             dispatch(addMessageLocal({
                 chatId: activeChat.id,
@@ -201,7 +164,7 @@ const ChatPage = () => {
 
             dispatch(setLoading(true));
             try {
-                const response = await sendMessage(query);
+                const response: ToolCallResult = await sendMessage(query);
                 await dispatch(addMessageAsync({
                     chatId: activeChat.id,
                     role: 'assistant',
@@ -212,7 +175,12 @@ const ChatPage = () => {
             } finally {
                 dispatch(setLoading(false));
             }
+        } else if (isNewChatMode) {
+             // Let ChatPanel handle it by putting it in input state? 
+             // Or we just ignore it for 'new' mode until they send first message.
+             // For now, in new mode, we just ignore handleAskAboutDestination or would need to create chat.
         }
+        
         // Close detail panel
         setSelectedDestination(null);
     };
@@ -264,7 +232,6 @@ const ChatPage = () => {
                                     onMenuClick={handleMobileMenuClick}
                                     showMenuButton={true}
                                     isNewChatMode={isNewChatMode}
-                                    onCreateChat={handleCreateChat}
                                 />
                             </Box>
                         )}
@@ -295,7 +262,6 @@ const ChatPage = () => {
                                 <ChatPanel
                                     userName={user?.name || 'Traveler'}
                                     isNewChatMode={isNewChatMode}
-                                    onCreateChat={handleCreateChat}
                                     showMenuButton={!sidebarOpen}
                                     onMenuClick={handleToggleSidebar}
                                 />

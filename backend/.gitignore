@@ -1,3 +1,4 @@
 target/
 allure-results/
 populate_db.sql
+application.properties
