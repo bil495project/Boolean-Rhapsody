@@ -4,6 +4,7 @@ import com.roadrunner.user.entity.Chat;
 import com.roadrunner.user.entity.Message;
 import com.roadrunner.user.entity.User;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -20,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("test")
 @SuppressWarnings("null")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@DisplayName("Integration Tests - ChatRepository")
 class ChatRepositoryIntegrationTest {
 
     @Autowired

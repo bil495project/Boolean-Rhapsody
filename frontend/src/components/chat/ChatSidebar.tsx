@@ -68,6 +68,7 @@ const ChatSidebar = ({ mobile = false, onClose }: ChatSidebarProps) => {
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [chatToDelete, setChatToDelete] = useState<string | null>(null);
     const [deleteSnackbarOpen, setDeleteSnackbarOpen] = useState(false);
+    const [errorSnackbarOpen, setErrorSnackbarOpen] = useState(false);
 
     const navItems = [
         { label: 'Chats', icon: <ChatBubbleOutlineIcon />, path: '/chat' },
@@ -83,6 +84,7 @@ const ChatSidebar = ({ mobile = false, onClose }: ChatSidebarProps) => {
     };
 
     const handleChatClick = (chatId: string) => {
+        console.log('handleChatClick fired for:', chatId);
         dispatch(setActiveChat(chatId));
         navigate(`/chat/${chatId}`);
         onClose?.();
@@ -127,32 +129,43 @@ const ChatSidebar = ({ mobile = false, onClose }: ChatSidebarProps) => {
     };
 
     const handleDeleteChat = (chatId: string) => {
+        console.log('handleDeleteChat fired for:', chatId);
         setChatToDelete(chatId);
         setDeleteModalOpen(true);
     };
 
-    const handleConfirmDelete = () => {
+    const handleConfirmDelete = async () => {
         if (!chatToDelete) return;
+        console.log('handleConfirmDelete confirmed for:', chatToDelete);
 
         // Get remaining chats after deletion
         const remainingChats = chats.filter((c) => c.id !== chatToDelete);
 
-        dispatch(deleteChatAsync(chatToDelete));
-
-        // Navigate to another chat or create new one
-        if (activeChat?.id === chatToDelete) {
-            if (remainingChats.length > 0) {
-                const nextChat = remainingChats[0];
-                dispatch(setActiveChat(nextChat.id));
-                navigate(`/chat/${nextChat.id}`);
+        try {
+            const resultAction = await dispatch(deleteChatAsync(chatToDelete));
+            
+            if (deleteChatAsync.fulfilled.match(resultAction)) {
+                // Navigate to another chat or create new one if the active chat was deleted
+                if (activeChat?.id === chatToDelete) {
+                    if (remainingChats.length > 0) {
+                        const nextChat = remainingChats[0];
+                        dispatch(setActiveChat(nextChat.id));
+                        navigate(`/chat/${nextChat.id}`);
+                    } else {
+                        handleNewChat();
+                    }
+                }
+                setDeleteSnackbarOpen(true);
             } else {
-                handleNewChat();
+                console.error('Delete failed:', resultAction.payload);
+                setErrorSnackbarOpen(true);
             }
+        } catch (error) {
+            console.error('Unexpected error during delete:', error);
+        } finally {
+            setDeleteModalOpen(false);
+            setChatToDelete(null);
         }
-
-        setDeleteModalOpen(false);
-        setChatToDelete(null);
-        setDeleteSnackbarOpen(true);
     };
 
     const handleLogout = () => {
@@ -494,6 +507,19 @@ const ChatSidebar = ({ mobile = false, onClose }: ChatSidebarProps) => {
             >
                 Chat deleted successfully.
             </Snackbar>
+ 
+             {/* Delete error snackbar */}
+             <Snackbar
+                 open={errorSnackbarOpen}
+                 autoHideDuration={5000}
+                 onClose={() => setErrorSnackbarOpen(false)}
+                 variant="soft"
+                 color="danger"
+                 anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+                 startDecorator={<WarningRoundedIcon />}
+             >
+                 Failed to delete chat. Please check console for details.
+             </Snackbar>
         </Box>
     );
 };

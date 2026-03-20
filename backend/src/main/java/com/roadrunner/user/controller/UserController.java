@@ -106,6 +106,14 @@ public class UserController {
         return ResponseEntity.ok(userService.getTravelPlanById(userId, planId));
     }
 
+    @PutMapping("/me/plans/{planId}")
+    public ResponseEntity<TravelPlanResponse> updateTravelPlan(
+            @PathVariable String planId,
+            @Valid @RequestBody CreateTravelPlanRequest request) {
+        String userId = getCurrentUserId();
+        return ResponseEntity.ok(userService.updateTravelPlan(userId, planId, request));
+    }
+
     @DeleteMapping("/me/plans/{planId}")
     public ResponseEntity<Void> deleteTravelPlan(@PathVariable String planId) {
         String userId = getCurrentUserId();

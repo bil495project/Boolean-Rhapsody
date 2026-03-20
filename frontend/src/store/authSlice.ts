@@ -1,7 +1,7 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { AppDispatch } from './index';
 import { getStoredToken, removeToken, userApi } from '../services/userService';
-import type { UserData } from '../services/userService';
+import type { UserData, TravelPersonaData } from '../services/userService';
 
 // Travel persona interface
 export interface TravelPersona {
@@ -163,12 +163,46 @@ export const restoreSession = () => async (dispatch: AppDispatch) => {
         if (!token) return;
 
         const userData = await userApi.getMe();
-        const user = mapUserDataToUser(userData);
+        const user = mapUserDataToUser(userData, userData.travelPersonas && userData.travelPersonas.length > 0);
         dispatch(loginSuccess(user));
     } catch {
         // Token is invalid or expired — clean up silently
         removeToken();
         localStorage.removeItem('travelplanner_user');
+    }
+};
+
+/** Saves the travel persona to the backend (creates if none exists, updates if one does). */
+export const saveTravelPersona = (personaData: TravelPersona) => async (dispatch: AppDispatch) => {
+    try {
+        dispatch(setLoading(true));
+        
+        // Check for existing personas
+        const existingPersonas = await userApi.getPersonas();
+        
+        let savedPersona: TravelPersonaData;
+        if (existingPersonas.length > 0) {
+            // Update the first one
+            savedPersona = await userApi.updatePersona(existingPersonas[0].id!, personaData);
+        } else {
+            // Create new
+            savedPersona = await userApi.createPersona(personaData);
+        }
+        
+        // Update local state
+        dispatch(updateTravelPersona({
+            travelStyles: savedPersona.travelStyles,
+            interests: savedPersona.interests,
+            travelFrequency: savedPersona.travelFrequency,
+            preferredPace: savedPersona.preferredPace,
+        }));
+        
+        dispatch(setError(null));
+    } catch (error) {
+        console.error('Error saving travel persona:', error);
+        dispatch(setError('Failed to save travel persona. Please try again.'));
+    } finally {
+        dispatch(setLoading(false));
     }
 };
 

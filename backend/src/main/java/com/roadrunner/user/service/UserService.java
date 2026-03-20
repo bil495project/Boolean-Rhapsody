@@ -1,6 +1,5 @@
 package com.roadrunner.user.service;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -84,8 +83,8 @@ public class UserService {
 
         TravelPersona persona = TravelPersona.builder()
                 .user(user)
-                .travelStyles(req.getTravelStyles() != null ? String.join(",", req.getTravelStyles()) : null)
-                .interests(req.getInterests() != null ? String.join(",", req.getInterests()) : null)
+                .travelStyles(req.getTravelStyles())
+                .interests(req.getInterests())
                 .travelFrequency(req.getTravelFrequency())
                 .preferredPace(req.getPreferredPace())
                 .build();
@@ -105,10 +104,10 @@ public class UserService {
         }
 
         if (req.getTravelStyles() != null) {
-            persona.setTravelStyles(String.join(",", req.getTravelStyles()));
+            persona.setTravelStyles(req.getTravelStyles());
         }
         if (req.getInterests() != null) {
-            persona.setInterests(String.join(",", req.getInterests()));
+            persona.setInterests(req.getInterests());
         }
         if (req.getTravelFrequency() != null) {
             persona.setTravelFrequency(req.getTravelFrequency());
@@ -145,10 +144,7 @@ public class UserService {
 
         TravelPlan plan = TravelPlan.builder()
                 .user(user)
-                .selectedPlaceIds(
-                        req.getSelectedPlaceIds() != null
-                                ? String.join(",", req.getSelectedPlaceIds())
-                                : null)
+                .selectedPlaceIds(req.getSelectedPlaceIds())
                 .build();
 
         plan = travelPlanRepository.save(plan);
@@ -186,6 +182,23 @@ public class UserService {
         travelPlanRepository.delete(plan);
     }
 
+    public TravelPlanResponse updateTravelPlan(String userId, String planId, CreateTravelPlanRequest req) {
+        TravelPlan plan = travelPlanRepository.findById(planId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Travel plan not found"));
+
+        if (!plan.getUser().getId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
+        }
+
+        if (req.getSelectedPlaceIds() != null) {
+            plan.setSelectedPlaceIds(req.getSelectedPlaceIds());
+        }
+
+        plan = travelPlanRepository.save(plan);
+        return mapToPlanResponse(plan);
+    }
+
     public void deleteAccount(String userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
@@ -216,8 +229,8 @@ public class UserService {
     private TravelPersonaResponse mapToPersonaResponse(TravelPersona persona) {
         return TravelPersonaResponse.builder()
                 .id(persona.getId())
-                .travelStyles(parseCommaSeparated(persona.getTravelStyles()))
-                .interests(parseCommaSeparated(persona.getInterests()))
+                .travelStyles(persona.getTravelStyles() != null ? persona.getTravelStyles() : Collections.emptyList())
+                .interests(persona.getInterests() != null ? persona.getInterests() : Collections.emptyList())
                 .travelFrequency(persona.getTravelFrequency())
                 .preferredPace(persona.getPreferredPace())
                 .build();
@@ -226,15 +239,9 @@ public class UserService {
     private TravelPlanResponse mapToPlanResponse(TravelPlan plan) {
         return TravelPlanResponse.builder()
                 .id(plan.getId())
-                .selectedPlaceIds(parseCommaSeparated(plan.getSelectedPlaceIds()))
+                .selectedPlaceIds(plan.getSelectedPlaceIds())
                 .createdAt(plan.getCreatedAt())
                 .build();
     }
 
-    private List<String> parseCommaSeparated(String value) {
-        if (value == null || value.isEmpty()) {
-            return Collections.emptyList();
-        }
-        return Arrays.asList(value.split(","));
-    }
 }

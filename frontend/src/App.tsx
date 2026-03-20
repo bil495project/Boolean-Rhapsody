@@ -10,6 +10,7 @@ import { RECAPTCHA_SITE_KEY } from './utils/recaptcha';
 import { useAppDispatch, useAppSelector } from './store/hooks';
 import { restoreSession } from './store/authSlice';
 import { fetchChats } from './store/chatSlice';
+import { fetchSavedFromBackend } from './store/savedSlice';
 
 // Pages
 import LandingPage from './pages/LandingPage';
@@ -36,10 +37,11 @@ function AppInner() {
     dispatch(restoreSession());
   }, [dispatch]);
 
-  // Fetch chats when authenticated (after login or session restore)
+  // Fetch data when authenticated (after login or session restore)
   useEffect(() => {
     if (isAuthenticated) {
       dispatch(fetchChats());
+      dispatch(fetchSavedFromBackend());
     }
   }, [isAuthenticated, dispatch]);
 

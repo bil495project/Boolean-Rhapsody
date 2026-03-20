@@ -9,6 +9,7 @@ import com.roadrunner.user.entity.User;
 import com.roadrunner.user.repository.ChatRepository;
 import com.roadrunner.user.repository.MessageRepository;
 import com.roadrunner.user.repository.UserRepository;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -29,6 +30,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings("null")
+@DisplayName("Unit Tests - ChatService")
 class ChatServiceTest {
 
     private static final String TEST_USER_ID = "user-id-123";
@@ -50,6 +52,7 @@ class ChatServiceTest {
     // --- createChat ---
 
     @Test
+    @DisplayName("TC-US-ChatCreate: Chat oluşturma başarılı (Kapsam dışı ama gerekli)")
     void shouldReturnChatResponse_whenChatIsCreated() {
         // given
         User user = buildTestUser();
@@ -83,6 +86,7 @@ class ChatServiceTest {
     }
 
     @Test
+    @DisplayName("TC-US-ChatCreate: Chat oluşturulduğunda createdAt/updatedAt atanır")
     void shouldSetCreatedAtAndUpdatedAt_whenChatIsCreated() {
         // given
         User user = buildTestUser();
@@ -115,6 +119,7 @@ class ChatServiceTest {
     // --- getAllChats ---
 
     @Test
+    @DisplayName("TC-US-020: Kullanıcının chat listesi updatedAt’e göre azalan sırada geliyor mu")
     void shouldReturnChatsOrderedByUpdatedAtDesc_whenMultipleChatsExist() {
         // given
         User user = buildTestUser();
@@ -141,6 +146,7 @@ class ChatServiceTest {
     }
 
     @Test
+    @DisplayName("TC-US-021: Kullanıcının hiç chat’i yoksa boş liste dönüyor mu")
     void shouldReturnEmptyList_whenUserHasNoChats() {
         // given
         User user = buildTestUser();
@@ -157,6 +163,7 @@ class ChatServiceTest {
     // --- getChatById ---
 
     @Test
+    @DisplayName("TC-US-022: Kullanıcı kendine ait chat’i mesajlarıyla birlikte alabiliyor mu")
     void shouldReturnChatWithMessages_whenOwnershipIsValid() {
         // given
         User user = buildTestUser();
@@ -177,6 +184,7 @@ class ChatServiceTest {
     }
 
     @Test
+    @DisplayName("TC-US-ChatGet: Başkasına ait chat istenince 403 Forbidden döner")
     void shouldThrowForbidden_whenChatBelongsToDifferentUser() {
         // given
         User otherUser = User.builder().id(OTHER_USER_ID).email("other@test.com").build();
@@ -191,6 +199,7 @@ class ChatServiceTest {
     }
 
     @Test
+    @DisplayName("TC-US-ChatGet: Olmayan chat istenince 404 NotFound döner")
     void shouldThrowNotFound_whenChatDoesNotExist() {
         // given
         when(chatRepository.findById("nonexistent")).thenReturn(Optional.empty());
@@ -204,6 +213,7 @@ class ChatServiceTest {
     // --- addMessage ---
 
     @Test
+    @DisplayName("TC-US-ChatMsg: Chat'e yeni mesaj eklendiğinde mesaj listesi doluyor mu")
     void shouldReturnUpdatedChat_whenMessageIsAdded() {
         // given
         User user = buildTestUser();
@@ -241,6 +251,7 @@ class ChatServiceTest {
     }
 
     @Test
+    @DisplayName("TC-US-ChatMsg: Mesaj eklendiğinde Chat'in updatedAt değeri güncelleniyor mu")
     void shouldUpdateChatUpdatedAt_whenMessageIsAdded() {
         // given
         User user = buildTestUser();
@@ -276,6 +287,7 @@ class ChatServiceTest {
     }
 
     @Test
+    @DisplayName("TC-US-ChatMsg: Mesaj eklenecek Chat yoksa 404 döner")
     void shouldThrowNotFound_whenChatDoesNotExistForMessage() {
         // given
         when(chatRepository.findById("nonexistent")).thenReturn(Optional.empty());
@@ -289,6 +301,7 @@ class ChatServiceTest {
     }
 
     @Test
+    @DisplayName("TC-US-ChatMsg: Başkasına ait Chat'e mesaj eklenirse 403 Forbidden döner")
     void shouldThrowForbidden_whenChatBelongsToDifferentUserForMessage() {
         // given
         User otherUser = User.builder().id(OTHER_USER_ID).email("other@test.com").build();
@@ -307,6 +320,7 @@ class ChatServiceTest {
     // --- deleteChat ---
 
     @Test
+    @DisplayName("TC-US-ChatDel: Kendi Chat'ini silme işlemi başarılı")
     void shouldDeleteChat_whenOwnershipIsValid() {
         // given
         User user = buildTestUser();
@@ -322,6 +336,7 @@ class ChatServiceTest {
     }
 
     @Test
+    @DisplayName("TC-US-ChatDel: Başkasına ait Chat silinmek istendiğinde 403 Forbidden döner")
     void shouldThrowForbidden_whenDeletingChatBelongsToDifferentUser() {
         // given
         User otherUser = User.builder().id(OTHER_USER_ID).email("other@test.com").build();
@@ -338,6 +353,7 @@ class ChatServiceTest {
     // --- updateChatTitle ---
 
     @Test
+    @DisplayName("TC-US-ChatUpdate: Chat başlığı başarıyla güncellenir")
     void shouldReturnUpdatedChat_whenTitleIsChanged() {
         // given
         User user = buildTestUser();
@@ -360,6 +376,7 @@ class ChatServiceTest {
     }
 
     @Test
+    @DisplayName("TC-US-ChatUpdate: Başka kullanıcının Chat başlığı güncellenince 403 Forbidden döner")
     void shouldThrowForbidden_whenChatBelongsToDifferentUserForTitleUpdate() {
         // given
         User otherUser = User.builder().id(OTHER_USER_ID).email("other@test.com").build();
