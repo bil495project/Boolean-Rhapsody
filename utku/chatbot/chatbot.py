@@ -1,164 +1,108 @@
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-import os
-import time
-import sys
 import json
 import re
+import sys
+import time
+from chatbot.ai_agents import (
+    calculatorAgent, weatherAgent, UserProfileAgent_SetInfo, 
+    UserFeedbackAgent, XAIJustificationAgent, Route_search_agent, 
+    POI_suggest_agent, ItineraryModificationAgent,ChatTitleAgent, POIDataAgent
+)
 
-# Model selection
-MODEL_ID = "Qwen/Qwen3-0.6B" 
-
+# --- Configuration ---
+MODEL_ID = "Qwen/Qwen2.5-1.5B-Instruct" # Qwen2.5/3 are optimized for tools
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# --- Global Model and Tokenizer Initialization ---
 tokenizer = None
 model = None
 
 def load_model():
     global tokenizer, model
-    try:
-        print(f"Targeting device: {DEVICE}")
-        print(f"Loading model '{MODEL_ID}' onto {DEVICE}...")
-        start_time = time.time()
-        
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
-        
-        if DEVICE.type == 'cuda':
-            model = AutoModelForCausalLM.from_pretrained(
-                MODEL_ID,
-                torch_dtype=torch.float16,
-                device_map="auto" 
-            )
-        else:
-            model = AutoModelForCausalLM.from_pretrained(
-                MODEL_ID,
-                torch_dtype=torch.float32 
-            )
-        
-        end_time = time.time()
-        print(f"Model loaded successfully in {end_time - start_time:.2f} seconds.")
+    print(f"Loading {MODEL_ID} on {DEVICE}...")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
+    
+    # Best practice: use flash_attention_2 if on GPU for speed
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_ID,
+        torch_dtype=torch.float16 if DEVICE.type == 'cuda' else torch.float32,
+        device_map="auto"
+    )
 
-    except Exception as e:
-        print(f"An unexpected error occurred during model loading: {e}")
-        sys.exit(1)
-
-
-TOOLS_DEFINITION = [
-    {
-        "name": "calculator_agent",
-        "description": "Performs math. Use this for any numerical calculation.",
-        "parameters": {"expression": "string"}
-    },
-    {
-        "name": "weather_agent",
-        "description": "Gets current weather for a location.",
-        "parameters": {"location": "string", "unit": "celsius or fahrenheit"}
-    }
+# --- Tool Definitions (Standard JSON Schema) ---
+# Dynamically build the TOOLS list for the LLM
+TOOLS = [
+    {"type": "function", "function": calculatorAgent.tool_template},
+    {"type": "function", "function": weatherAgent.tool_template},
+    {"type": "function", "function": UserProfileAgent_SetInfo.tool_template},
+    {"type": "function", "function": UserFeedbackAgent.tool_template},
+    {"type": "function", "function": XAIJustificationAgent.tool_template},
+    {"type": "function", "function": Route_search_agent.tool_template},
+    {"type": "function", "function": POI_suggest_agent.tool_template},
+    {"type": "function", "function": ItineraryModificationAgent.tool_template},
+    {"type": "function", "function": ChatTitleAgent.tool_template},
+    {"type": "function", "function": POIDataAgent.tool_template},
 ]
 
-def extract_json_from_text(text: str):
+# chatbot.py updates
+
+def extract_tool_calls(response_text):
     """
-    Extracts a JSON object from a string that might contain conversational text.
+    Improved extraction for Qwen2.5 which often uses <tool_call> tags 
+    or specific JSON structures.
     """
     try:
-        # Find anything between curly braces
-        match = re.search(r'\{.*\}', text, re.DOTALL)
+        # Regex to find JSON inside the response
+        match = re.search(r'\{.*\}', response_text, re.DOTALL)
         if match:
-            json_str = match.group()
-            return json.loads(json_str)
-    except Exception:
+            data = json.loads(match.group())
+            # Normalize Qwen's 'arguments' to 'parameters' if needed
+            if "arguments" in data and "parameters" not in data:
+                data["parameters"] = data["arguments"]
+            return data
+    except Exception as e:
+        print(f"Extraction Error: {e}")
         return None
-    return None
 
+def ask_question(messages: list): # Accept the whole history
+    if model is None: load_model()
 
-
-SYSTEM_PROMPT = f"""You are a helpful assistant. You have access to these tools:
-{json.dumps(TOOLS_DEFINITION, indent=2)}
-""" +"""If you need to use a tool, you MUST return a VALID JSON object in this format:
-{
-  "tool_call": {
-    "name": "tool_name",
-    "parameters": {
-      "param": "value"
-    }
-  }
-}
-
-
-an example tool call is as follows:
-{
-  "tool_call": {
-    "name": "weather_agent",
-    "parameters": {
-      "location": "Tokyo, Japan",
-      "unit": "celsius"
-    }
-  }
-}
-
-If no tool is needed, respond with normal text."""
-
-def ask_question(question: str) -> str:
-    """
-    Passes a user question to the globally loaded Qwen model.
-    """
-    print("Model is generating an answer...\n")
-    if model is None:
-        load_model()
-
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": question}
-    ]
-    
-    inputs = tokenizer.apply_chat_template(
+    # 2. Apply Chat Template with Tool Support
+    text = tokenizer.apply_chat_template(
         messages,
+        tools=TOOLS,
         add_generation_prompt=True,
-        tokenize=True,
-        return_tensors="pt",
-        return_dict=True
+        tokenize=False
     )
-    
-    inputs_on_device = inputs.to(model.device)
+
+    inputs = tokenizer([text], return_tensors="pt").to(DEVICE)
 
     outputs = model.generate(
-        **inputs_on_device,
-        max_new_tokens=1024,
-        do_sample=False
+        **inputs,
+        max_new_tokens=512,
+        do_sample=False, # Set to False for more reliable tool calls
+        temperature=0.1,
+        top_p=0.9
     )
-    
-    input_len = inputs_on_device["input_ids"].shape[-1]
-    raw_response = tokenizer.decode(outputs[0][input_len:], skip_special_tokens=True).strip()
-    
-    # Try to extract a tool call
-    potential_json = extract_json_from_text(raw_response)
-    
-    if potential_json and "tool_call" in potential_json:
-        return {
-            "type": "tool_call",
-            "data": potential_json
-        }
 
-    return {
-        "type": "text",
-        "data": raw_response
-    }
+    response_ids = outputs[0][len(inputs.input_ids[0]):]
+    raw_response = tokenizer.decode(response_ids, skip_special_tokens=True).strip()
+
+    tool_data = extract_tool_calls(raw_response)
+    
+    # Logic to detect if it's actually a tool call
+    if tool_data and ("name" in tool_data):
+        return {"type": "tool_call", "content": tool_data, "raw": raw_response}
+    
+    return {"type": "text", "content": raw_response}
+
 
 if __name__ == "__main__":
-    # Check if a question was provided as a command line argument
-    if len(sys.argv) > 1:
-        # Join all arguments after the script name into a single string
-        q = " ".join(sys.argv[1:])
-    else:
-        # Default question if none is provided
-        q = "List best places to visit in Berlin"
-
-    # Send the question to the model and get the result
-    answer = ask_question(q)
+    query = sys.argv[1] if len(sys.argv) > 1 else "What is the weather in Paris in celsius?"
     
-    # Print the formatted output
-    print("-" * 50)
-    print(f"USER QUESTION:\n{q}\n")
-    print(f"QWEN RESPONSE ({DEVICE.type.upper()}):\n{answer}")
-    print("-" * 50)
+    print("\n" + "="*50)
+    result = run_conversation(query)
+    print(f"USER: {query}")
+    print(f"RESULT TYPE: {result['type']}")
+    print(f"RAW DATA: {result['content']}")
+    print("="*50 + "\n")
