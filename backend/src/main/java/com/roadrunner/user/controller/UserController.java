@@ -131,4 +131,34 @@ public class UserController {
     private String getCurrentUserId() {
         return SecurityContextHolder.getContext().getAuthentication().getName();
     }
+
+    @GetMapping
+    public List<com.roadrunner.user.entity.User> getAllUsers() {
+        return userService.getAllUsersEntity();
+    }
+
+    @GetMapping("/{id}")
+    public com.roadrunner.user.entity.User getUserById(@PathVariable int id) {
+        return userService.getUserByIdEntity(String.valueOf(id));
+    }
+
+    @GetMapping("/search")
+    public com.roadrunner.user.entity.User getUserByName(@org.springframework.web.bind.annotation.RequestParam String name) {
+        return userService.getUserByNameEntity(name);
+    }
+
+    @PutMapping("/{userId}/name")
+    public void setUserName(@PathVariable String userId, @RequestBody String name) {
+        userService.setUserName(userId, name);
+    }
+
+    @PutMapping("/{userId}/email")
+    public void setUserEmail(@PathVariable String userId, @RequestBody String email) {
+        userService.setUserEmail(userId, email);
+    }
+
+    @PostMapping("/{userId}/places")
+    public void addSelectedPlace(@PathVariable String userId, @RequestBody long placeId) {
+        userService.addSelectedPlace(userId, placeId);
+    }
 }

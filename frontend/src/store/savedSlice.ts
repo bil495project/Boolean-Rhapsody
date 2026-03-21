@@ -46,6 +46,13 @@ const savedSlice = createSlice({
             }
             saveLocally(state.destinations);
         },
+        addSaveDestination: (state, action: PayloadAction<MapDestination>) => {
+            const exists = state.destinations.some(d => d.id === action.payload.id);
+            if (!exists) {
+                state.destinations.unshift(action.payload);
+                saveLocally(state.destinations);
+            }
+        },
         clearSaved: (state) => {
             state.destinations = [];
             state.activePlanId = null;
@@ -80,6 +87,6 @@ const savedSlice = createSlice({
     }
 });
 
-export const { toggleSaveDestination, clearSaved } = savedSlice.actions;
+export const { toggleSaveDestination, addSaveDestination, clearSaved } = savedSlice.actions;
 export default savedSlice.reducer;
 export * from './savedThunks';

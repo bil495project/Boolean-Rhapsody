@@ -4,6 +4,7 @@ import chatReducer from './chatSlice';
 import savedReducer from './savedSlice';
 import navigationReducer from './navigationSlice';
 import placesReducer from './placesSlice';
+import routeReducer from './routeSlice';
 
 export const store = configureStore({
     reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
         saved: savedReducer,
         navigation: navigationReducer,
         places: placesReducer,
+        route: routeReducer,
     },
 });
 

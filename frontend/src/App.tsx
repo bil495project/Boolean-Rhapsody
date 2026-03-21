@@ -22,6 +22,7 @@ import ChatPage from './pages/ChatPage';
 import ExplorePage from './pages/ExplorePage';
 import SavedPage from './pages/SavedPage';
 import NavigationPage from './pages/NavigationPage';
+import RoutePage from './pages/RoutePage';
 
 // Redirect component for /chat - goes to existing chat or new chat view
 const ChatRedirect = () => {
@@ -57,6 +58,7 @@ function AppInner() {
           <Route path="/explore" element={<ExplorePage />} />
           <Route path="/saved" element={<SavedPage />} />
           <Route path="/navigation" element={<NavigationPage />} />
+          <Route path="/route" element={<RoutePage />} />
           <Route path="/onboarding" element={<TravelPersonaPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/settings" element={<SettingsPage />} />

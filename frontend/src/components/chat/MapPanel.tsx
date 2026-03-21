@@ -81,13 +81,18 @@ const MapResizeHandler = ({ fullscreen }: { fullscreen: boolean }) => {
 
 // Component to handle map click to close popup
 const MapClickHandler = ({
-    onMapClick
+    onMapClick,
+    onMapClickCoords
 }: {
     onMapClick: () => void;
+    onMapClickCoords?: (latlng: { lat: number; lng: number }) => void;
 }) => {
     useMapEvents({
-        click: () => {
+        click: (e) => {
             onMapClick();
+            if (onMapClickCoords) {
+                onMapClickCoords({ lat: e.latlng.lat, lng: e.latlng.lng });
+            }
         },
     });
     return null;
@@ -99,6 +104,7 @@ interface MapPanelProps {
     onDestinationSelect?: (destination: MapDestination) => void;
     route?: [number, number][] | null;
     orderedDestinations?: MapDestination[];
+    onMapClick?: (latlng: { lat: number; lng: number }) => void;
 }
 
 const MapPanel = ({
@@ -106,7 +112,8 @@ const MapPanel = ({
     highlightedDestination,
     onDestinationSelect,
     route,
-    orderedDestinations = []
+    orderedDestinations = [],
+    onMapClick: onMapClickProp
 }: MapPanelProps) => {
     const dispatch = useAppDispatch();
     const { mapFullscreen } = useAppSelector((state) => state.chat);
@@ -218,7 +225,7 @@ const MapPanel = ({
                     url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                 />
                 <MapResizeHandler fullscreen={mapFullscreen} />
-                <MapClickHandler onMapClick={handleMapClick} />
+                <MapClickHandler onMapClick={handleMapClick} onMapClickCoords={onMapClickProp} />
 
                 {/* Route Polyline */}
                 {route && route.length > 1 && (
