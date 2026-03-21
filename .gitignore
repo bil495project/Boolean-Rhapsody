@@ -1,2 +1,59 @@
-api-key.txt
+# === Global ===
 .DS_Store
+Thumbs.db
+Desktop.ini
+*.log
+*.sqlite
+.env
+api-key.txt
+
+# === IDEs / Editors ===
+.idea/
+.vscode/
+*.swp
+*.iml
+*.iws
+.project
+.classpath
+.settings/
+*.sublime-workspace
+Boolean-Rhapsody.code-workspace
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+env/
+pip-log.txt
+
+# === Java / Spring Boot ===
+target/
+build/
+out/
+.mvn/
+bin/
+*.class
+*.jar
+*.war
+.flattened-pom.xml
+.sts4-cache/
+ajcore.*
+.m2/
+
+# === Node.js / Frontend ===
+node_modules/
+dist/
+.npm/
+.pnp.*
+.eslintcache
+.parcel-cache/
+.next/
+coverage/
+
+# === Generated Maps / Reports ===
+*_map.html
+main.html
+reports/
