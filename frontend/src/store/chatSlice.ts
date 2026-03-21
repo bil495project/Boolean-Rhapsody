@@ -7,6 +7,8 @@ export interface Message {
     id: string;
     role: 'user' | 'assistant';
     content: string;
+    toolUsed?: string;
+    toolParams?: any;
     timestamp: number;
     locationCard?: LocationCard;
 }
@@ -48,6 +50,8 @@ const mapMessageData = (m: MessageData): Message => ({
     id: m.id,
     role: m.role as 'user' | 'assistant',
     content: m.content,
+    toolUsed: m.toolUsed,
+    toolParams: m.toolParams ? JSON.parse(m.toolParams) : undefined,
     timestamp: m.timestamp,
 });
 
@@ -94,8 +98,9 @@ export const updateChatTitleAsync = createAsyncThunk(
 
 export const addMessageAsync = createAsyncThunk(
     'chat/addMessageAsync',
-    async ({ chatId, role, content }: { chatId: string; role: string; content: string }) => {
-        const data = await chatApi.addMessage(chatId, role, content);
+    async ({ chatId, role, content, toolUsed, toolParams }: { chatId: string; role: string; content: string; toolUsed?: string; toolParams?: any }) => {
+        const toolParamsStr = toolParams ? JSON.stringify(toolParams) : undefined;
+        const data = await chatApi.addMessage(chatId, role, content, toolUsed, toolParamsStr);
         return mapChatData(data);
     }
 );

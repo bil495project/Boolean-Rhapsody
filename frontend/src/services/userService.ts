@@ -201,6 +201,8 @@ export interface MessageData {
     id: string;
     role: string;
     content: string;
+    toolUsed?: string;
+    toolParams?: string;
     timestamp: number;
 }
 
@@ -240,8 +242,8 @@ export const chatApi = {
         return response.data;
     },
 
-    addMessage: async (chatId: string, role: string, content: string): Promise<ChatData> => {
-        const response = await api.post<ChatData>(`/chats/${chatId}/messages`, { role, content });
+    addMessage: async (chatId: string, role: string, content: string, toolUsed?: string, toolParams?: string): Promise<ChatData> => {
+        const response = await api.post<ChatData>(`/chats/${chatId}/messages`, { role, content, toolUsed, toolParams });
         return response.data;
     },
 };

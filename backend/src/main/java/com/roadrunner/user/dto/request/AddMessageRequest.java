@@ -19,4 +19,7 @@ public class AddMessageRequest {
 
     @NotBlank
     private String content;
+
+    private String toolUsed;
+    private String toolParams;
 }

@@ -85,10 +85,17 @@ def handle_chat():
 
             # 4. Final LLM Call with history to get the natural language answer
             final_output = ask_question(messages)
+
+            print("tool_used: " + tool_name)
+            print("tool_params:\n")
+            print(params)
+            print("response:\n")
+            print(final_output["content"])
             
             return jsonify({
                 "status": "success",
                 "tool_used": tool_name,
+                "tool_params": params,
                 "response": final_output["content"]
             })
         

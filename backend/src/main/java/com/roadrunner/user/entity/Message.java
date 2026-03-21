@@ -35,6 +35,12 @@ public class Message {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    @Column(name = "tool_used")
+    private String toolUsed;
+
+    @Column(name = "tool_params", columnDefinition = "TEXT")
+    private String toolParams;
+
     private long timestamp;
 
     @ManyToOne(fetch = FetchType.LAZY)

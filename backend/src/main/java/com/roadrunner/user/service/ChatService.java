@@ -70,6 +70,8 @@ public class ChatService {
         Message message = Message.builder()
                 .role(req.getRole())
                 .content(req.getContent())
+                .toolUsed(req.getToolUsed())
+                .toolParams(req.getToolParams())
                 .chat(chat)
                 .build();
 
@@ -141,6 +143,8 @@ public class ChatService {
                 .id(message.getId())
                 .role(message.getRole())
                 .content(message.getContent())
+                .toolUsed(message.getToolUsed())
+                .toolParams(message.getToolParams())
                 .timestamp(message.getTimestamp())
                 .build();
     }
