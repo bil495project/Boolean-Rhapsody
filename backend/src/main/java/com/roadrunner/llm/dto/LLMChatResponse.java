@@ -1,6 +1,8 @@
 package com.roadrunner.llm.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Response DTO mapping the Flask LLM Server's JSON response.
@@ -15,7 +17,12 @@ public class LLMChatResponse {
 
     private String status;
     private String response;
+    @JsonAlias("tool_used")
+    @JsonProperty("toolUsed")
     private String toolUsed;
+    @JsonAlias("tool_params")
+    @JsonProperty("toolParams")
+    private Object toolParams;
     private String message;
 
     public LLMChatResponse() {}
@@ -42,6 +49,14 @@ public class LLMChatResponse {
 
     public void setToolUsed(String toolUsed) {
         this.toolUsed = toolUsed;
+    }
+
+    public Object getToolParams() {
+        return toolParams;
+    }
+
+    public void setToolParams(Object toolParams) {
+        this.toolParams = toolParams;
     }
 
     public String getMessage() {

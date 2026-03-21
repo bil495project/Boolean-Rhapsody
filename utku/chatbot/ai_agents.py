@@ -1,5 +1,6 @@
 import math
 import json
+import requests
 
 class BaseAgent:
     """Base class providing shared utility methods for all AI agents."""
@@ -207,12 +208,35 @@ class POIDataAgent(BaseAgent):
         }
     }
     def __call__(self, poi_name: str):
-        # Simulated database of POI context for Ankara (matching your tests)
+        """
+        Fetches historical/cultural summary from Wikipedia.
+        """
+        print(f"[SYSTEM] POIDataAgent: Fetching Wikipedia summary for '{poi_name}'")
+        
+        # Try English Wikipedia first
+        try:
+            url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{poi_name.replace(' ', '_')}"
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('extract', f"Detailed information about {poi_name}.")
+            
+            # Fallback to Turkish Wikipedia if English fails or if it's a local site
+            url_tr = f"https://tr.wikipedia.org/api/rest_v1/page/summary/{poi_name.replace(' ', '_')}"
+            response_tr = requests.get(url_tr, timeout=5)
+            if response_tr.status_code == 200:
+                data_tr = response_tr.json()
+                return data_tr.get('extract', f"{poi_name} hakkında detaylı bilgi.")
+
+        except Exception as e:
+            print(f"[ERROR] POIDataAgent Wikipedia call failed: {str(e)}")
+
+        # Final Hardcoded Fallback
         db = {
             "Anitkabir": "A symbol of modern Turkey, matching your interest in 'history' and 'architecture'.",
             "Kocatepe Mosque": "The largest mosque in Ankara, fitting 'culture' and 'landmarks'."
         }
-        return db.get(poi_name, f"A popular landmark in Ankara matching your travel profile.")
+        return db.get(poi_name, f"A popular landmark matching your travel profile.")
 
 # --- UPDATED EXISTING AGENTS (Aligned with Test Names) ---
 

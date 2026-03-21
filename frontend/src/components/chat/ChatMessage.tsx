@@ -171,16 +171,17 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
             >
                 <Sheet
                     variant="solid"
-                    color="primary"
                     sx={{
                         px: 2,
                         py: 1.5,
-                        borderRadius: 'lg',
-                        borderBottomRightRadius: 'sm',
+                        borderRadius: '20px',
+                        borderBottomRightRadius: '4px',
                         maxWidth: '80%',
+                        bgcolor: '#00b894', // Premium Teal
+                        boxShadow: '0 4px 15px rgba(0, 184, 148, 0.15)',
                     }}
                 >
-                    <Typography level="body-md" sx={{ color: '#fff' }}>
+                    <Typography level="body-md" sx={{ color: '#fff', fontWeight: 500 }}>
                         {message.content}
                     </Typography>
                 </Sheet>
@@ -188,20 +189,100 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
         );
     }
 
-    // AI message - left aligned with icon and markdown support
+    // AI message - left-aligned
     return (
-        <Box sx={{ display: 'flex', gap: 1.5, mb: 2 }}>
+        <Box sx={{ display: 'flex', gap: 1.5, mb: 4 }}>
             <Avatar
                 size="sm"
                 sx={{
                     bgcolor: 'background.level2',
                     flexShrink: 0,
+                    boxShadow: 'sm',
+                    border: '1px solid',
+                    borderColor: 'divider',
                 }}
             >
-                <AutoAwesomeIcon sx={{ fontSize: 18 }} />
+                <AutoAwesomeIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
             </Avatar>
             <Box sx={{ flex: 1, minWidth: 0 }}>
                 <MarkdownContent content={message.content} />
+                
+                {message.toolUsed && (
+                    <Box
+                        sx={{
+                            mt: 2,
+                            p: 2,
+                            bgcolor: (theme) => 
+                                theme.vars.palette.mode === 'dark' 
+                                    ? 'rgba(15, 23, 42, 0.4)' // Deep slate
+                                    : 'background.level1',
+                            borderRadius: '16px',
+                            border: '1px solid',
+                            borderColor: (theme) =>
+                                theme.vars.palette.mode === 'dark'
+                                    ? 'rgba(51, 65, 85, 0.5)' 
+                                    : 'divider',
+                            position: 'relative',
+                            overflow: 'hidden',
+                        }}
+                    >
+                        {/* Status line matching User's latest screenshot */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <Box 
+                                sx={{ 
+                                    width: 4, 
+                                    height: 16, 
+                                    bgcolor: 'primary.500', 
+                                    borderRadius: 'full',
+                                    opacity: 0.8 
+                                }} 
+                            />
+                            <Typography 
+                                level="body-sm" 
+                                sx={{ 
+                                    color: (theme) =>
+                                        theme.vars.palette.mode === 'dark'
+                                            ? 'text.secondary'
+                                            : 'text.primary',
+                                    fontWeight: 600,
+                                    letterSpacing: '0.02em'
+                                }}
+                            >
+                                Tool call: <Box component="span" sx={{ color: 'primary.400', fontFamily: 'monospace', ml: 0.5 }}>{message.toolUsed}</Box>
+                            </Typography>
+                        </Box>
+
+                        {message.toolParams && (
+                            <Box 
+                                sx={{ 
+                                    mt: 2,
+                                    p: 1.5,
+                                    bgcolor: 'rgba(0, 0, 0, 0.2)', 
+                                    borderRadius: '10px',
+                                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                                }}
+                            >
+                                <Typography
+                                    component="pre"
+                                    level="body-xs"
+                                    sx={{
+                                        fontFamily: '"Fira Code", "JetBrains Mono", monospace',
+                                        whiteSpace: 'pre-wrap',
+                                        wordBreak: 'break-all',
+                                        color: '#94a3b8', 
+                                        fontSize: '0.75rem',
+                                        lineHeight: 1.6,
+                                    }}
+                                >
+                                    {typeof message.toolParams === 'string' 
+                                        ? message.toolParams 
+                                        : JSON.stringify(message.toolParams, null, 2)}
+                                </Typography>
+                            </Box>
+                        )}
+                    </Box>
+                )}
+
                 {message.locationCard && (
                     <LocationCardComponent location={message.locationCard} />
                 )}

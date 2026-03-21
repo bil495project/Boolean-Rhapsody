@@ -57,7 +57,8 @@ export interface ToolCallResult {
     destinations?: MapDestination[];
     savedDestination?: MapDestination;
     message: string;
-    tool_used?: string;
+    toolUsed?: string;
+    toolParams?: any;
 }
 
 /**
@@ -72,6 +73,7 @@ interface LLMBackendResponse {
     status: 'success' | 'error';
     response?: string;
     toolUsed?: string;  // camelCase from Spring Boot's Jackson serialization
+    toolParams?: any;
     message?: string;
 }
 
@@ -198,14 +200,16 @@ async function parse_response(
             type: result_type,
             destinations: destinations.length > 0 ? destinations : undefined,
             message: response_text,
-            tool_used,
+            toolUsed: tool_used,
+            toolParams: backend_response.toolParams,
         };
     }
 
     return {
         type: result_type,
         message: response_text,
-        tool_used,
+        toolUsed: tool_used,
+        toolParams: backend_response.toolParams,
     };
 }
 

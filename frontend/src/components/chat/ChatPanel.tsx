@@ -74,11 +74,14 @@ const ChatPanel = ({
                     dispatch(syncToggleToBackend(response.savedDestination));
                 }
 
+                console.log('LLM Result in ChatPanel (New Chat):', response);
                 // Add AI response message to backend
                 await dispatch(addMessageAsync({
                     chatId: newChatId,
                     role: 'assistant',
                     content: response.message,
+                    toolUsed: response.toolUsed,
+                    toolParams: response.toolParams,
                 }));
             } catch (error) {
                 console.error('Error creating new chat:', error);
@@ -123,11 +126,14 @@ const ChatPanel = ({
                 dispatch(syncToggleToBackend(response.savedDestination));
             }
 
+            console.log('LLM Result in ChatPanel:', response);
             // Add AI response message to backend
             await dispatch(addMessageAsync({
                 chatId: activeChat.id,
                 role: 'assistant',
                 content: response.message,
+                toolUsed: response.toolUsed,
+                toolParams: response.toolParams,
             }));
         } catch (error) {
             console.error('Chat error:', error);
