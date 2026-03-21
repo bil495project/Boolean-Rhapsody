@@ -18,7 +18,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Seeds the {@code places} table from categorized CSV files in {@code ankara_places/}
+ * Seeds the {@code places} table from categorized CSV files in
+ * {@code ankara_places/}
  * on application startup.
  * Clears the table before seeding to ensure a fresh state.
  */
@@ -59,7 +60,7 @@ public class PlaceDataLoader implements ApplicationRunner {
                 String filename = resource.getFilename();
                 String categoryHint = extractCategory(filename);
                 log.info("Processing {} (category hint: {})...", filename, categoryHint);
-                
+
                 int count = seedFromResource(resource, categoryHint);
                 grandTotal += count;
             }
@@ -97,8 +98,8 @@ public class PlaceDataLoader implements ApplicationRunner {
                         skipped++;
                     }
                 } catch (Exception e) {
-                    log.warn("Skipping malformed CSV line in {}: {} | error: {}", 
-                        resource.getFilename(), line, e.getMessage());
+                    log.warn("Skipping malformed CSV line in {}: {} | error: {}",
+                            resource.getFilename(), line, e.getMessage());
                     skipped++;
                 }
 
@@ -114,8 +115,8 @@ public class PlaceDataLoader implements ApplicationRunner {
                 total += batch.size();
             }
 
-            log.info("Resource {} complete. Inserted: {}, Skipped: {}", 
-                resource.getFilename(), total, skipped);
+            log.info("Resource {} complete. Inserted: {}, Skipped: {}",
+                    resource.getFilename(), total, skipped);
 
         } catch (Exception e) {
             log.error("Error reading {}: {}", resource.getFilename(), e.getMessage());
@@ -127,15 +128,23 @@ public class PlaceDataLoader implements ApplicationRunner {
      * Extracts a category hint from the filename to inject into the types field.
      */
     private String extractCategory(String filename) {
-        if (filename == null) return null;
+        if (filename == null)
+            return null;
         String lower = filename.toLowerCase();
-        if (lower.contains("historic")) return "Historic Places";
-        if (lower.contains("cafe") || lower.contains("dessert")) return "Cafes & Desserts";
-        if (lower.contains("restaurant")) return "Restaurants";
-        if (lower.contains("park")) return "Parks";
-        if (lower.contains("landmark")) return "Landmarks";
-        if (lower.contains("bar") || lower.contains("nightclub")) return "Bars & Nightclubs";
-        if (lower.contains("hotel")) return "Hotels";
+        if (lower.contains("historic"))
+            return "Historic Places";
+        if (lower.contains("cafe") || lower.contains("dessert"))
+            return "Cafes & Desserts";
+        if (lower.contains("restaurant"))
+            return "Restaurants";
+        if (lower.contains("park"))
+            return "Parks";
+        if (lower.contains("landmark"))
+            return "Landmarks";
+        if (lower.contains("bar") || lower.contains("nightclub"))
+            return "Bars & Nightclubs";
+        if (lower.contains("hotel"))
+            return "Hotels";
         return null;
     }
 
@@ -156,10 +165,10 @@ public class PlaceDataLoader implements ApplicationRunner {
         String formattedAddress = tokens.length > 2 ? clean(tokens[2]) : null;
         Double lat = parseDouble(tokens.length > 3 ? tokens[3] : null);
         Double lng = parseDouble(tokens.length > 4 ? tokens[4] : null);
-        
+
         // Flatten the Python-style list ["type1", "type2"] → "type1,type2"
         String types = tokens.length > 5 ? flattenTypes(clean(tokens[5])) : "";
-        
+
         // Prepend category hint if not present
         if (categoryHint != null && !types.toLowerCase().contains(categoryHint.toLowerCase())) {
             types = categoryHint + (types.isEmpty() ? "" : "," + types);
@@ -194,7 +203,7 @@ public class PlaceDataLoader implements ApplicationRunner {
             if (c == '"') {
                 if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
                     current.append('"');
-                    i++; 
+                    i++;
                 } else {
                     inQuotes = !inQuotes;
                 }
@@ -233,7 +242,7 @@ public class PlaceDataLoader implements ApplicationRunner {
         if (s == null || s.isBlank())
             return null;
         try {
-            return Integer.parseInt(s.strip());
+            return (int) Double.parseDouble(s.strip());
         } catch (NumberFormatException e) {
             return null;
         }
