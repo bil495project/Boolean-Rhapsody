@@ -244,4 +244,53 @@ public class UserService {
                 .build();
     }
 
+    public List<User> getAllUsersEntity() {
+        return userRepository.findAll();
+    }
+
+    public User getUserByIdEntity(String id) {
+        return findUserById(id);
+    }
+
+    public User getUserByNameEntity(String name) {
+        return userRepository.findAll().stream()
+                .filter(u -> u.getName() != null && u.getName().equals(name))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    }
+
+    public void setUserName(String userId, String name) {
+        User user = findUserById(userId);
+        user.setName(name);
+        userRepository.save(user);
+    }
+
+    public void setUserEmail(String userId, String email) {
+        User user = findUserById(userId);
+        user.setEmail(email);
+        userRepository.save(user);
+    }
+
+    public void addSelectedPlace(String userId, long placeId) {
+        User user = findUserById(userId);
+        TravelPlan plan;
+        if (user.getTravelPlans() == null || user.getTravelPlans().isEmpty()) {
+            plan = TravelPlan.builder()
+                .user(user)
+                .selectedPlaceIds(new java.util.ArrayList<>())
+                .build();
+            if (user.getTravelPlans() == null) {
+                user.setTravelPlans(new java.util.ArrayList<>());
+            }
+            user.getTravelPlans().add(plan);
+        } else {
+            plan = user.getTravelPlans().get(user.getTravelPlans().size() - 1);
+        }
+        if (plan.getSelectedPlaceIds() == null) {
+            plan.setSelectedPlaceIds(new java.util.ArrayList<>());
+        }
+        plan.getSelectedPlaceIds().add(String.valueOf(placeId));
+        userRepository.save(user);
+    }
+
 }

@@ -49,4 +49,25 @@ public class TravelPlan {
         }
         this.createdAt = System.currentTimeMillis();
     }
+
+    @jakarta.persistence.Transient
+    @org.springframework.beans.factory.annotation.Value("${places.service.base-url:http://localhost:8081}")
+    private String placesServiceBaseUrl;
+
+    @jakarta.persistence.Transient
+    @lombok.Builder.Default
+    private org.springframework.web.client.RestTemplate restTemplate = new org.springframework.web.client.RestTemplate();
+
+    public List<com.roadrunner.place.entity.Place> fetchPlaceDetails() {
+        if (selectedPlaceIds == null || selectedPlaceIds.isEmpty()) return new java.util.ArrayList<>();
+        String url = (placesServiceBaseUrl != null ? placesServiceBaseUrl : "http://localhost:8081") + "/api/places/batch";
+        String idsParam = String.join(",", selectedPlaceIds);
+        String fullUrl = url + "?ids=" + idsParam;
+        try {
+            com.roadrunner.place.entity.Place[] response = restTemplate.getForObject(fullUrl, com.roadrunner.place.entity.Place[].class);
+            return response != null ? java.util.Arrays.asList(response) : new java.util.ArrayList<>();
+        } catch (Exception e) {
+            throw new RuntimeException("Places Service is unreachable", e);
+        }
+    }
 }

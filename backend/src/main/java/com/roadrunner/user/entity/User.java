@@ -60,4 +60,40 @@ public class User {
             this.id = UUID.randomUUID().toString();
         }
     }
+
+    public Chat giveFeedback(String feedback) {
+        String chatId = UUID.randomUUID().toString();
+        Chat chat = Chat.builder()
+                .id(chatId)
+                .title("Feedback - " + System.currentTimeMillis())
+                .user(this)
+                .build();
+        Message msg = Message.builder()
+                .id(UUID.randomUUID().toString())
+                .role("user")
+                .content(feedback)
+                .timestamp(System.currentTimeMillis())
+                .chat(chat)
+                .build();
+        chat.getMessages().add(msg);
+        if (this.chats == null) this.chats = new ArrayList<>();
+        this.chats.add(chat);
+        return chat;
+    }
+
+    public TravelPlan createTravelPlan(com.roadrunner.place.entity.Place[] places) {
+        TravelPlan plan = TravelPlan.builder()
+                .id(UUID.randomUUID().toString())
+                .user(this)
+                .selectedPlaceIds(new ArrayList<>())
+                .build();
+        if (places != null) {
+            for (com.roadrunner.place.entity.Place p : places) {
+                plan.getSelectedPlaceIds().add(p.getId());
+            }
+        }
+        if (this.travelPlans == null) this.travelPlans = new ArrayList<>();
+        this.travelPlans.add(plan);
+        return plan;
+    }
 }

@@ -144,6 +144,37 @@ export const userApi = {
         removeToken();
     },
 
+    // --- New Endpoint Bindings ---
+
+    getAllUsers: async (): Promise<UserData[]> => {
+        const response = await api.get<UserData[]>('/users');
+        return response.data;
+    },
+
+    getUserById: async (userId: string): Promise<UserData> => {
+        const response = await api.get<UserData>(`/users/${userId}`);
+        return response.data;
+    },
+
+    searchUserByName: async (name: string): Promise<UserData> => {
+        const response = await api.get<UserData>(`/users/search?name=${name}`);
+        return response.data;
+    },
+
+    updateName: async (userId: string, name: string): Promise<void> => {
+        await api.put(`/users/${userId}/name`, name, { headers: { 'Content-Type': 'text/plain' } });
+    },
+
+    updateEmail: async (userId: string, email: string): Promise<void> => {
+        await api.put(`/users/${userId}/email`, email, { headers: { 'Content-Type': 'text/plain' } });
+    },
+
+    addPlaceToPlan: async (userId: string, placeId: string | number): Promise<void> => {
+        await api.post(`/users/${userId}/places`, placeId, { headers: { 'Content-Type': 'application/json' } });
+    },
+
+    // ----------------------------
+
     getPersonas: async (): Promise<TravelPersonaData[]> => {
         const response = await api.get<TravelPersonaData[]>('/users/me/personas');
         return response.data;

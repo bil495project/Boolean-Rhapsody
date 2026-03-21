@@ -44,6 +44,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import PersonIcon from '@mui/icons-material/Person';
 import LogoutIcon from '@mui/icons-material/Logout';
 import MapIcon from '@mui/icons-material/Map';
+import RouteIcon from '@mui/icons-material/Route';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { toggleSidebar, setActiveChat, deleteChatAsync, updateChatTitleAsync, toggleMapFullscreen } from '../../store/chatSlice';
 import { logout } from '../../store/authSlice';
@@ -74,6 +75,7 @@ const ChatSidebar = ({ mobile = false, onClose }: ChatSidebarProps) => {
         { label: 'Chats', icon: <ChatBubbleOutlineIcon />, path: '/chat' },
         { label: 'Explore', icon: <ExploreIcon />, path: '/explore' },
         { label: 'Saved', icon: <BookmarkBorderIcon />, path: '/saved' },
+        { label: 'Route', icon: <RouteIcon />, path: '/route' },
         { label: 'Navigation', icon: <NavigationIcon />, path: '/navigation' },
     ];
 
