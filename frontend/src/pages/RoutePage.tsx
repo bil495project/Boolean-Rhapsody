@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import {
     Box,
@@ -12,7 +12,17 @@ import {
     Snackbar,
     IconButton,
     Slider,
+    Checkbox,
+    Input,
+    FormControl,
+    FormLabel,
+    Select,
+    Option,
+    Autocomplete,
+    AutocompleteOption,
+    ListItemContent,
 } from '@mui/joy';
+import SearchIcon from '@mui/icons-material/Search';
 import { useMediaQuery } from '@mui/system';
 import RouteIcon from '@mui/icons-material/Route';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -33,7 +43,8 @@ import { generateRoutesThunk, clearRoutes } from '../store/routeSlice';
 import { addSaveDestination } from '../store/savedSlice';
 import { syncToggleToBackend } from '../store/savedThunks';
 import { setStops } from '../store/navigationSlice';
-import type { RouteData, RoutePointData } from '../services/routeService';
+import { placeService } from '../services/placeService';
+import type { RouteData, RoutePointData, RouteConstraints } from '../services/routeService';
 import type { MapDestination } from '../data/destinations';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -94,6 +105,26 @@ function mapPriceLevel(priceLevel: string | null | undefined): 1 | 2 | 3 | 4 {
 function getTravelModeIcon(mode: string | undefined) {
     if (mode?.toLowerCase().includes('walk')) return <DirectionsWalkIcon sx={{ fontSize: 18 }} />;
     return <DirectionsCarIcon sx={{ fontSize: 18 }} />;
+}
+
+// ─── POI Type Options ────────────────────────────────────────────────────────
+
+const POI_TYPE_OPTIONS = [
+    { value: 'HOTEL', label: 'Hotel' },
+    { value: 'RESTAURANT', label: 'Restaurant' },
+    { value: 'CAFE', label: 'Cafe & Desserts' },
+    { value: 'PARK', label: 'Park' },
+    { value: 'LANDMARK', label: 'Landmark' },
+    { value: 'HISTORIC_PLACE', label: 'Historic Place' },
+    { value: 'BAR_NIGHTCLUB', label: 'Bar & Nightclub' },
+];
+
+// ─── Place Search Option ─────────────────────────────────────────────────────
+
+interface PlaceOption {
+    id: string;
+    name: string;
+    address: string;
 }
 
 // ─── Route Card Component ────────────────────────────────────────────────────
@@ -315,6 +346,69 @@ const RoutePage = () => {
     const [centerPoint, setCenterPoint] = useState<[number, number] | null>(null);
     const [hoveredRouteIdx, setHoveredRouteIdx] = useState<number | null>(null);
 
+    // ─── Constraint state ────────────────────────────────────────────────────
+    const [stayAtHotel, setStayAtHotel] = useState(true);
+    const [needsBreakfast, setNeedsBreakfast] = useState(true);
+    const [needsLunch, setNeedsLunch] = useState(false);
+    const [needsDinner, setNeedsDinner] = useState(true);
+
+    // Start anchor
+    const [startAnchorKind, setStartAnchorKind] = useState<'PLACE' | 'TYPE' | ''>('');
+    const [startPlaceId, setStartPlaceId] = useState('');
+    const [startPlaceOption, setStartPlaceOption] = useState<PlaceOption | null>(null);
+    const [startPlaceOptions, setStartPlaceOptions] = useState<PlaceOption[]>([]);
+    const [startPlaceLoading, setStartPlaceLoading] = useState(false);
+    const [startPoiType, setStartPoiType] = useState('');
+    const [startMinRating, setStartMinRating] = useState<string>('');
+    const [startMinRatingCount, setStartMinRatingCount] = useState<string>('');
+
+    // End anchor
+    const [endAnchorKind, setEndAnchorKind] = useState<'PLACE' | 'TYPE' | ''>('');
+    const [endPlaceId, setEndPlaceId] = useState('');
+    const [endPlaceOption, setEndPlaceOption] = useState<PlaceOption | null>(null);
+    const [endPlaceOptions, setEndPlaceOptions] = useState<PlaceOption[]>([]);
+    const [endPlaceLoading, setEndPlaceLoading] = useState(false);
+    const [endPoiType, setEndPoiType] = useState('');
+    const [endMinRating, setEndMinRating] = useState<string>('');
+    const [endMinRatingCount, setEndMinRatingCount] = useState<string>('');
+
+    // Debounced place search
+    const startSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const endSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const searchPlaces = useCallback(async (query: string, target: 'start' | 'end') => {
+        if (query.length < 2) {
+            if (target === 'start') setStartPlaceOptions([]);
+            else setEndPlaceOptions([]);
+            return;
+        }
+        const setLoading = target === 'start' ? setStartPlaceLoading : setEndPlaceLoading;
+        const setOptions = target === 'start' ? setStartPlaceOptions : setEndPlaceOptions;
+        setLoading(true);
+        try {
+            const results = await placeService.searchPlaces(query, 0, 10);
+            setOptions(results.map((p) => ({ id: p.id, name: p.name, address: p.location })));
+        } catch {
+            setOptions([]);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const handlePlaceInputChange = useCallback((query: string, target: 'start' | 'end') => {
+        const timer = target === 'start' ? startSearchTimer : endSearchTimer;
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = setTimeout(() => searchPlaces(query, target), 300);
+    }, [searchPlaces]);
+
+    // Cleanup timers
+    useEffect(() => {
+        return () => {
+            if (startSearchTimer.current) clearTimeout(startSearchTimer.current);
+            if (endSearchTimer.current) clearTimeout(endSearchTimer.current);
+        };
+    }, []);
+
     // Show only the hovered route's points on the map
     const hoveredRoute = hoveredRouteIdx !== null ? routes[hoveredRouteIdx] : null;
     const routeDestinations: MapDestination[] = hoveredRoute
@@ -332,6 +426,43 @@ const RoutePage = () => {
     const handleMobileMenuClick = () => setMobileDrawerOpen(true);
     const handleToggleSidebar = () => dispatch(toggleSidebar());
 
+    const buildConstraints = (): RouteConstraints => {
+        const constraints: RouteConstraints = {
+            stayAtHotel,
+            needsBreakfast,
+            needsLunch,
+            needsDinner,
+        };
+
+        if (startAnchorKind === 'PLACE' && startPlaceId) {
+            constraints.startAnchor = { kind: 'PLACE', placeId: startPlaceId };
+        } else if (startAnchorKind === 'TYPE' && startPoiType) {
+            constraints.startAnchor = {
+                kind: 'TYPE',
+                poiType: startPoiType,
+                filters: {
+                    ...(startMinRating ? { minRating: parseFloat(startMinRating) } : {}),
+                    ...(startMinRatingCount ? { minRatingCount: parseInt(startMinRatingCount, 10) } : {}),
+                },
+            };
+        }
+
+        if (endAnchorKind === 'PLACE' && endPlaceId) {
+            constraints.endAnchor = { kind: 'PLACE', placeId: endPlaceId };
+        } else if (endAnchorKind === 'TYPE' && endPoiType) {
+            constraints.endAnchor = {
+                kind: 'TYPE',
+                poiType: endPoiType,
+                filters: {
+                    ...(endMinRating ? { minRating: parseFloat(endMinRating) } : {}),
+                    ...(endMinRatingCount ? { minRatingCount: parseInt(endMinRatingCount, 10) } : {}),
+                },
+            };
+        }
+
+        return constraints;
+    };
+
     const handleGenerate = () => {
         dispatch(clearRoutes());
         setApprovedRouteIds(new Set());
@@ -339,6 +470,7 @@ const RoutePage = () => {
             k: routeCount,
             centerLat: centerPoint?.[0],
             centerLng: centerPoint?.[1],
+            constraints: buildConstraints(),
         }));
     };
 
@@ -478,6 +610,230 @@ const RoutePage = () => {
                             ]}
                             sx={{ py: 1 }}
                         />
+                    </Box>
+
+                    {/* ─── Constraint Controls ─────────────────────────── */}
+                    <Divider sx={{ my: 2 }} />
+                    <Typography level="title-sm" sx={{ fontWeight: 700, mb: 1.5 }}>
+                        Route Constraints
+                    </Typography>
+
+                    {/* Meal & Hotel checkboxes */}
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+                        <Checkbox
+                            id="constraint-stay-at-hotel"
+                            label="Stay at Hotel"
+                            checked={stayAtHotel}
+                            onChange={(e) => setStayAtHotel(e.target.checked)}
+                        />
+                        <Checkbox
+                            id="constraint-needs-breakfast"
+                            label="Needs Breakfast"
+                            checked={needsBreakfast}
+                            onChange={(e) => setNeedsBreakfast(e.target.checked)}
+                        />
+                        <Checkbox
+                            id="constraint-needs-lunch"
+                            label="Needs Lunch"
+                            checked={needsLunch}
+                            onChange={(e) => setNeedsLunch(e.target.checked)}
+                        />
+                        <Checkbox
+                            id="constraint-needs-dinner"
+                            label="Needs Dinner"
+                            checked={needsDinner}
+                            onChange={(e) => setNeedsDinner(e.target.checked)}
+                        />
+                    </Box>
+
+                    {/* ─── Start Anchor ────────────────────────────────── */}
+                    <Typography level="body-sm" sx={{ fontWeight: 600, mb: 1 }}>
+                        Start Anchor
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2, alignItems: 'flex-end' }}>
+                        <FormControl size="sm" sx={{ minWidth: 120 }}>
+                            <FormLabel>Kind</FormLabel>
+                            <Select
+                                id="start-anchor-kind"
+                                placeholder="None"
+                                value={startAnchorKind || null}
+                                onChange={(_e, val) => setStartAnchorKind((val as 'PLACE' | 'TYPE' | '') || '')}
+                            >
+                                <Option value="">None</Option>
+                                <Option value="PLACE">Place</Option>
+                                <Option value="TYPE">Type</Option>
+                            </Select>
+                        </FormControl>
+
+                        {startAnchorKind === 'PLACE' && (
+                            <FormControl size="sm" sx={{ flex: 1, minWidth: 250 }}>
+                                <FormLabel>Search Place</FormLabel>
+                                <Autocomplete
+                                    id="start-place-search"
+                                    placeholder="Type to search places..."
+                                    options={startPlaceOptions}
+                                    getOptionLabel={(opt) => opt.name}
+                                    isOptionEqualToValue={(opt, val) => opt.id === val.id}
+                                    value={startPlaceOption}
+                                    loading={startPlaceLoading}
+                                    onInputChange={(_e, value) => handlePlaceInputChange(value, 'start')}
+                                    onChange={(_e, value) => {
+                                        setStartPlaceOption(value);
+                                        setStartPlaceId(value?.id || '');
+                                    }}
+                                    startDecorator={<SearchIcon sx={{ fontSize: 18 }} />}
+                                    renderOption={(props, option) => (
+                                        <AutocompleteOption {...props} key={option.id}>
+                                            <ListItemContent>
+                                                <Typography level="body-sm" sx={{ fontWeight: 600 }}>
+                                                    {option.name}
+                                                </Typography>
+                                                <Typography level="body-xs" sx={{ color: 'text.secondary' }}>
+                                                    {option.address}
+                                                </Typography>
+                                            </ListItemContent>
+                                        </AutocompleteOption>
+                                    )}
+                                />
+                            </FormControl>
+                        )}
+
+                        {startAnchorKind === 'TYPE' && (
+                            <>
+                                <FormControl size="sm" sx={{ flex: 1, minWidth: 160 }}>
+                                    <FormLabel>POI Type</FormLabel>
+                                    <Select
+                                        id="start-poi-type"
+                                        placeholder="Select type..."
+                                        value={startPoiType || null}
+                                        onChange={(_e, val) => setStartPoiType(val || '')}
+                                    >
+                                        {POI_TYPE_OPTIONS.map((opt) => (
+                                            <Option key={opt.value} value={opt.value}>
+                                                {opt.label}
+                                            </Option>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                                <FormControl size="sm" sx={{ minWidth: 100 }}>
+                                    <FormLabel>Min Rating</FormLabel>
+                                    <Input
+                                        id="start-min-rating"
+                                        type="number"
+                                        slotProps={{ input: { step: 0.1, min: 0, max: 5 } }}
+                                        placeholder="4.5"
+                                        value={startMinRating}
+                                        onChange={(e) => setStartMinRating(e.target.value)}
+                                    />
+                                </FormControl>
+                                <FormControl size="sm" sx={{ minWidth: 130 }}>
+                                    <FormLabel>Min Rating Count</FormLabel>
+                                    <Input
+                                        id="start-min-rating-count"
+                                        type="number"
+                                        slotProps={{ input: { step: 100, min: 0 } }}
+                                        placeholder="2000"
+                                        value={startMinRatingCount}
+                                        onChange={(e) => setStartMinRatingCount(e.target.value)}
+                                    />
+                                </FormControl>
+                            </>
+                        )}
+                    </Box>
+
+                    {/* ─── End Anchor ──────────────────────────────────── */}
+                    <Typography level="body-sm" sx={{ fontWeight: 600, mb: 1 }}>
+                        End Anchor
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2, alignItems: 'flex-end' }}>
+                        <FormControl size="sm" sx={{ minWidth: 120 }}>
+                            <FormLabel>Kind</FormLabel>
+                            <Select
+                                id="end-anchor-kind"
+                                placeholder="None"
+                                value={endAnchorKind || null}
+                                onChange={(_e, val) => setEndAnchorKind((val as 'PLACE' | 'TYPE' | '') || '')}
+                            >
+                                <Option value="">None</Option>
+                                <Option value="PLACE">Place</Option>
+                                <Option value="TYPE">Type</Option>
+                            </Select>
+                        </FormControl>
+
+                        {endAnchorKind === 'PLACE' && (
+                            <FormControl size="sm" sx={{ flex: 1, minWidth: 250 }}>
+                                <FormLabel>Search Place</FormLabel>
+                                <Autocomplete
+                                    id="end-place-search"
+                                    placeholder="Type to search places..."
+                                    options={endPlaceOptions}
+                                    getOptionLabel={(opt) => opt.name}
+                                    isOptionEqualToValue={(opt, val) => opt.id === val.id}
+                                    value={endPlaceOption}
+                                    loading={endPlaceLoading}
+                                    onInputChange={(_e, value) => handlePlaceInputChange(value, 'end')}
+                                    onChange={(_e, value) => {
+                                        setEndPlaceOption(value);
+                                        setEndPlaceId(value?.id || '');
+                                    }}
+                                    startDecorator={<SearchIcon sx={{ fontSize: 18 }} />}
+                                    renderOption={(props, option) => (
+                                        <AutocompleteOption {...props} key={option.id}>
+                                            <ListItemContent>
+                                                <Typography level="body-sm" sx={{ fontWeight: 600 }}>
+                                                    {option.name}
+                                                </Typography>
+                                                <Typography level="body-xs" sx={{ color: 'text.secondary' }}>
+                                                    {option.address}
+                                                </Typography>
+                                            </ListItemContent>
+                                        </AutocompleteOption>
+                                    )}
+                                />
+                            </FormControl>
+                        )}
+
+                        {endAnchorKind === 'TYPE' && (
+                            <>
+                                <FormControl size="sm" sx={{ flex: 1, minWidth: 160 }}>
+                                    <FormLabel>POI Type</FormLabel>
+                                    <Select
+                                        id="end-poi-type"
+                                        placeholder="Select type..."
+                                        value={endPoiType || null}
+                                        onChange={(_e, val) => setEndPoiType(val || '')}
+                                    >
+                                        {POI_TYPE_OPTIONS.map((opt) => (
+                                            <Option key={opt.value} value={opt.value}>
+                                                {opt.label}
+                                            </Option>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                                <FormControl size="sm" sx={{ minWidth: 100 }}>
+                                    <FormLabel>Min Rating</FormLabel>
+                                    <Input
+                                        id="end-min-rating"
+                                        type="number"
+                                        slotProps={{ input: { step: 0.1, min: 0, max: 5 } }}
+                                        placeholder="4.5"
+                                        value={endMinRating}
+                                        onChange={(e) => setEndMinRating(e.target.value)}
+                                    />
+                                </FormControl>
+                                <FormControl size="sm" sx={{ minWidth: 130 }}>
+                                    <FormLabel>Min Rating Count</FormLabel>
+                                    <Input
+                                        id="end-min-rating-count"
+                                        type="number"
+                                        slotProps={{ input: { step: 100, min: 0 } }}
+                                        placeholder="2000"
+                                        value={endMinRatingCount}
+                                        onChange={(e) => setEndMinRatingCount(e.target.value)}
+                                    />
+                                </FormControl>
+                            </>
+                        )}
                     </Box>
 
                     <Button

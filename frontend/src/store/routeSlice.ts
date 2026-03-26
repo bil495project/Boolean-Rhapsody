@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { routeService, type RouteData } from '../services/routeService';
+import { routeService, type RouteData, type RouteConstraints } from '../services/routeService';
 import type { RootState } from './index';
 
 interface RouteState {
@@ -33,7 +33,7 @@ function buildUserVector(state: RootState): Record<string, string> {
 
 export const generateRoutesThunk = createAsyncThunk(
     'route/generateRoutes',
-    async (params: { k?: number; centerLat?: number; centerLng?: number; radiusKm?: number } | undefined, { getState, rejectWithValue }) => {
+    async (params: { k?: number; centerLat?: number; centerLng?: number; radiusKm?: number; constraints?: RouteConstraints } | undefined, { getState, rejectWithValue }) => {
         try {
             const state = getState() as RootState;
             const userVector = buildUserVector(state);
@@ -46,7 +46,7 @@ export const generateRoutesThunk = createAsyncThunk(
             if (params?.radiusKm !== undefined) {
                 userVector['radiusKm'] = String(params.radiusKm);
             }
-            return await routeService.generateRoutes(userVector, k);
+            return await routeService.generateRoutes(userVector, k, params?.constraints);
         } catch (error: any) {
             return rejectWithValue(
                 error?.response?.data?.error || error.message || 'Failed to generate routes',
