@@ -176,6 +176,7 @@ public class PlaceDataLoader implements ApplicationRunner {
 
         Double rating = tokens.length > 6 ? parseDouble(tokens[6]) : null;
         Integer ratingCount = tokens.length > 7 ? parseInt(tokens[7]) : null;
+        String priceLevel = tokens.length > 8 ? clean(tokens[8]) : "";
 
         return Place.builder()
                 .id(id)
@@ -186,6 +187,7 @@ public class PlaceDataLoader implements ApplicationRunner {
                 .types(types)
                 .ratingScore(rating)
                 .ratingCount(ratingCount)
+                .priceLevel(priceLevel)
                 .build();
     }
 
