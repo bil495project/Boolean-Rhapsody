@@ -48,6 +48,8 @@ public class RouteGenerationService {
     record ParsedWeightRequest(
             String requestId,
             String travelMode,
+            Double centerLat,
+            Double centerLng,
             double parkVeSeyirNoktalari,
             double geceHayati,
             double restoranToleransi,
@@ -72,12 +74,21 @@ public class RouteGenerationService {
                 default -> 0.0;
             };
         }
+
+        boolean hasCenterAnchor() {
+            return centerLat != null && centerLng != null;
+        }
     }
 
     private record RouteVariantProfile(int routeIndex,
                                        double quotaExponent,
                                        double explorationFactor,
                                        double overlapPenalty) {
+    }
+
+    private enum RouteMode {
+        HOTEL_LOOP,
+        CENTER_START
     }
 
     ParsedWeightRequest parseUserVector(Map<String, String> userVector) {
@@ -93,6 +104,8 @@ public class RouteGenerationService {
         return new ParsedWeightRequest(
                 requestId,
                 travelMode,
+                parseOptionalCoordinate(uv.get("centerLat")),
+                parseOptionalCoordinate(uv.get("centerLng")),
                 clamp01(GeoUtils.safeFloat(uv.get("weight_parkVeSeyirNoktalari"), 0.0)),
                 clamp01(GeoUtils.safeFloat(uv.get("weight_geceHayati"), 0.0)),
                 clamp01(GeoUtils.safeFloat(uv.get("weight_restoranToleransi"), 0.0)),
@@ -108,39 +121,55 @@ public class RouteGenerationService {
     }
 
     public List<Route> generateRoutes(Map<String, String> userVector, int k) {
+        return generateRoutes(userVector, true, k);
+    }
+
+    public List<Route> generateRoutes(Map<String, String> userVector,
+                                      boolean stayAtHotel,
+                                      int k) {
         ParsedWeightRequest req = parseUserVector(userVector);
+        RouteMode mode = resolveRouteMode(req, stayAtHotel);
 
         List<Place> allPlaces = placeRepository.findAll();
         List<Place> pool = scoring.buildCandidatePool(allPlaces, MIN_RATING_COUNT);
 
-        int totalPointCount = (int) Math.max(3, Math.min(12,
+        int basePointCount = (int) Math.max(3, Math.min(12,
                 Math.round(3 + 9 * req.toplamPoiYogunlugu())));
-        int interiorPoiCount = totalPointCount - 2;
-
-        Place hotel = selectHotel(pool, req);
-        if (hotel == null) {
-            return List.of();
-        }
+        int poiSelectionCount = mode == RouteMode.CENTER_START
+                ? basePointCount
+                : basePointCount - 2;
 
         k = Math.max(1, k);
         List<Route> routes = new ArrayList<>();
         List<Set<String>> priorInteriorIds = new ArrayList<>();
+        Set<String> priorHotelIds = new HashSet<>();
 
         for (int i = 0; i < k; i++) {
             RouteVariantProfile variant = variantFor(i);
             Random rnd = new Random(Objects.hash(req.requestId(), i, "routegen"));
-            Map<RouteLabel, Integer> quotas = computeCategoryQuotas(req, interiorPoiCount, variant.quotaExponent());
+            Place hotel = mode == RouteMode.HOTEL_LOOP
+                    ? selectHotel(pool, req, rnd, variant, priorHotelIds)
+                    : null;
+            if (mode == RouteMode.HOTEL_LOOP && hotel == null) {
+                return routes;
+            }
+            Map<RouteLabel, Integer> quotas = computeCategoryQuotas(req, poiSelectionCount, variant.quotaExponent());
 
-            List<Place> interiorPois = selectInteriorPois(pool, quotas, req, hotel, rnd, variant, priorInteriorIds);
-            List<Place> orderedInterior = orderNearestNeighbor(interiorPois, hotel, req.sparsity());
+            double anchorLat = mode == RouteMode.CENTER_START ? req.centerLat() : hotel.getLatitude();
+            double anchorLng = mode == RouteMode.CENTER_START ? req.centerLng() : hotel.getLongitude();
+            List<Place> interiorPois = selectInteriorPois(pool, quotas, req, hotel, anchorLat, anchorLng, rnd, variant, priorInteriorIds);
+            List<Place> orderedInterior = orderNearestNeighbor(interiorPois, anchorLat, anchorLng, req.sparsity());
 
-            Route route = assembleRoute(hotel, orderedInterior, req, i);
+            Route route = assembleRoute(mode, hotel, orderedInterior, req, i);
             recomputeLocalSegments(route);
             recomputeTotals(route);
             route.setFeasible(isFeasible(route));
             routes.add(route);
 
             priorInteriorIds.add(collectInteriorIds(route));
+            if (hotel != null && hotel.getId() != null) {
+                priorHotelIds.add(hotel.getId());
+            }
         }
 
         return routes;
@@ -150,7 +179,10 @@ public class RouteGenerationService {
                                   Map<String, String> indexParams,
                                   Map<String, String> originalUserVector) {
         List<RoutePoint> points = route.getPoints();
-        if (index <= 0 || index >= points.size() - 1) {
+        if (index <= 0) {
+            return route;
+        }
+        if (isHotelLoopRoute(route) && index >= points.size() - 1) {
             return route;
         }
 
@@ -164,9 +196,9 @@ public class RouteGenerationService {
         }
 
         List<Place> pool = scoring.buildCandidatePool(placeRepository.findAll(), MIN_RATING_COUNT);
-        Place hotel = points.get(0).getPoi();
-        double anchorLat = hotel != null ? hotel.getLatitude() : KIZILAY_LAT;
-        double anchorLng = hotel != null ? hotel.getLongitude() : KIZILAY_LNG;
+        RoutePoint anchorPoint = points.get(0);
+        double anchorLat = anchorPoint.effectiveLatitude();
+        double anchorLng = anchorPoint.effectiveLongitude();
 
         Optional<Place> replacement = pickBestCandidate(
                 pool,
@@ -194,7 +226,7 @@ public class RouteGenerationService {
 
     public Route insertManualPOI(Route route, int index, String poiId,
                                  Map<String, String> originalUserVector) {
-        if (route.getPoints().size() >= 12) {
+        if (route.getPoints().size() >= maxPointCount(route)) {
             return route;
         }
 
@@ -211,7 +243,10 @@ public class RouteGenerationService {
             return route;
         }
 
-        int idx = Math.max(1, Math.min(index, route.getPoints().size() - 1));
+        int maxInsertIndex = isHotelLoopRoute(route)
+                ? route.getPoints().size() - 1
+                : route.getPoints().size();
+        int idx = Math.max(1, Math.min(index, maxInsertIndex));
         route.getPoints().add(idx, RoutePoint.builder()
                 .index(idx)
                 .poi(place)
@@ -228,10 +263,13 @@ public class RouteGenerationService {
     public Route removePoint(Route route, int index,
                              Map<String, String> originalUserVector) {
         List<RoutePoint> points = route.getPoints();
-        if (index <= 0 || index >= points.size() - 1) {
+        if (index <= 0) {
             return route;
         }
-        if (points.size() <= 3) {
+        if (isHotelLoopRoute(route) && index >= points.size() - 1) {
+            return route;
+        }
+        if (points.size() <= minPointCount(route)) {
             return route;
         }
 
@@ -246,16 +284,16 @@ public class RouteGenerationService {
     public Route reorderPOIs(Route route, List<Integer> newInteriorOrder,
                              Map<String, String> originalUserVector) {
         List<RoutePoint> points = route.getPoints();
-        if (points.size() < 3) {
+        if (points.size() < minPointCount(route)) {
             return route;
         }
 
-        int interiorSize = points.size() - 2;
+        int interiorSize = interiorPointCount(route);
         if (newInteriorOrder == null || newInteriorOrder.size() != interiorSize) {
             return route;
         }
 
-        List<RoutePoint> interior = new ArrayList<>(points.subList(1, points.size() - 1));
+        List<RoutePoint> interior = new ArrayList<>(points.subList(1, interiorEndIndex(route)));
         Set<Integer> seen = new HashSet<>();
         List<RoutePoint> reorderedInterior = new ArrayList<>();
         for (int i : newInteriorOrder) {
@@ -268,7 +306,9 @@ public class RouteGenerationService {
         List<RoutePoint> reorderedPoints = new ArrayList<>();
         reorderedPoints.add(points.get(0));
         reorderedPoints.addAll(reorderedInterior);
-        reorderedPoints.add(points.get(points.size() - 1));
+        if (isHotelLoopRoute(route)) {
+            reorderedPoints.add(points.get(points.size() - 1));
+        }
 
         route.setPoints(reorderedPoints);
         reindexPoints(route);
@@ -278,7 +318,11 @@ public class RouteGenerationService {
         return route;
     }
 
-    Place selectHotel(List<Place> pool, ParsedWeightRequest req) {
+    Place selectHotel(List<Place> pool,
+                      ParsedWeightRequest req,
+                      Random rnd,
+                      RouteVariantProfile variant,
+                      Set<String> priorHotelIds) {
         List<Place> hotels = new ArrayList<>();
         for (Place place : pool) {
             if (labelService.label(place) == RouteLabel.HOTEL) {
@@ -290,10 +334,24 @@ public class RouteGenerationService {
             return null;
         }
 
-        return hotels.stream()
-                .max(Comparator.comparingDouble(hotel -> scoring.scoreHotelCandidate(
-                        hotel, req.hotelCenterBias(), KIZILAY_LAT, KIZILAY_LNG)))
-                .orElse(hotels.get(0));
+        Map<String, Double> scores = new HashMap<>();
+        for (Place hotel : hotels) {
+            double baseScore = scoring.scoreHotelCandidate(
+                    hotel, req.hotelCenterBias(), KIZILAY_LAT, KIZILAY_LNG);
+            double overlapPenalty = priorHotelIds.contains(hotel.getId())
+                    ? 0.12 + variant.overlapPenalty()
+                    : 0.0;
+            double noise = deterministicNoise(hotel.getId(), req.requestId(), variant.routeIndex()) * 0.05;
+            scores.put(hotel.getId(), baseScore + noise - overlapPenalty);
+        }
+
+        List<Place> ranked = new ArrayList<>(hotels);
+        ranked.sort(Comparator.comparingDouble((Place hotel) -> scores.getOrDefault(hotel.getId(), 0.0))
+                .reversed());
+
+        int bandSize = hotelCandidateBandSize(ranked.size(), variant);
+        int selectedIndex = deterministicIndex(bandSize, req.requestId(), variant.routeIndex(), 0, rnd);
+        return ranked.get(selectedIndex);
     }
 
     Map<RouteLabel, Integer> computeCategoryQuotas(ParsedWeightRequest req, int interiorPoiCount) {
@@ -355,6 +413,8 @@ public class RouteGenerationService {
                                            Map<RouteLabel, Integer> quotas,
                                            ParsedWeightRequest req,
                                            Place hotel,
+                                           double anchorLat,
+                                           double anchorLng,
                                            Random rnd,
                                            RouteVariantProfile variant,
                                            List<Set<String>> priorInteriorIds) {
@@ -363,8 +423,6 @@ public class RouteGenerationService {
             usedIds.add(hotel.getId());
         }
 
-        double anchorLat = hotel != null ? hotel.getLatitude() : KIZILAY_LAT;
-        double anchorLng = hotel != null ? hotel.getLongitude() : KIZILAY_LNG;
         List<Place> selected = new ArrayList<>();
 
         for (RouteLabel label : RouteLabel.VISIT_CATEGORIES) {
@@ -498,14 +556,12 @@ public class RouteGenerationService {
     }
 
     private List<Place> orderNearestNeighbor(List<Place> interiorPois,
-                                             Place hotel,
+                                             double startLat,
+                                             double startLng,
                                              double sparsity) {
         if (interiorPois.size() <= 1) {
             return new ArrayList<>(interiorPois);
         }
-
-        double startLat = hotel != null ? hotel.getLatitude() : KIZILAY_LAT;
-        double startLng = hotel != null ? hotel.getLongitude() : KIZILAY_LNG;
 
         List<Place> remaining = new ArrayList<>(interiorPois);
         List<Place> ordered = new ArrayList<>();
@@ -532,7 +588,8 @@ public class RouteGenerationService {
         return ordered;
     }
 
-    private Route assembleRoute(Place hotel, List<Place> orderedInterior,
+    private Route assembleRoute(RouteMode mode,
+                                Place hotel, List<Place> orderedInterior,
                                 ParsedWeightRequest req, int routeIndex) {
         Route route = new Route();
         route.setRouteId("route-" + req.requestId() + "-" + routeIndex);
@@ -540,11 +597,21 @@ public class RouteGenerationService {
 
         List<RoutePoint> points = new ArrayList<>();
         int idx = 0;
-        points.add(RoutePoint.builder()
-                .index(idx++)
-                .poi(hotel)
-                .plannedVisitMin(scoring.estimateVisitMinutes(hotel))
-                .build());
+        if (mode == RouteMode.CENTER_START) {
+            points.add(RoutePoint.builder()
+                    .index(idx++)
+                    .anchorName("Start Point")
+                    .anchorLatitude(req.centerLat())
+                    .anchorLongitude(req.centerLng())
+                    .plannedVisitMin(0)
+                    .build());
+        } else {
+            points.add(RoutePoint.builder()
+                    .index(idx++)
+                    .poi(hotel)
+                    .plannedVisitMin(scoring.estimateVisitMinutes(hotel))
+                    .build());
+        }
 
         for (Place place : orderedInterior) {
             points.add(RoutePoint.builder()
@@ -554,11 +621,13 @@ public class RouteGenerationService {
                     .build());
         }
 
-        points.add(RoutePoint.builder()
-                .index(idx)
-                .poi(hotel)
-                .plannedVisitMin(scoring.estimateVisitMinutes(hotel))
-                .build());
+        if (mode == RouteMode.HOTEL_LOOP) {
+            points.add(RoutePoint.builder()
+                    .index(idx)
+                    .poi(hotel)
+                    .plannedVisitMin(scoring.estimateVisitMinutes(hotel))
+                    .build());
+        }
 
         route.setPoints(points);
         return route;
@@ -572,11 +641,9 @@ public class RouteGenerationService {
         }
 
         for (int i = 0; i < points.size() - 1; i++) {
-            Place from = points.get(i).getPoi();
-            Place to = points.get(i + 1).getPoi();
             double km = GeoUtils.haversineKm(
-                    from.getLatitude(), from.getLongitude(),
-                    to.getLatitude(), to.getLongitude());
+                    points.get(i).effectiveLatitude(), points.get(i).effectiveLongitude(),
+                    points.get(i + 1).effectiveLatitude(), points.get(i + 1).effectiveLongitude());
             route.getSegments().add(RouteSegment.builder()
                     .fromIndex(i)
                     .toIndex(i + 1)
@@ -605,24 +672,18 @@ public class RouteGenerationService {
 
     boolean isFeasible(Route route) {
         List<RoutePoint> points = route.getPoints();
-        if (points.size() < 3 || points.size() > 12) {
+        if (isHotelLoopRoute(route)) {
+            return isHotelLoopFeasible(route);
+        }
+        if (points.size() < 3 || points.size() > 13) {
             return false;
         }
-
-        Place first = points.get(0).getPoi();
-        Place last = points.get(points.size() - 1).getPoi();
-        if (first == null || last == null) {
-            return false;
-        }
-        if (!Objects.equals(first.getId(), last.getId())) {
-            return false;
-        }
-        if (labelService.label(first) != RouteLabel.HOTEL) {
+        if (!points.get(0).isCustomAnchor()) {
             return false;
         }
 
         Set<String> interiorIds = new HashSet<>();
-        for (int i = 1; i < points.size() - 1; i++) {
+        for (int i = 1; i < points.size(); i++) {
             Place poi = points.get(i).getPoi();
             if (poi == null || labelService.label(poi) == RouteLabel.HOTEL) {
                 return false;
@@ -658,7 +719,7 @@ public class RouteGenerationService {
     private Set<String> collectInteriorIds(Route route) {
         Set<String> ids = new HashSet<>();
         List<RoutePoint> points = route.getPoints();
-        for (int i = 1; i < points.size() - 1; i++) {
+        for (int i = 1; i < interiorEndIndex(route); i++) {
             Place poi = points.get(i).getPoi();
             if (poi != null && poi.getId() != null) {
                 ids.add(poi.getId());
@@ -670,17 +731,17 @@ public class RouteGenerationService {
     private static double orderingScore(Place place,
                                         double currentLat,
                                         double currentLng,
-                                        double hotelLat,
-                                        double hotelLng,
+                                        double anchorLat,
+                                        double anchorLng,
                                         double sparsity) {
         double fromCurrent = GeoUtils.haversineKm(currentLat, currentLng,
                 place.getLatitude(), place.getLongitude());
-        double fromHotel = GeoUtils.haversineKm(hotelLat, hotelLng,
+        double fromAnchor = GeoUtils.haversineKm(anchorLat, anchorLng,
                 place.getLatitude(), place.getLongitude());
         double compactWeight = 1.0 - sparsity;
         double spreadWeight = sparsity;
-        return (fromCurrent * (0.85 + compactWeight))
-                - (fromHotel * 0.12 * spreadWeight);
+        return (fromCurrent * (1.05 + (1.10 * compactWeight)))
+                - (fromAnchor * 0.04 * spreadWeight);
     }
 
     private static RouteVariantProfile variantFor(int routeIndex) {
@@ -700,6 +761,13 @@ public class RouteGenerationService {
                 + (variant.explorationFactor() * 0.45)
                 + ((1.0 - categoryWeight) * 0.28);
         int bandSize = (int) Math.ceil(rankedSize * Math.min(0.85, ratio));
+        return Math.max(1, Math.min(rankedSize, bandSize));
+    }
+
+    private static int hotelCandidateBandSize(int rankedSize,
+                                              RouteVariantProfile variant) {
+        double ratio = 0.25 + (variant.explorationFactor() * 0.40);
+        int bandSize = (int) Math.ceil(rankedSize * Math.min(0.60, ratio));
         return Math.max(1, Math.min(rankedSize, bandSize));
     }
 
@@ -740,5 +808,92 @@ public class RouteGenerationService {
 
     private static double clamp01(double value) {
         return Math.max(0.0, Math.min(1.0, value));
+    }
+
+    private static Double parseOptionalCoordinate(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(raw.trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private static RouteMode resolveRouteMode(ParsedWeightRequest req, boolean stayAtHotel) {
+        if (!stayAtHotel && req.hasCenterAnchor()) {
+            return RouteMode.CENTER_START;
+        }
+        return RouteMode.HOTEL_LOOP;
+    }
+
+    private boolean isHotelLoopFeasible(Route route) {
+        List<RoutePoint> points = route.getPoints();
+        if (points.size() < 3 || points.size() > 12) {
+            return false;
+        }
+
+        Place first = points.get(0).getPoi();
+        Place last = points.get(points.size() - 1).getPoi();
+        if (first == null || last == null) {
+            return false;
+        }
+        if (!Objects.equals(first.getId(), last.getId())) {
+            return false;
+        }
+        if (labelService.label(first) != RouteLabel.HOTEL) {
+            return false;
+        }
+
+        Set<String> interiorIds = new HashSet<>();
+        for (int i = 1; i < points.size() - 1; i++) {
+            Place poi = points.get(i).getPoi();
+            if (poi == null || labelService.label(poi) == RouteLabel.HOTEL) {
+                return false;
+            }
+            if (!interiorIds.add(poi.getId())) {
+                return false;
+            }
+        }
+
+        if (route.getSegments().size() != points.size() - 1) {
+            return false;
+        }
+        return route.getTotalDurationSec() >= 0 && route.getTotalDistanceM() >= 0.0;
+    }
+
+    private boolean isHotelLoopRoute(Route route) {
+        List<RoutePoint> points = route.getPoints();
+        if (points.size() < 2) {
+            return false;
+        }
+        RoutePoint first = points.get(0);
+        RoutePoint last = points.get(points.size() - 1);
+        if (first == null || last == null || first.isCustomAnchor() || last.isCustomAnchor()) {
+            return false;
+        }
+        Place firstPoi = first.getPoi();
+        Place lastPoi = last.getPoi();
+        return firstPoi != null
+                && lastPoi != null
+                && Objects.equals(firstPoi.getId(), lastPoi.getId())
+                && labelService.label(firstPoi) == RouteLabel.HOTEL;
+    }
+
+    private int interiorEndIndex(Route route) {
+        return isHotelLoopRoute(route) ? route.getPoints().size() - 1 : route.getPoints().size();
+    }
+
+    private int interiorPointCount(Route route) {
+        return interiorEndIndex(route) - 1;
+    }
+
+    private int maxPointCount(Route route) {
+        return isHotelLoopRoute(route) ? 12 : 13;
+    }
+
+    private int minPointCount(Route route) {
+        return 3;
     }
 }

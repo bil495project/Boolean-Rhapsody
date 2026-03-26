@@ -9,6 +9,18 @@ export interface TravelPersona {
     interests: string[];
     travelFrequency: string;
     preferredPace: string;
+    userVector?: Record<string, string | number | boolean>;
+    weight_parkVeSeyirNoktalari?: number | string;
+    weight_geceHayati?: number | string;
+    weight_restoranToleransi?: number | string;
+    weight_landmark?: number | string;
+    weight_dogalAlanlar?: number | string;
+    weight_tarihiAlanlar?: number | string;
+    weight_kafeTatli?: number | string;
+    weight_toplamPoiYogunlugu?: number | string;
+    weight_sparsity?: number | string;
+    weight_hotelCenterBias?: number | string;
+    weight_butceSeviyesi?: number | string;
 }
 
 // User interface
@@ -149,6 +161,18 @@ export const mapUserDataToUser = (data: UserData, hasCompletedOnboarding = true)
                 interests: firstPersona.interests,
                 travelFrequency: firstPersona.travelFrequency,
                 preferredPace: firstPersona.preferredPace,
+                userVector: firstPersona.userVector,
+                weight_parkVeSeyirNoktalari: firstPersona.weight_parkVeSeyirNoktalari,
+                weight_geceHayati: firstPersona.weight_geceHayati,
+                weight_restoranToleransi: firstPersona.weight_restoranToleransi,
+                weight_landmark: firstPersona.weight_landmark,
+                weight_dogalAlanlar: firstPersona.weight_dogalAlanlar,
+                weight_tarihiAlanlar: firstPersona.weight_tarihiAlanlar,
+                weight_kafeTatli: firstPersona.weight_kafeTatli,
+                weight_toplamPoiYogunlugu: firstPersona.weight_toplamPoiYogunlugu,
+                weight_sparsity: firstPersona.weight_sparsity,
+                weight_hotelCenterBias: firstPersona.weight_hotelCenterBias,
+                weight_butceSeviyesi: firstPersona.weight_butceSeviyesi,
             }
             : undefined,
     };
@@ -195,6 +219,18 @@ export const saveTravelPersona = (personaData: TravelPersona) => async (dispatch
             interests: savedPersona.interests,
             travelFrequency: savedPersona.travelFrequency,
             preferredPace: savedPersona.preferredPace,
+            userVector: savedPersona.userVector,
+            weight_parkVeSeyirNoktalari: savedPersona.weight_parkVeSeyirNoktalari,
+            weight_geceHayati: savedPersona.weight_geceHayati,
+            weight_restoranToleransi: savedPersona.weight_restoranToleransi,
+            weight_landmark: savedPersona.weight_landmark,
+            weight_dogalAlanlar: savedPersona.weight_dogalAlanlar,
+            weight_tarihiAlanlar: savedPersona.weight_tarihiAlanlar,
+            weight_kafeTatli: savedPersona.weight_kafeTatli,
+            weight_toplamPoiYogunlugu: savedPersona.weight_toplamPoiYogunlugu,
+            weight_sparsity: savedPersona.weight_sparsity,
+            weight_hotelCenterBias: savedPersona.weight_hotelCenterBias,
+            weight_butceSeviyesi: savedPersona.weight_butceSeviyesi,
         }));
         
         dispatch(setError(null));

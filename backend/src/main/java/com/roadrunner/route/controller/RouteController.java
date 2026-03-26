@@ -48,8 +48,9 @@ public class RouteController {
     @PostMapping("/generate")
     public List<RouteResponse> generateRoutes(
             @RequestBody @Valid GenerateRoutesRequest req) {
+        boolean stayAtHotel = parseStayAtHotel(req);
         List<Route> routes = routeService.generateRoutes(
-                req.getUserVector(), req.getK());
+                req.getUserVector(), stayAtHotel, req.getK());
         return routes.stream()
                 .map(RouteResponse::fromRoute)
                 .toList();
@@ -105,13 +106,14 @@ public class RouteController {
             @RequestBody @Valid ReorderWithStateRequest req) {
         Route route = reconstructRoute(req.getCurrentRoute());
 
-        // The incoming newOrder covers all points including hotel anchors.
-        // Extract interior-only indices (skip first and last hotel).
         List<Integer> fullOrder = req.getNewOrder();
         List<Integer> interiorOrder = new ArrayList<>();
-        if (fullOrder != null && fullOrder.size() >= 3) {
-            for (int i = 1; i < fullOrder.size() - 1; i++) {
-                // Convert from full-route index to interior-only index
+        boolean hotelLoop = isHotelLoopRoute(route);
+        int exclusiveUpperBound = fullOrder != null
+                ? (hotelLoop ? fullOrder.size() - 1 : fullOrder.size())
+                : 0;
+        if (fullOrder != null && fullOrder.size() >= 2) {
+            for (int i = 1; i < exclusiveUpperBound; i++) {
                 interiorOrder.add(fullOrder.get(i) - 1);
             }
         }
@@ -145,16 +147,47 @@ public class RouteController {
                     place = placeRepository.findById(rpr.getPoiId())
                             .orElse(null);
                 }
-                points.add(RoutePoint.builder()
+                RoutePoint.RoutePointBuilder builder = RoutePoint.builder()
                         .index(rpr.getIndex())
                         .poi(place)
-                        .plannedVisitMin(rpr.getPlannedVisitMin())
-                        .build());
+                        .plannedVisitMin(rpr.getPlannedVisitMin());
+                if (place == null && (rpr.getLatitude() != 0.0 || rpr.getLongitude() != 0.0)) {
+                    builder.anchorName(rpr.getPoiName())
+                            .anchorLatitude(rpr.getLatitude())
+                            .anchorLongitude(rpr.getLongitude());
+                }
+                points.add(builder.build());
             }
         }
         route.setPoints(points);
 
         // Segments are recomputed on mutation, no need to reconstruct them
         return route;
+    }
+
+    private boolean parseStayAtHotel(GenerateRoutesRequest req) {
+        if (req.getConstraints() == null) {
+            return true;
+        }
+        Object raw = req.getConstraints().get("stayAtHotel");
+        if (raw instanceof Boolean bool) {
+            return bool;
+        }
+        if (raw instanceof String text) {
+            return Boolean.parseBoolean(text);
+        }
+        return true;
+    }
+
+    private boolean isHotelLoopRoute(Route route) {
+        if (route.getPoints() == null || route.getPoints().size() < 2) {
+            return false;
+        }
+        RoutePoint first = route.getPoints().get(0);
+        RoutePoint last = route.getPoints().get(route.getPoints().size() - 1);
+        return first.getPoi() != null
+                && last.getPoi() != null
+                && first.getPoi().getId() != null
+                && first.getPoi().getId().equals(last.getPoi().getId());
     }
 }
