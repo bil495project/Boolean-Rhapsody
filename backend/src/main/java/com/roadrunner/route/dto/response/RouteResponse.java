@@ -49,9 +49,9 @@ public class RouteResponse {
             pts.add(RoutePointResponse.builder()
                     .index(rp.getIndex())
                     .poiId(p != null ? p.getId() : null)
-                    .poiName(p != null ? p.getName() : null)
-                    .latitude(p != null ? p.getLatitude() : 0.0)
-                    .longitude(p != null ? p.getLongitude() : 0.0)
+                    .poiName(p != null ? p.getName() : rp.getAnchorName())
+                    .latitude(rp.effectiveLatitude())
+                    .longitude(rp.effectiveLongitude())
                     .formattedAddress(p != null ? p.getFormattedAddress() : null)
                     .types(types)
                     .ratingScore(p != null && p.getRatingScore() != null

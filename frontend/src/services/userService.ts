@@ -77,6 +77,18 @@ export interface TravelPersonaData {
     interests: string[];
     travelFrequency: string;
     preferredPace: string;
+    userVector?: Record<string, string | number | boolean>;
+    weight_parkVeSeyirNoktalari?: number | string;
+    weight_geceHayati?: number | string;
+    weight_restoranToleransi?: number | string;
+    weight_landmark?: number | string;
+    weight_dogalAlanlar?: number | string;
+    weight_tarihiAlanlar?: number | string;
+    weight_kafeTatli?: number | string;
+    weight_toplamPoiYogunlugu?: number | string;
+    weight_sparsity?: number | string;
+    weight_hotelCenterBias?: number | string;
+    weight_butceSeviyesi?: number | string;
 }
 
 export interface UserData {

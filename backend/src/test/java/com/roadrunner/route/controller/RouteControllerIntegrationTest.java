@@ -151,10 +151,23 @@ class RouteControllerIntegrationTest {
         return uv;
     }
 
+    private Map<String, String> buildCenterUserVector() {
+        Map<String, String> uv = buildValidUserVector();
+        uv.put("centerLat", "39.9208");
+        uv.put("centerLng", "32.8541");
+        uv.put("radiusKm", "5");
+        return uv;
+    }
+
     private RouteResponse generateOneRoute() throws Exception {
         GenerateRoutesRequest req = new GenerateRoutesRequest();
         req.setUserVector(buildValidUserVector());
         req.setK(1);
+        req.setConstraints(Map.of(
+                "stayAtHotel", true,
+                "needsBreakfast", true,
+                "needsLunch", false,
+                "needsDinner", true));
 
         MvcResult result = mockMvc.perform(post("/api/routes/generate")
                         .header("Authorization", "Bearer " + jwtToken)
@@ -175,6 +188,12 @@ class RouteControllerIntegrationTest {
         GenerateRoutesRequest req = new GenerateRoutesRequest();
         req.setUserVector(buildValidUserVector());
         req.setK(3);
+        req.setConstraints(Map.of(
+                "stayAtHotel", true,
+                "needsBreakfast", false,
+                "needsLunch", true,
+                "needsDinner", true,
+                "startAnchor", Map.of("kind", "TYPE", "poiType", "HOTEL")));
 
         mockMvc.perform(post("/api/routes/generate")
                         .header("Authorization", "Bearer " + jwtToken)
@@ -182,6 +201,28 @@ class RouteControllerIntegrationTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(3));
+    }
+
+    @Test
+    @DisplayName("Generate stayAtHotel false ve center ile custom anchorli rota dondurur")
+    void shouldGenerateCenterAnchoredRouteWhenHotelStayIsFalse() throws Exception {
+        GenerateRoutesRequest req = new GenerateRoutesRequest();
+        req.setUserVector(buildCenterUserVector());
+        req.setK(1);
+        req.setConstraints(Map.of(
+                "stayAtHotel", false,
+                "needsBreakfast", false,
+                "needsLunch", false,
+                "needsDinner", false));
+
+                mockMvc.perform(post("/api/routes/generate")
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].points[0].poiId").isEmpty())
+                .andExpect(jsonPath("$[0].points[0].latitude").value(39.9208))
+                .andExpect(jsonPath("$[0].points[0].longitude").value(32.8541));
     }
 
     @Test
@@ -334,5 +375,60 @@ class RouteControllerIntegrationTest {
         assertThat(updated.getPoints().get(0).getPoiId()).isEqualTo(hotelId);
         assertThat(updated.getPoints().get(updated.getPoints().size() - 1).getPoiId()).isEqualTo(hotelId);
         assertThat(updated.getSegments()).hasSize(updated.getPoints().size() - 1);
+    }
+
+    @Test
+    @DisplayName("Center anchorli route mutasyonlarda ilk noktayi korur")
+    void shouldKeepCenterAnchorOnMutations() throws Exception {
+        GenerateRoutesRequest generateReq = new GenerateRoutesRequest();
+        generateReq.setUserVector(buildCenterUserVector());
+        generateReq.setK(1);
+        generateReq.setConstraints(Map.of("stayAtHotel", false));
+
+        MvcResult generated = mockMvc.perform(post("/api/routes/generate")
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(generateReq)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        RouteResponse route = objectMapper.readValue(
+                generated.getResponse().getContentAsString(),
+                new TypeReference<List<RouteResponse>>() {}).get(0);
+
+        RerollWithStateRequest rerollReq = new RerollWithStateRequest();
+        rerollReq.setCurrentRoute(route);
+        rerollReq.setIndex(0);
+        rerollReq.setIndexParams(new HashMap<>());
+        rerollReq.setOriginalUserVector(buildCenterUserVector());
+
+        MvcResult rerollResult = mockMvc.perform(post("/api/routes/reroll")
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(rerollReq)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        RouteResponse rerolled = objectMapper.readValue(
+                rerollResult.getResponse().getContentAsString(), RouteResponse.class);
+        assertThat(rerolled.getPoints().get(0).getPoiId()).isNull();
+        assertThat(rerolled.getPoints().get(0).getLatitude()).isEqualTo(39.9208);
+
+        RemoveWithStateRequest removeReq = new RemoveWithStateRequest();
+        removeReq.setCurrentRoute(route);
+        removeReq.setIndex(0);
+        removeReq.setOriginalUserVector(buildCenterUserVector());
+
+        MvcResult removeResult = mockMvc.perform(post("/api/routes/remove")
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(removeReq)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        RouteResponse removed = objectMapper.readValue(
+                removeResult.getResponse().getContentAsString(), RouteResponse.class);
+        assertThat(removed.getPoints().get(0).getPoiId()).isNull();
+        assertThat(removed.getPoints().get(0).getLatitude()).isEqualTo(39.9208);
     }
 }

@@ -99,6 +99,23 @@ class RouteGenerationServiceTest {
         return places;
     }
 
+    private List<Place> buildComparableHotelPlaces() {
+        List<Place> places = new ArrayList<>();
+        places.add(place("h1", "Hotel Alpha", "hotel", 39.9210, 32.8540, 4.7, 1500));
+        places.add(place("h2", "Hotel Beta", "hotel", 39.9230, 32.8510, 4.8, 1600));
+        places.add(place("h3", "Hotel Gamma", "hotel", 39.9245, 32.8570, 4.6, 1700));
+
+        places.add(place("r1", "Restaurant Elite", "restaurant", 39.9205, 32.8535, 4.9, 2000));
+        places.add(place("r2", "Restaurant Massive", "restaurant", 39.9240, 32.8600, 4.7, 4000));
+        places.add(place("t1", "Museum A", "museum", 39.9230, 32.8580, 4.8, 1800));
+        places.add(place("p1", "Park A", "park", 39.9280, 32.8610, 4.2, 700));
+        places.add(place("c1", "Cafe A", "cafe", 39.9240, 32.8550, 4.6, 1000));
+        places.add(place("l1", "Landmark A", "tourist_attraction", 39.9160, 32.8460, 4.7, 1700));
+        places.add(place("n1", "Bar A", "bar", 39.9220, 32.8600, 4.2, 1300));
+        places.add(place("d1", "Nature Spot", "nature_preserve", 39.9500, 32.8890, 4.6, 1200));
+        return places;
+    }
+
     private Map<String, String> buildWeightUserVector() {
         Map<String, String> uv = new HashMap<>();
         uv.put("requestId", TEST_REQUEST_ID);
@@ -113,6 +130,13 @@ class RouteGenerationServiceTest {
         uv.put("weight_sparsity", "0.5");
         uv.put("weight_hotelCenterBias", "0.5");
         uv.put("weight_butceSeviyesi", "0.5");
+        return uv;
+    }
+
+    private Map<String, String> buildCenterUserVector() {
+        Map<String, String> uv = buildWeightUserVector();
+        uv.put("centerLat", String.valueOf(ANKARA_LAT));
+        uv.put("centerLng", String.valueOf(ANKARA_LNG));
         return uv;
     }
 
@@ -245,6 +269,20 @@ class RouteGenerationServiceTest {
     }
 
     @Test
+    @DisplayName("Benzer kaliteli hotel adaylarinda alternatif rotalar farkli hotellere yayilabilir")
+    void shouldDiversifyHotelsAcrossAlternativeRoutes() {
+        when(placeRepository.findAll()).thenReturn(buildComparableHotelPlaces());
+
+        List<Route> routes = routeService.generateRoutes(buildWeightUserVector(), 3);
+
+        Set<String> hotelIds = new HashSet<>();
+        for (Route route : routes) {
+            hotelIds.add(route.getPoints().get(0).getPoi().getId());
+        }
+        assertThat(hotelIds).hasSizeGreaterThan(1);
+    }
+
+    @Test
     @DisplayName("Ilk rota dominant categoryye daha siki baglidir")
     void shouldMakeFirstRouteMoreDominantThanLaterRoutes() {
         when(placeRepository.findAll()).thenReturn(buildTestPlaces());
@@ -353,5 +391,79 @@ class RouteGenerationServiceTest {
         assertThat(route.getTotalDurationSec()).isGreaterThan(0);
         assertThat(route.getTotalDistanceM()).isGreaterThan(0.0);
         assertThat(route.isFeasible()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Center-start route custom anchor ile baslar ve son POI ile biter")
+    void shouldStartFromCenterAnchorWhenStayAtHotelIsFalse() {
+        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
+
+        Route route = routeService.generateRoutes(buildCenterUserVector(), false, 1).get(0);
+
+        assertThat(route.getPoints().get(0).isCustomAnchor()).isTrue();
+        assertThat(route.getPoints().get(0).getPoi()).isNull();
+        assertThat(route.getPoints().get(0).getAnchorLatitude()).isEqualTo(ANKARA_LAT);
+        assertThat(route.getPoints().get(0).getAnchorLongitude()).isEqualTo(ANKARA_LNG);
+        assertThat(route.getPoints().get(route.getPoints().size() - 1).getPoi()).isNotNull();
+        assertThat(route.getPoints()).hasSizeBetween(4, 13);
+        assertThat(route.isFeasible()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Center-start total point count base POI count artı bir olur")
+    void shouldAddCenterOnTopOfExistingPointCountRule() {
+        Map<String, String> uv = buildCenterUserVector();
+        RouteGenerationService.ParsedWeightRequest req = routeService.parseUserVector(uv);
+        int basePointCount = (int) Math.max(3, Math.min(12, Math.round(3 + 9 * req.toplamPoiYogunlugu())));
+
+        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
+        Route route = routeService.generateRoutes(uv, false, 1).get(0);
+
+        assertThat(route.getPoints()).hasSize(basePointCount + 1);
+    }
+
+    @Test
+    @DisplayName("Center-start reroll insert remove reorder index sifir anchorini korur")
+    void shouldKeepCenterAnchorOnMutations() {
+        List<Place> places = buildTestPlaces();
+        when(placeRepository.findAll()).thenReturn(places);
+
+        Route route = routeService.generateRoutes(buildCenterUserVector(), false, 1).get(0);
+        assertThat(route.getPoints().get(0).isCustomAnchor()).isTrue();
+
+        Route afterStartReroll = routeService.rerollRoutePoint(route, 0, new HashMap<>(), buildCenterUserVector());
+        assertThat(afterStartReroll.getPoints().get(0).isCustomAnchor()).isTrue();
+
+        Place insertPlace = place("ins2", "Insert Cafe Center", "cafe", 39.9195, 32.8560, 4.5, 900);
+        when(placeRepository.findById("ins2")).thenReturn(java.util.Optional.of(insertPlace));
+
+        Route inserted = routeService.insertManualPOI(route, route.getPoints().size(), "ins2", buildCenterUserVector());
+        assertThat(inserted.getPoints().get(0).isCustomAnchor()).isTrue();
+
+        Route removed = routeService.removePoint(inserted, 0, buildCenterUserVector());
+        assertThat(removed.getPoints().get(0).isCustomAnchor()).isTrue();
+
+        int interiorSize = inserted.getPoints().size() - 1;
+        if (interiorSize >= 2) {
+            List<Integer> reverse = new ArrayList<>();
+            reverse.add(interiorSize - 1);
+            for (int i = interiorSize - 2; i >= 0; i--) {
+                reverse.add(i);
+            }
+            Route reordered = routeService.reorderPOIs(inserted, reverse, buildCenterUserVector());
+            assertThat(reordered.getPoints().get(0).isCustomAnchor()).isTrue();
+        }
+    }
+
+    @Test
+    @DisplayName("StayAtHotel true iken center tamamen ignore edilir")
+    void shouldIgnoreCenterWhenStayAtHotelIsTrue() {
+        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
+
+        Route route = routeService.generateRoutes(buildCenterUserVector(), true, 1).get(0);
+
+        assertThat(route.getPoints().get(0).isCustomAnchor()).isFalse();
+        assertThat(route.getPoints().get(0).getPoi().getId())
+                .isEqualTo(route.getPoints().get(route.getPoints().size() - 1).getPoi().getId());
     }
 }
