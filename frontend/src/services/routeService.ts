@@ -50,16 +50,41 @@ export interface RouteData {
     travelMode: string;
 }
 
+// ─── Constraints ─────────────────────────────────────────────────────────────
+
+export interface AnchorFilter {
+    minRating?: number;
+    minRatingCount?: number;
+}
+
+export interface RouteAnchor {
+    kind: 'PLACE' | 'TYPE';
+    placeId?: string;
+    poiType?: string;
+    filters?: AnchorFilter;
+}
+
+export interface RouteConstraints {
+    stayAtHotel: boolean;
+    needsBreakfast: boolean;
+    needsLunch: boolean;
+    needsDinner: boolean;
+    startAnchor?: RouteAnchor;
+    endAnchor?: RouteAnchor;
+}
+
 // ─── Route API ───────────────────────────────────────────────────────────────
 
 export const routeService = {
     generateRoutes: async (
         userVector: Record<string, string>,
         k: number = 3,
+        constraints?: RouteConstraints,
     ): Promise<RouteData[]> => {
         const response = await api.post<RouteData[]>('/routes/generate', {
             userVector,
             k,
+            constraints,
         });
         return response.data;
     },
