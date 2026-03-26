@@ -99,12 +99,13 @@ public class SeparatedPlaceDataLoader implements ApplicationRunner {
         int skipped = 0;
 
         String insertSql = "INSERT INTO " + tableName + " " +
-                "(id, name, formatted_address, lat, lng, types, rating_score, rating_count) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?) " +
+                "(id, name, formatted_address, lat, lng, types, rating_score, rating_count, price_level) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) " +
                 "ON CONFLICT (id) DO UPDATE SET " +
                 "name = EXCLUDED.name, formatted_address = EXCLUDED.formatted_address, " +
                 "lat = EXCLUDED.lat, lng = EXCLUDED.lng, types = EXCLUDED.types, " +
-                "rating_score = EXCLUDED.rating_score, rating_count = EXCLUDED.rating_count";
+                "rating_score = EXCLUDED.rating_score, rating_count = EXCLUDED.rating_count, " +
+                "price_level = EXCLUDED.price_level";
 
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
@@ -171,8 +172,9 @@ public class SeparatedPlaceDataLoader implements ApplicationRunner {
 
         Double rating = tokens.length > 6 ? parseDouble(tokens[6]) : null;
         Integer ratingCount = tokens.length > 7 ? parseInt(tokens[7]) : null;
+        String priceLevel = tokens.length > 8 ? clean(tokens[8]) : "";
 
-        return new Object[]{id, name, formattedAddress, lat, lng, types, rating, ratingCount};
+        return new Object[]{id, name, formattedAddress, lat, lng, types, rating, ratingCount, priceLevel};
     }
 
     private String extractCategory(String filename) {
