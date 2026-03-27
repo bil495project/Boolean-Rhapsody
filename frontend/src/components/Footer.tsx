@@ -1,5 +1,5 @@
 import { Box, Typography, Link } from '@mui/joy';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import RoadrunnerBirdLogo from './RoadrunnerBirdLogo';
 
 const Footer = () => {
     const currentYear = new Date().getFullYear();
@@ -29,7 +29,7 @@ const Footer = () => {
             >
                 {/* Logo & Copyright */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <AutoAwesomeIcon sx={{ fontSize: 20, color: 'primary.500' }} />
+                    <RoadrunnerBirdLogo size={20} />
                     <Typography level="body-sm" sx={{ color: 'text.secondary' }}>
                         Roadrunner © {currentYear}
                     </Typography>

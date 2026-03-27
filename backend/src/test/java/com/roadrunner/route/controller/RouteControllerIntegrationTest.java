@@ -226,6 +226,28 @@ class RouteControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("Generate stayAtHotel false ve center yoksa Kizilay anchori kullanir")
+    void shouldFallbackToKizilayAnchorWhenCenterMissing() throws Exception {
+        GenerateRoutesRequest req = new GenerateRoutesRequest();
+        req.setUserVector(buildValidUserVector());
+        req.setK(1);
+        req.setConstraints(Map.of(
+                "stayAtHotel", false,
+                "needsBreakfast", false,
+                "needsLunch", false,
+                "needsDinner", false));
+
+        mockMvc.perform(post("/api/routes/generate")
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].points[0].poiId").isEmpty())
+                .andExpect(jsonPath("$[0].points[0].latitude").value(39.9208))
+                .andExpect(jsonPath("$[0].points[0].longitude").value(32.8541));
+    }
+
+    @Test
     @DisplayName("Generate sonucu ayni hotel ile baslayip bitiyor")
     void shouldReturnHotelAnchoredRoute() throws Exception {
         RouteResponse route = generateOneRoute();

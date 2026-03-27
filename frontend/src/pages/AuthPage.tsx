@@ -26,7 +26,6 @@ import AppleIcon from '@mui/icons-material/Apple';
 import EmailIcon from '@mui/icons-material/Email';
 import LockIcon from '@mui/icons-material/Lock';
 import PersonIcon from '@mui/icons-material/Person';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import FlightIcon from '@mui/icons-material/Flight';
 import PublicIcon from '@mui/icons-material/Public';
@@ -48,6 +47,7 @@ import { RECAPTCHA_ACTIONS, executeRecaptchaToken } from '../utils/recaptcha';
 import { authApi, extractErrorMessage } from '../services/userService';
 import { mapUserDataToUser } from '../store/authSlice';
 import beachBg from '../assets/beach-bg.png';
+import RoadrunnerBirdLogo from '../components/RoadrunnerBirdLogo';
 
 // Toggle Switch Component
 const AuthToggle = ({ isSignUp, onToggle }: { isSignUp: boolean; onToggle: () => void }) => {
@@ -212,7 +212,7 @@ const InactiveOverlay = ({
 
             {/* Content */}
             <Box sx={{ textAlign: 'center', px: 4, zIndex: 2 }}>
-                <AutoAwesomeIcon sx={{ fontSize: 48, color: '#fff', mb: 2, opacity: 0.9 }} />
+                <RoadrunnerBirdLogo size={48} sx={{ mb: 2, opacity: 0.9 }} />
                 <Typography
                     level="h3"
                     sx={{
@@ -843,7 +843,7 @@ const AuthPage = () => {
                     }}
                 >
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                        <AutoAwesomeIcon sx={{ fontSize: 28, color: 'primary.500' }} />
+                        <RoadrunnerBirdLogo size={28} />
                         <Typography level="h4" sx={{ fontWeight: 700 }}>
                             Roadrunner
                         </Typography>
@@ -907,7 +907,7 @@ const AuthPage = () => {
                     }}
                 >
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                        <AutoAwesomeIcon sx={{ fontSize: 28, color: 'primary.500' }} />
+                        <RoadrunnerBirdLogo size={28} />
                         <Typography level="h4" sx={{ fontWeight: 700 }}>
                             Roadrunner
                         </Typography>
@@ -934,7 +934,7 @@ const AuthPage = () => {
             >
                 {/* Logo */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                    <AutoAwesomeIcon sx={{ fontSize: 28, color: 'primary.500' }} />
+                    <RoadrunnerBirdLogo size={28} />
                     <Typography level="h4" sx={{ fontWeight: 700 }}>
                         Roadrunner
                     </Typography>

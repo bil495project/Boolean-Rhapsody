@@ -1,10 +1,10 @@
 import { Box, Typography, Avatar, Sheet, IconButton } from '@mui/joy';
 import StarIcon from '@mui/icons-material/Star';
 import AddIcon from '@mui/icons-material/Add';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Message, LocationCard } from '../../store/chatSlice';
+import RoadrunnerBirdLogo from '../RoadrunnerBirdLogo';
 
 interface ChatMessageProps {
     message: Message;
@@ -202,7 +202,7 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
                     borderColor: 'divider',
                 }}
             >
-                <AutoAwesomeIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                <RoadrunnerBirdLogo size={22} />
             </Avatar>
             <Box sx={{ flex: 1, minWidth: 0 }}>
                 <MarkdownContent content={message.content} />

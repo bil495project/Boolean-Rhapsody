@@ -410,6 +410,20 @@ class RouteGenerationServiceTest {
     }
 
     @Test
+    @DisplayName("Center verilmediginde ve otel secilmediginde Kizilaydan baslar")
+    void shouldFallbackToKizilayWhenCenterMissingAndStayAtHotelIsFalse() {
+        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
+
+        Route route = routeService.generateRoutes(buildWeightUserVector(), false, 1).get(0);
+
+        assertThat(route.getPoints().get(0).isCustomAnchor()).isTrue();
+        assertThat(route.getPoints().get(0).getPoi()).isNull();
+        assertThat(route.getPoints().get(0).getAnchorLatitude()).isEqualTo(ANKARA_LAT);
+        assertThat(route.getPoints().get(0).getAnchorLongitude()).isEqualTo(ANKARA_LNG);
+        assertThat(route.isFeasible()).isTrue();
+    }
+
+    @Test
     @DisplayName("Center-start total point count base POI count artı bir olur")
     void shouldAddCenterOnTopOfExistingPointCountRule() {
         Map<String, String> uv = buildCenterUserVector();

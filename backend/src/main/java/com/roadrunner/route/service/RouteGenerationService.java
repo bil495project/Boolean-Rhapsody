@@ -78,6 +78,14 @@ public class RouteGenerationService {
         boolean hasCenterAnchor() {
             return centerLat != null && centerLng != null;
         }
+
+        double effectiveCenterLat() {
+            return centerLat != null ? centerLat : KIZILAY_LAT;
+        }
+
+        double effectiveCenterLng() {
+            return centerLng != null ? centerLng : KIZILAY_LNG;
+        }
     }
 
     private record RouteVariantProfile(int routeIndex,
@@ -155,8 +163,8 @@ public class RouteGenerationService {
             }
             Map<RouteLabel, Integer> quotas = computeCategoryQuotas(req, poiSelectionCount, variant.quotaExponent());
 
-            double anchorLat = mode == RouteMode.CENTER_START ? req.centerLat() : hotel.getLatitude();
-            double anchorLng = mode == RouteMode.CENTER_START ? req.centerLng() : hotel.getLongitude();
+            double anchorLat = mode == RouteMode.CENTER_START ? req.effectiveCenterLat() : hotel.getLatitude();
+            double anchorLng = mode == RouteMode.CENTER_START ? req.effectiveCenterLng() : hotel.getLongitude();
             List<Place> interiorPois = selectInteriorPois(pool, quotas, req, hotel, anchorLat, anchorLng, rnd, variant, priorInteriorIds);
             List<Place> orderedInterior = orderNearestNeighbor(interiorPois, anchorLat, anchorLng, req.sparsity());
 
@@ -601,8 +609,8 @@ public class RouteGenerationService {
             points.add(RoutePoint.builder()
                     .index(idx++)
                     .anchorName("Start Point")
-                    .anchorLatitude(req.centerLat())
-                    .anchorLongitude(req.centerLng())
+                    .anchorLatitude(req.effectiveCenterLat())
+                    .anchorLongitude(req.effectiveCenterLng())
                     .plannedVisitMin(0)
                     .build());
         } else {
@@ -822,7 +830,7 @@ public class RouteGenerationService {
     }
 
     private static RouteMode resolveRouteMode(ParsedWeightRequest req, boolean stayAtHotel) {
-        if (!stayAtHotel && req.hasCenterAnchor()) {
+        if (!stayAtHotel) {
             return RouteMode.CENTER_START;
         }
         return RouteMode.HOTEL_LOOP;

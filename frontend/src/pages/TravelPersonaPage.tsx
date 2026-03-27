@@ -15,12 +15,12 @@ import {
     Avatar,
     IconButton,
 } from '@mui/joy';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckIcon from '@mui/icons-material/Check';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import Header from '../components/Header';
+import RoadrunnerBirdLogo from '../components/RoadrunnerBirdLogo';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { updateTravelPersona, updateUser, clearNewSignup, saveTravelPersona } from '../store/authSlice';
 import type { TravelPersona } from '../store/authSlice';
@@ -178,7 +178,7 @@ const TravelPersonaPage = () => {
             >
                 {/* Header */}
                 <Box sx={{ textAlign: 'center', mb: 4 }}>
-                    <AutoAwesomeIcon sx={{ fontSize: 48, color: 'primary.500', mb: 2 }} />
+                    <RoadrunnerBirdLogo size={48} sx={{ mb: 2 }} />
                     <Typography level="h2" sx={{ mb: 1 }}>
                         Create Your Travel Persona
                     </Typography>

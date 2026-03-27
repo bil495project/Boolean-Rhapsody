@@ -79,6 +79,36 @@ const MapResizeHandler = ({ fullscreen }: { fullscreen: boolean }) => {
     return null;
 };
 
+const MapViewportController = ({
+    fullscreen,
+    fitCoordinates,
+}: {
+    fullscreen: boolean;
+    fitCoordinates?: [number, number][] | null;
+}) => {
+    const map = useMap();
+
+    useEffect(() => {
+        if (!fitCoordinates || fitCoordinates.length === 0) {
+            return;
+        }
+
+        if (fitCoordinates.length === 1) {
+            map.setView(fitCoordinates[0], Math.max(map.getZoom(), 15), { animate: true });
+            return;
+        }
+
+        const bounds = L.latLngBounds(fitCoordinates);
+        map.fitBounds(bounds, {
+            padding: [40, 40],
+            animate: true,
+            maxZoom: 16,
+        });
+    }, [fitCoordinates, map, fullscreen]);
+
+    return null;
+};
+
 // Component to handle map click to close popup
 const MapClickHandler = ({
     onMapClick,
@@ -105,6 +135,9 @@ interface MapPanelProps {
     route?: [number, number][] | null;
     orderedDestinations?: MapDestination[];
     onMapClick?: (latlng: { lat: number; lng: number }) => void;
+    disableClustering?: boolean;
+    fitCoordinates?: [number, number][] | null;
+    markerKeyPrefix?: string;
 }
 
 const MapPanel = ({
@@ -113,7 +146,10 @@ const MapPanel = ({
     onDestinationSelect,
     route,
     orderedDestinations = [],
-    onMapClick: onMapClickProp
+    onMapClick: onMapClickProp,
+    disableClustering = false,
+    fitCoordinates,
+    markerKeyPrefix = 'default',
 }: MapPanelProps) => {
     const dispatch = useAppDispatch();
     const { mapFullscreen } = useAppSelector((state) => state.chat);
@@ -205,6 +241,17 @@ const MapPanel = ({
         };
     }, []);
 
+    useEffect(() => {
+        if (!hoveredDestination) {
+            return;
+        }
+        const stillVisible = destinations.some((destination) => destination.id === hoveredDestination.id);
+        if (!stillVisible) {
+            setHoveredDestination(null);
+            setPopupPosition(null);
+        }
+    }, [destinations, hoveredDestination]);
+
     return (
         <Box
             ref={mapContainerRef}
@@ -225,40 +272,68 @@ const MapPanel = ({
                     url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                 />
                 <MapResizeHandler fullscreen={mapFullscreen} />
+                <MapViewportController fullscreen={mapFullscreen} fitCoordinates={fitCoordinates} />
                 <MapClickHandler onMapClick={handleMapClick} onMapClickCoords={onMapClickProp} />
 
                 {/* Route Polyline */}
                 {route && route.length > 1 && (
                     <Polyline
+                        key={`route-${markerKeyPrefix}`}
                         positions={route}
                         pathOptions={{ color: '#000000', weight: 4, opacity: 0.8, dashArray: '10, 10' }}
                     />
                 )}
 
                 {/* Destination markers */}
-                <MarkerClusterGroup chunkedLoading>
-                    {destinations.map((destination) => {
-                        const orderIndex = orderedDestinations.findIndex(d => d.id === destination.id);
-                        const orderNumber = orderIndex !== -1 ? orderIndex + 1 : undefined;
+                {disableClustering ? (
+                    <>
+                        {destinations.map((destination) => {
+                            const orderIndex = orderedDestinations.findIndex(d => d.id === destination.id);
+                            const orderNumber = orderIndex !== -1 ? orderIndex + 1 : undefined;
 
-                        return (
-                            <Marker
-                                key={destination.id}
-                                position={destination.coordinates}
-                                icon={createCustomIcon(
-                                    highlightedDestination?.id === destination.id || hoveredDestination?.id === destination.id
-                                        ? '#FF6B6B'
-                                        : '#00BFA6',
-                                    orderNumber
-                                )}
-                                eventHandlers={{
-                                    mouseover: (e) => handleMarkerHover(destination, e),
-                                    mouseout: handleMarkerLeave,
-                                }}
-                            />
-                        );
-                    })}
-                </MarkerClusterGroup>
+                            return (
+                                <Marker
+                                    key={`${markerKeyPrefix}-${destination.id}`}
+                                    position={destination.coordinates}
+                                    icon={createCustomIcon(
+                                        highlightedDestination?.id === destination.id || hoveredDestination?.id === destination.id
+                                            ? '#FF6B6B'
+                                            : '#00BFA6',
+                                        orderNumber
+                                    )}
+                                    eventHandlers={{
+                                        mouseover: (e) => handleMarkerHover(destination, e),
+                                        mouseout: handleMarkerLeave,
+                                    }}
+                                />
+                            );
+                        })}
+                    </>
+                ) : (
+                    <MarkerClusterGroup chunkedLoading>
+                        {destinations.map((destination) => {
+                            const orderIndex = orderedDestinations.findIndex(d => d.id === destination.id);
+                            const orderNumber = orderIndex !== -1 ? orderIndex + 1 : undefined;
+
+                            return (
+                                <Marker
+                                    key={`${markerKeyPrefix}-${destination.id}`}
+                                    position={destination.coordinates}
+                                    icon={createCustomIcon(
+                                        highlightedDestination?.id === destination.id || hoveredDestination?.id === destination.id
+                                            ? '#FF6B6B'
+                                            : '#00BFA6',
+                                        orderNumber
+                                    )}
+                                    eventHandlers={{
+                                        mouseover: (e) => handleMarkerHover(destination, e),
+                                        mouseout: handleMarkerLeave,
+                                    }}
+                                />
+                            );
+                        })}
+                    </MarkerClusterGroup>
+                )}
             </MapContainer>
 
             {/* Hover Popup Card */}

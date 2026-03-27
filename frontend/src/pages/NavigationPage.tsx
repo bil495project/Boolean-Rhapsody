@@ -118,6 +118,9 @@ const NavigationPage = () => {
                                     destinations={selectedStops}
                                     route={route}
                                     orderedDestinations={selectedStops}
+                                    disableClustering
+                                    fitCoordinates={route ?? selectedStops.map((stop) => stop.coordinates)}
+                                    markerKeyPrefix="navigation-route"
                                 />
                             </Box>
                         )}
@@ -163,6 +166,9 @@ const NavigationPage = () => {
                                 destinations={selectedStops}
                                 route={route}
                                 orderedDestinations={selectedStops}
+                                disableClustering
+                                fitCoordinates={route ?? selectedStops.map((stop) => stop.coordinates)}
+                                markerKeyPrefix="navigation-route"
                             />
                         </Box>
                     </Box>
