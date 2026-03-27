@@ -15,6 +15,10 @@ import com.roadrunner.place.repository.PlaceRepository;
 import com.roadrunner.route.dto.request.GenerateRoutesRequest;
 import com.roadrunner.route.dto.request.InsertWithStateRequest;
 import com.roadrunner.route.dto.request.RemoveWithStateRequest;
+import com.roadrunner.route.dto.request.RouteAnchorRequest;
+import com.roadrunner.route.dto.request.RouteCandidateFiltersRequest;
+import com.roadrunner.route.dto.request.RouteConstraintsRequest;
+import com.roadrunner.route.dto.request.RoutePreferencesRequest;
 import com.roadrunner.route.dto.request.ReorderWithStateRequest;
 import com.roadrunner.route.dto.request.RerollWithStateRequest;
 import com.roadrunner.route.dto.response.RouteResponse;
@@ -153,21 +157,37 @@ class RouteControllerIntegrationTest {
 
     private Map<String, String> buildCenterUserVector() {
         Map<String, String> uv = buildValidUserVector();
-        uv.put("centerLat", "39.9208");
-        uv.put("centerLng", "32.8541");
-        uv.put("radiusKm", "5");
         return uv;
+    }
+
+    private RoutePreferencesRequest buildPreferences() {
+        return new RoutePreferencesRequest(
+                0.6, 0.5, 0.4, 0.7, 0.8,
+                0.3, 0.4, 0.5, 0.6, 0.5);
+    }
+
+    private RouteConstraintsRequest constraints(boolean stayAtHotel,
+                                                boolean needsBreakfast,
+                                                boolean needsLunch,
+                                                boolean needsDinner) {
+        RouteConstraintsRequest constraints = new RouteConstraintsRequest();
+        constraints.setStayAtHotel(stayAtHotel);
+        constraints.setNeedsBreakfast(needsBreakfast);
+        constraints.setNeedsLunch(needsLunch);
+        constraints.setNeedsDinner(needsDinner);
+        constraints.setStartAnchor(null);
+        constraints.setEndAnchor(null);
+        constraints.setPoiSlots(null);
+        constraints.setRequestedVisitCount(null);
+        return constraints;
     }
 
     private RouteResponse generateOneRoute() throws Exception {
         GenerateRoutesRequest req = new GenerateRoutesRequest();
         req.setUserVector(buildValidUserVector());
+        req.setPreferences(buildPreferences());
         req.setK(1);
-        req.setConstraints(Map.of(
-                "stayAtHotel", true,
-                "needsBreakfast", true,
-                "needsLunch", false,
-                "needsDinner", true));
+        req.setConstraints(constraints(true, true, false, true));
 
         MvcResult result = mockMvc.perform(post("/api/routes/generate")
                         .header("Authorization", "Bearer " + jwtToken)
@@ -187,13 +207,11 @@ class RouteControllerIntegrationTest {
     void shouldGenerateKRoutes() throws Exception {
         GenerateRoutesRequest req = new GenerateRoutesRequest();
         req.setUserVector(buildValidUserVector());
+        req.setPreferences(buildPreferences());
         req.setK(3);
-        req.setConstraints(Map.of(
-                "stayAtHotel", true,
-                "needsBreakfast", false,
-                "needsLunch", true,
-                "needsDinner", true,
-                "startAnchor", Map.of("kind", "TYPE", "poiType", "HOTEL")));
+        RouteConstraintsRequest constraints = constraints(true, false, true, true);
+        constraints.setStartAnchor(new RouteAnchorRequest("TYPE", null, "HOTEL", null));
+        req.setConstraints(constraints);
 
         mockMvc.perform(post("/api/routes/generate")
                         .header("Authorization", "Bearer " + jwtToken)
@@ -208,14 +226,13 @@ class RouteControllerIntegrationTest {
     void shouldGenerateCenterAnchoredRouteWhenHotelStayIsFalse() throws Exception {
         GenerateRoutesRequest req = new GenerateRoutesRequest();
         req.setUserVector(buildCenterUserVector());
+        req.setPreferences(buildPreferences());
         req.setK(1);
-        req.setConstraints(Map.of(
-                "stayAtHotel", false,
-                "needsBreakfast", false,
-                "needsLunch", false,
-                "needsDinner", false));
+        req.setConstraints(constraints(false, false, false, false));
+        req.setCenterLat(39.9208);
+        req.setCenterLng(32.8541);
 
-                mockMvc.perform(post("/api/routes/generate")
+        mockMvc.perform(post("/api/routes/generate")
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
@@ -230,12 +247,9 @@ class RouteControllerIntegrationTest {
     void shouldFallbackToKizilayAnchorWhenCenterMissing() throws Exception {
         GenerateRoutesRequest req = new GenerateRoutesRequest();
         req.setUserVector(buildValidUserVector());
+        req.setPreferences(buildPreferences());
         req.setK(1);
-        req.setConstraints(Map.of(
-                "stayAtHotel", false,
-                "needsBreakfast", false,
-                "needsLunch", false,
-                "needsDinner", false));
+        req.setConstraints(constraints(false, false, false, false));
 
         mockMvc.perform(post("/api/routes/generate")
                         .header("Authorization", "Bearer " + jwtToken)
@@ -264,6 +278,7 @@ class RouteControllerIntegrationTest {
     void shouldRejectInvalidK() throws Exception {
         GenerateRoutesRequest req = new GenerateRoutesRequest();
         req.setUserVector(buildValidUserVector());
+        req.setPreferences(buildPreferences());
         req.setK(0);
 
         mockMvc.perform(post("/api/routes/generate")
@@ -278,6 +293,7 @@ class RouteControllerIntegrationTest {
     void shouldRequireAuthForGenerate() throws Exception {
         GenerateRoutesRequest req = new GenerateRoutesRequest();
         req.setUserVector(buildValidUserVector());
+        req.setPreferences(buildPreferences());
         req.setK(1);
 
         mockMvc.perform(post("/api/routes/generate")
@@ -404,8 +420,15 @@ class RouteControllerIntegrationTest {
     void shouldKeepCenterAnchorOnMutations() throws Exception {
         GenerateRoutesRequest generateReq = new GenerateRoutesRequest();
         generateReq.setUserVector(buildCenterUserVector());
+        generateReq.setPreferences(buildPreferences());
         generateReq.setK(1);
-        generateReq.setConstraints(Map.of("stayAtHotel", false));
+        generateReq.setConstraints(constraints(false, false, false, false));
+        generateReq.setCenterLat(39.9208);
+        generateReq.setCenterLng(32.8541);
+
+        RouteCandidateFiltersRequest filters = new RouteCandidateFiltersRequest(4.5, 2000);
+        RouteAnchorRequest endAnchor = new RouteAnchorRequest("TYPE", null, "HOTEL", filters);
+        generateReq.getConstraints().setEndAnchor(endAnchor);
 
         MvcResult generated = mockMvc.perform(post("/api/routes/generate")
                         .header("Authorization", "Bearer " + jwtToken)

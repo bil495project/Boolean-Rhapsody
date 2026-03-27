@@ -10,6 +10,7 @@ import {
     Drawer,
     CircularProgress,
     Snackbar,
+    Alert,
     IconButton,
     Slider,
     Checkbox,
@@ -43,9 +44,15 @@ import { generateRoutesThunk, clearRoutes } from '../store/routeSlice';
 import { addSaveDestination } from '../store/savedSlice';
 import { syncToggleToBackend } from '../store/savedThunks';
 import { setStops } from '../store/navigationSlice';
+import {
+    createTravelPersonaAsync,
+    type TravelPersona,
+} from '../store/authSlice';
 import { placeService } from '../services/placeService';
 import type { RouteData, RoutePointData, RouteConstraints } from '../services/routeService';
 import type { MapDestination } from '../data/destinations';
+import TravelProfileBuilder from '../components/travel/TravelProfileBuilder';
+import { defaultTravelProfile, summarizeTravelProfile } from '../utils/travelProfile';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -329,7 +336,7 @@ const RoutePage = () => {
     const dispatch = useAppDispatch();
     const navigate = useNavigate();
 
-    const { isAuthenticated } = useAppSelector((state) => state.auth);
+    const { isAuthenticated, user } = useAppSelector((state) => state.auth);
     const { sidebarOpen, mapFullscreen, chatPanelWidth } = useAppSelector((state) => state.chat);
     const { routes, isLoading, error } = useAppSelector((state) => state.route);
 
@@ -345,6 +352,11 @@ const RoutePage = () => {
     const [routeCount, setRouteCount] = useState<number>(3);
     const [centerPoint, setCenterPoint] = useState<[number, number] | null>(null);
     const [activeRouteIdx, setActiveRouteIdx] = useState<number | null>(null);
+    const [routeProfileMode, setRouteProfileMode] = useState<'builder' | 'saved-picker' | 'saved' | 'default' | 'none' | null>(null);
+    const [sessionProfile, setSessionProfile] = useState<TravelPersona | null>(null);
+    const [draftProfile, setDraftProfile] = useState<TravelPersona>(defaultTravelProfile());
+    const [routeProfileBuilderKey, setRouteProfileBuilderKey] = useState(0);
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
 
     // ─── Constraint state ────────────────────────────────────────────────────
     const [stayAtHotel, setStayAtHotel] = useState(true);
@@ -420,6 +432,13 @@ const RoutePage = () => {
         ? activeRoute.points.map(p => [p.latitude, p.longitude] as [number, number])
         : null;
     const activeRouteMapKey = activeRoute?.routeId || 'no-route';
+    const savedProfiles = user?.travelPersonas ?? [];
+    const defaultProfile = savedProfiles.find((profile) => profile.isDefault) ?? null;
+    const canGenerateRoutes =
+        routeProfileMode === 'none'
+        || routeProfileMode === 'default'
+        || routeProfileMode === 'saved'
+        || (routeProfileMode === 'builder' && sessionProfile !== null);
 
     if (!isAuthenticated) {
         return <Navigate to="/login" replace />;
@@ -429,12 +448,99 @@ const RoutePage = () => {
     const handleMobileMenuClick = () => setMobileDrawerOpen(true);
     const handleToggleSidebar = () => dispatch(toggleSidebar());
 
+    const resetRouteSession = () => {
+        dispatch(clearRoutes());
+        setActiveRouteIdx(null);
+        setApprovedRouteIds(new Set());
+    };
+
+    const handleStartProfileBuilder = () => {
+        setRouteProfileMode('builder');
+        setDraftProfile(defaultTravelProfile());
+        setSessionProfile(null);
+        setRouteProfileBuilderKey((prev) => prev + 1);
+        resetRouteSession();
+    };
+
+    const handleUseDefaultProfile = () => {
+        if (!defaultProfile) {
+            return;
+        }
+        setRouteProfileMode('default');
+        setSessionProfile(defaultProfile);
+        setDraftProfile(defaultProfile);
+        resetRouteSession();
+    };
+
+    const handleUseNoProfile = () => {
+        setRouteProfileMode('none');
+        setSessionProfile(null);
+        resetRouteSession();
+    };
+
+    const handleOpenSavedProfiles = () => {
+        setRouteProfileMode('saved-picker');
+        resetRouteSession();
+    };
+
+    const handleSelectSavedProfile = (profile: TravelPersona) => {
+        setRouteProfileMode('saved');
+        setSessionProfile(profile);
+        setDraftProfile(profile);
+        resetRouteSession();
+    };
+
+    const handleDraftConfirm = (profile: TravelPersona) => {
+        setDraftProfile(profile);
+        setSessionProfile(profile);
+        setRouteProfileMode('builder');
+        setSnackbar({
+            open: true,
+            message: 'The profile is ready for this route session.',
+            color: 'success',
+        });
+    };
+
+    const handleSaveDraftProfile = async () => {
+        if (!sessionProfile || sessionProfile.id) {
+            return;
+        }
+
+        setIsSavingProfile(true);
+        try {
+            const payload = {
+                ...sessionProfile,
+                name: sessionProfile.name.trim() || `Profile ${savedProfiles.length + 1}`,
+            };
+            const created = await dispatch(createTravelPersonaAsync(payload)).unwrap();
+            setSessionProfile(created);
+            setDraftProfile(created);
+            setSnackbar({
+                open: true,
+                message: 'The profile was saved to your account.',
+                color: 'success',
+            });
+        } catch {
+            setSnackbar({
+                open: true,
+                message: 'There was a problem while saving the profile.',
+                color: 'danger',
+            });
+        } finally {
+            setIsSavingProfile(false);
+        }
+    };
+
     const buildConstraints = (): RouteConstraints => {
         const constraints: RouteConstraints = {
             stayAtHotel,
             needsBreakfast,
             needsLunch,
             needsDinner,
+            startAnchor: null,
+            endAnchor: null,
+            poiSlots: null,
+            requestedVisitCount: null,
         };
 
         if (startAnchorKind === 'PLACE' && startPlaceId) {
@@ -467,14 +573,14 @@ const RoutePage = () => {
     };
 
     const handleGenerate = () => {
-        dispatch(clearRoutes());
-        setActiveRouteIdx(null);
-        setApprovedRouteIds(new Set());
+        resetRouteSession();
         dispatch(generateRoutesThunk({
             k: routeCount,
             centerLat: centerPoint?.[0],
             centerLng: centerPoint?.[1],
             constraints: buildConstraints(),
+            userVectorOverride: sessionProfile?.userVector,
+            preferencesOverride: sessionProfile ?? undefined,
         }));
     };
 
@@ -566,15 +672,172 @@ const RoutePage = () => {
 
             {/* Scrollable Content */}
             <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 2, md: 3 } }}>
+                {routeProfileMode === null && (
+                    <Card variant="soft" color="primary" sx={{ mb: 3, p: 3 }}>
+                        <Typography level="title-lg" sx={{ fontWeight: 700, mb: 0.5 }}>
+                            Let's shape your route together
+                        </Typography>
+                        <Typography level="body-sm" sx={{ color: 'text.secondary', mb: 2.5 }}>
+                            For better route suggestions, you can first create a travel profile, use one of your saved profiles, or continue without one.
+                        </Typography>
+                        <Box sx={{ display: 'grid', gap: 1.5 }}>
+                            <Button onClick={handleStartProfileBuilder}>
+                                Create a new travel profile
+                            </Button>
+                            <Button
+                                variant="outlined"
+                                onClick={handleUseDefaultProfile}
+                                disabled={!defaultProfile}
+                            >
+                                Use my default profile
+                            </Button>
+                            <Button
+                                variant="outlined"
+                                color="neutral"
+                                onClick={handleOpenSavedProfiles}
+                                disabled={savedProfiles.length === 0}
+                            >
+                                Choose from my saved profiles
+                            </Button>
+                            <Button variant="plain" color="neutral" onClick={handleUseNoProfile}>
+                                Continue without a profile
+                            </Button>
+                        </Box>
+                    </Card>
+                )}
+
+                {routeProfileMode === 'builder' && (
+                    <Box sx={{ display: 'grid', gap: 2, mb: 3 }}>
+                        <TravelProfileBuilder
+                            key={`route-profile-builder-${routeProfileBuilderKey}`}
+                            initialValue={draftProfile}
+                            title="Your route profile"
+                            description="These answers are only used to tune the kinds of stops you prefer and the overall route density."
+                            confirmLabel="Continue with this profile"
+                            cancelLabel="Go back"
+                            requireName={false}
+                            isSaving={false}
+                            onConfirm={handleDraftConfirm}
+                            onCancel={() => {
+                                setRouteProfileMode(null);
+                                setSessionProfile(null);
+                            }}
+                        />
+
+                        {sessionProfile && (
+                            <Card variant="outlined" sx={{ p: 2.5 }}>
+                                <Typography level="title-sm" sx={{ fontWeight: 700, mb: 0.5 }}>
+                                    Profile used for this session
+                                </Typography>
+                                <Typography level="body-sm" sx={{ color: 'text.secondary', mb: 1.5 }}>
+                                    {sessionProfile.name?.trim() || 'Untitled profile'} - {summarizeTravelProfile(sessionProfile)}
+                                </Typography>
+                                {!sessionProfile.id && (
+                                    <Alert color="neutral" sx={{ mb: 2 }}>
+                                        This profile has not been saved to your account yet. You can save it from this screen whenever you want.
+                                    </Alert>
+                                )}
+                                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                                    {!sessionProfile.id && (
+                                        <Button
+                                            variant="outlined"
+                                            onClick={handleSaveDraftProfile}
+                                            loading={isSavingProfile}
+                                        >
+                                            Save this profile to my account
+                                        </Button>
+                                    )}
+                                    <Button variant="plain" color="neutral" onClick={() => setRouteProfileMode(null)}>
+                                        Back to profile options
+                                    </Button>
+                                </Box>
+                            </Card>
+                        )}
+                    </Box>
+                )}
+
+                {routeProfileMode === 'saved-picker' && (
+                    <Card variant="outlined" sx={{ mb: 3, p: 3 }}>
+                        <Typography level="title-md" sx={{ fontWeight: 700, mb: 0.5 }}>
+                            Your saved profiles
+                        </Typography>
+                        <Typography level="body-sm" sx={{ color: 'text.secondary', mb: 2 }}>
+                            Pick one of your saved profiles to start route generation faster.
+                        </Typography>
+                        <Box sx={{ display: 'grid', gap: 1.5 }}>
+                            {savedProfiles.map((profile) => (
+                                <Card key={profile.id || profile.name} variant="soft" sx={{ p: 2 }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                                        <Box>
+                                            <Typography level="title-sm" sx={{ fontWeight: 700 }}>
+                                                {profile.name}
+                                            </Typography>
+                                            <Typography level="body-xs" sx={{ color: 'text.secondary' }}>
+                                                {summarizeTravelProfile(profile)}
+                                            </Typography>
+                                        </Box>
+                                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                                            {profile.isDefault && (
+                                                <Chip size="sm" color="primary" variant="soft">
+                                                    Default
+                                                </Chip>
+                                            )}
+                                            <Button size="sm" onClick={() => handleSelectSavedProfile(profile)}>
+                                                Use this profile
+                                            </Button>
+                                        </Box>
+                                    </Box>
+                                </Card>
+                            ))}
+                        </Box>
+                        <Button
+                            variant="plain"
+                            color="neutral"
+                            sx={{ mt: 2 }}
+                            onClick={() => setRouteProfileMode(null)}
+                        >
+                            Go back
+                        </Button>
+                    </Card>
+                )}
+
+                {routeProfileMode !== null && routeProfileMode !== 'saved-picker' && (
+                    <Card variant="soft" color="neutral" sx={{ mb: 3, p: 2.5 }}>
+                        <Typography level="body-sm" sx={{ fontWeight: 700 }}>
+                            {routeProfileMode === 'none'
+                                ? 'Profile-free mode is active'
+                                : `Active profile: ${sessionProfile?.name?.trim() || 'Temporary profile'}`}
+                        </Typography>
+                        <Typography level="body-xs" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                            {routeProfileMode === 'none'
+                                ? 'Routes will be generated with the default fallback weights.'
+                                : summarizeTravelProfile(sessionProfile ?? undefined)}
+                        </Typography>
+                        <Button
+                            variant="plain"
+                            color="neutral"
+                            size="sm"
+                            sx={{ mt: 1 }}
+                            onClick={() => {
+                                setRouteProfileMode(null);
+                                setSessionProfile(null);
+                            }}
+                        >
+                            Change selection
+                        </Button>
+                    </Card>
+                )}
+
                 {/* Generate Controls */}
-                <Card
-                    variant="outlined"
-                    sx={{
-                        mb: 3,
-                        p: 3,
-                        background: 'linear-gradient(135deg, var(--joy-palette-primary-softBg), transparent)',
-                    }}
-                >
+                {canGenerateRoutes && (
+                    <Card
+                        variant="outlined"
+                        sx={{
+                            mb: 3,
+                            p: 3,
+                            background: 'linear-gradient(135deg, var(--joy-palette-primary-softBg), transparent)',
+                        }}
+                    >
                     <Typography level="title-md" sx={{ fontWeight: 600, mb: 1 }}>
                         Generate Personalized Routes
                     </Typography>
@@ -863,7 +1126,8 @@ const RoutePage = () => {
                     >
                         {isLoading ? 'Generating...' : 'Generate Routes'}
                     </Button>
-                </Card>
+                    </Card>
+                )}
 
                 {/* Error */}
                 {error && (
@@ -901,7 +1165,7 @@ const RoutePage = () => {
                 )}
 
                 {/* Empty state */}
-                {!isLoading && routes.length === 0 && !error && (
+                {!isLoading && routes.length === 0 && !error && canGenerateRoutes && (
                     <Box
                         sx={{
                             display: 'flex',

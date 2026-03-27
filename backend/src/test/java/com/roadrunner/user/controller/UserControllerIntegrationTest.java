@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -253,19 +254,17 @@ class UserControllerIntegrationTest {
         @DisplayName("TC-USI-018: Yeni persona oluşturma başarılı mı")
         void shouldReturn201AndPersona_whenRequestIsValid() throws Exception {
                 // given
-                TravelPersonaRequest req = TravelPersonaRequest.builder()
-                                .travelStyles(List.of("adventure"))
-                                .interests(List.of("history"))
-                                .travelFrequency("monthly")
-                                .preferredPace("fast")
-                                .build();
+                TravelPersonaRequest req = buildPersonaRequest("Tarih Rotam", true);
 
                 // when / then
                 mockMvc.perform(withAuth(post("/api/users/me/personas/new"), testToken)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(req)))
                                 .andExpect(status().isCreated())
-                                .andExpect(jsonPath("$.id", is(not(emptyOrNullString()))));
+                                .andExpect(jsonPath("$.id", is(not(emptyOrNullString()))))
+                                .andExpect(jsonPath("$.name").value("Tarih Rotam"))
+                                .andExpect(jsonPath("$.isDefault").value(true))
+                                .andExpect(jsonPath("$.userVector.weight_tarihiAlanlar").value("0.900"));
         }
 
         @Test
@@ -299,15 +298,17 @@ class UserControllerIntegrationTest {
                 TravelPersona persona = createPersonaForUser(testUser);
 
                 TravelPersonaRequest req = TravelPersonaRequest.builder()
-                                .travelStyles(List.of("relaxation"))
-                                .interests(List.of("food"))
+                                .name("Aksam Profili")
+                                .socialPreference(0.90)
+                                .userVector(Map.of("weight_geceHayati", "0.900"))
                                 .build();
 
                 // when / then
                 mockMvc.perform(withAuth(put("/api/users/me/personas/" + persona.getId()), testToken)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(req)))
-                                .andExpect(status().isOk());
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.name").value("Aksam Profili"));
         }
 
         @Test
@@ -317,7 +318,7 @@ class UserControllerIntegrationTest {
                 TravelPersona otherPersona = createPersonaForUser(otherUser);
 
                 TravelPersonaRequest req = TravelPersonaRequest.builder()
-                                .travelStyles(List.of("hack"))
+                                .name("Izin Yok")
                                 .build();
 
                 // when / then
@@ -461,13 +462,44 @@ class UserControllerIntegrationTest {
                 return builder.header("Authorization", "Bearer " + token);
         }
 
+        private TravelPersonaRequest buildPersonaRequest(String name, boolean isDefault) {
+                return TravelPersonaRequest.builder()
+                                .name(name)
+                                .isDefault(isDefault)
+                                .tempo(0.75)
+                                .socialPreference(0.50)
+                                .naturePreference(0.40)
+                                .historyPreference(0.90)
+                                .foodImportance(0.80)
+                                .alcoholPreference(0.0)
+                                .transportStyle(0.33)
+                                .budgetLevel(0.50)
+                                .tripLength(0.50)
+                                .crowdPreference(0.25)
+                                .userVector(Map.of(
+                                                "weight_tarihiAlanlar", "0.900",
+                                                "weight_restoranToleransi", "0.800"))
+                                .build();
+        }
+
         private TravelPersona createPersonaForUser(User user) {
                 TravelPersona persona = TravelPersona.builder()
                                 .user(user)
-                                .travelStyles(Arrays.asList("adventure"))
-                                .interests(Arrays.asList("history"))
-                                .travelFrequency("monthly")
-                                .preferredPace("fast")
+                                .name("Kayitli Profil")
+                                .isDefault(false)
+                                .tempo(0.75)
+                                .socialPreference(0.50)
+                                .naturePreference(0.40)
+                                .historyPreference(0.90)
+                                .foodImportance(0.80)
+                                .alcoholPreference(0.0)
+                                .transportStyle(0.33)
+                                .budgetLevel(0.50)
+                                .tripLength(0.50)
+                                .crowdPreference(0.25)
+                                .userVector(Map.of(
+                                                "weight_tarihiAlanlar", "0.900",
+                                                "weight_restoranToleransi", "0.800"))
                                 .build();
                 return travelPersonaRepository.save(persona);
         }

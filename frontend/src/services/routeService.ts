@@ -57,7 +57,27 @@ export interface AnchorFilter {
     minRatingCount?: number;
 }
 
+export interface RoutePreferences {
+    tempo: number;
+    socialPreference: number;
+    naturePreference: number;
+    historyPreference: number;
+    foodImportance: number;
+    alcoholPreference: number;
+    transportStyle: number;
+    budgetLevel: number;
+    tripLength: number;
+    crowdPreference: number;
+}
+
 export interface RouteAnchor {
+    kind: 'PLACE' | 'TYPE';
+    placeId?: string;
+    poiType?: string;
+    filters?: AnchorFilter;
+}
+
+export interface RoutePoiSlot {
     kind: 'PLACE' | 'TYPE';
     placeId?: string;
     poiType?: string;
@@ -69,23 +89,26 @@ export interface RouteConstraints {
     needsBreakfast: boolean;
     needsLunch: boolean;
     needsDinner: boolean;
-    startAnchor?: RouteAnchor;
-    endAnchor?: RouteAnchor;
+    startAnchor: RouteAnchor | null;
+    endAnchor: RouteAnchor | null;
+    poiSlots: RoutePoiSlot[] | null;
+    requestedVisitCount: number | null;
+}
+
+export interface GenerateRoutesPayload {
+    userVector: Record<string, string>;
+    preferences: RoutePreferences;
+    constraints: RouteConstraints;
+    centerLat?: number;
+    centerLng?: number;
+    k: number;
 }
 
 // ─── Route API ───────────────────────────────────────────────────────────────
 
 export const routeService = {
-    generateRoutes: async (
-        userVector: Record<string, string>,
-        k: number = 3,
-        constraints?: RouteConstraints,
-    ): Promise<RouteData[]> => {
-        const response = await api.post<RouteData[]>('/routes/generate', {
-            userVector,
-            k,
-            constraints,
-        });
+    generateRoutes: async (payload: GenerateRoutesPayload): Promise<RouteData[]> => {
+        const response = await api.post<RouteData[]>('/routes/generate', payload);
         return response.data;
     },
 };

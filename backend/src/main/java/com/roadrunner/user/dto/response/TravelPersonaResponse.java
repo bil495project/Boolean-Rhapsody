@@ -1,6 +1,6 @@
 package com.roadrunner.user.dto.response;
 
-import java.util.List;
+import java.util.Map;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,8 +15,17 @@ import lombok.Setter;
 @Builder
 public class TravelPersonaResponse {
     private String id;
-    private List<String> travelStyles;
-    private List<String> interests;
-    private String travelFrequency;
-    private String preferredPace;
+    private String name;
+    private Boolean isDefault;
+    private Double tempo;
+    private Double socialPreference;
+    private Double naturePreference;
+    private Double historyPreference;
+    private Double foodImportance;
+    private Double alcoholPreference;
+    private Double transportStyle;
+    private Double budgetLevel;
+    private Double tripLength;
+    private Double crowdPreference;
+    private Map<String, String> userVector;
 }

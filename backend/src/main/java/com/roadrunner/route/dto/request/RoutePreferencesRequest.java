@@ -1,9 +1,8 @@
-package com.roadrunner.user.dto.request;
+package com.roadrunner.route.dto.request;
 
-import java.util.Map;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -12,10 +11,9 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class TravelPersonaRequest {
-    private String name;
-    private Boolean isDefault;
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class RoutePreferencesRequest {
+
     private Double tempo;
     private Double socialPreference;
     private Double naturePreference;
@@ -26,5 +24,4 @@ public class TravelPersonaRequest {
     private Double budgetLevel;
     private Double tripLength;
     private Double crowdPreference;
-    private Map<String, String> userVector;
 }

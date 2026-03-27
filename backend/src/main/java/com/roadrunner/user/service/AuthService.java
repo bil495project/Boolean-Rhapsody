@@ -85,9 +85,6 @@ public class AuthService {
         }
 
         private UserResponse mapToUserResponse(User user) {
-                // Builds a UserResponse object from a User object
-                // and maps the travel personas to TravelPersonaResponse objects
-                // and returns the UserResponse object
                 return UserResponse.builder()
                                 .id(user.getId())
                                 .email(user.getEmail())
@@ -96,14 +93,26 @@ public class AuthService {
                                 .travelPersonas(
                                                 user.getTravelPersonas() != null
                                                                 ? user.getTravelPersonas().stream()
+                                                                                .filter(p -> p.getName() != null
+                                                                                                && !p.getName().isBlank()
+                                                                                                && p.getUserVector() != null
+                                                                                                && !p.getUserVector().isEmpty())
                                                                                 .map(p -> TravelPersonaResponse
                                                                                                 .builder()
                                                                                                 .id(p.getId())
-                                                                                                .travelStyles(p.getTravelStyles() != null ? p.getTravelStyles() : Collections.emptyList())
-                                                                                                .interests(p.getInterests() != null ? p.getInterests() : Collections.emptyList())
-                                                                                                .travelFrequency(p
-                                                                                                                .getTravelFrequency())
-                                                                                                .preferredPace(p.getPreferredPace())
+                                                                                                .name(p.getName())
+                                                                                                .isDefault(Boolean.TRUE.equals(p.getIsDefault()))
+                                                                                                .tempo(p.getTempo())
+                                                                                                .socialPreference(p.getSocialPreference())
+                                                                                                .naturePreference(p.getNaturePreference())
+                                                                                                .historyPreference(p.getHistoryPreference())
+                                                                                                .foodImportance(p.getFoodImportance())
+                                                                                                .alcoholPreference(p.getAlcoholPreference())
+                                                                                                .transportStyle(p.getTransportStyle())
+                                                                                                .budgetLevel(p.getBudgetLevel())
+                                                                                                .tripLength(p.getTripLength())
+                                                                                                .crowdPreference(p.getCrowdPreference())
+                                                                                                .userVector(p.getUserVector())
                                                                                                 .build())
                                                                                 .collect(Collectors.toList())
                                                                 : Collections.emptyList())

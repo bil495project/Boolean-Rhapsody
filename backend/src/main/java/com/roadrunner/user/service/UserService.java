@@ -2,6 +2,7 @@ package com.roadrunner.user.service;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
@@ -43,6 +44,7 @@ public class UserService {
     }
 
     public UserResponse getCurrentUser(String userId) {
+        purgeLegacyPersonas(userId);
         User user = findUserById(userId);
         return mapToUserResponse(user);
     }
@@ -80,13 +82,24 @@ public class UserService {
 
     public TravelPersonaResponse addTravelPersona(String userId, TravelPersonaRequest req) {
         User user = findUserById(userId);
+        purgeLegacyPersonas(userId);
+        clearDefaultsIfNeeded(userId, req.getIsDefault());
 
         TravelPersona persona = TravelPersona.builder()
                 .user(user)
-                .travelStyles(req.getTravelStyles())
-                .interests(req.getInterests())
-                .travelFrequency(req.getTravelFrequency())
-                .preferredPace(req.getPreferredPace())
+                .name(req.getName())
+                .isDefault(Boolean.TRUE.equals(req.getIsDefault()))
+                .tempo(req.getTempo())
+                .socialPreference(req.getSocialPreference())
+                .naturePreference(req.getNaturePreference())
+                .historyPreference(req.getHistoryPreference())
+                .foodImportance(req.getFoodImportance())
+                .alcoholPreference(req.getAlcoholPreference())
+                .transportStyle(req.getTransportStyle())
+                .budgetLevel(req.getBudgetLevel())
+                .tripLength(req.getTripLength())
+                .crowdPreference(req.getCrowdPreference())
+                .userVector(safeUserVector(req.getUserVector()))
                 .build();
 
         persona = travelPersonaRepository.save(persona);
@@ -103,17 +116,47 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
         }
 
-        if (req.getTravelStyles() != null) {
-            persona.setTravelStyles(req.getTravelStyles());
+        if (req.getName() != null) {
+            persona.setName(req.getName());
         }
-        if (req.getInterests() != null) {
-            persona.setInterests(req.getInterests());
+        if (req.getIsDefault() != null) {
+            if (Boolean.TRUE.equals(req.getIsDefault())) {
+                clearDefaultsIfNeeded(userId, true);
+            }
+            persona.setIsDefault(req.getIsDefault());
         }
-        if (req.getTravelFrequency() != null) {
-            persona.setTravelFrequency(req.getTravelFrequency());
+        if (req.getTempo() != null) {
+            persona.setTempo(req.getTempo());
         }
-        if (req.getPreferredPace() != null) {
-            persona.setPreferredPace(req.getPreferredPace());
+        if (req.getSocialPreference() != null) {
+            persona.setSocialPreference(req.getSocialPreference());
+        }
+        if (req.getNaturePreference() != null) {
+            persona.setNaturePreference(req.getNaturePreference());
+        }
+        if (req.getHistoryPreference() != null) {
+            persona.setHistoryPreference(req.getHistoryPreference());
+        }
+        if (req.getFoodImportance() != null) {
+            persona.setFoodImportance(req.getFoodImportance());
+        }
+        if (req.getAlcoholPreference() != null) {
+            persona.setAlcoholPreference(req.getAlcoholPreference());
+        }
+        if (req.getTransportStyle() != null) {
+            persona.setTransportStyle(req.getTransportStyle());
+        }
+        if (req.getBudgetLevel() != null) {
+            persona.setBudgetLevel(req.getBudgetLevel());
+        }
+        if (req.getTripLength() != null) {
+            persona.setTripLength(req.getTripLength());
+        }
+        if (req.getCrowdPreference() != null) {
+            persona.setCrowdPreference(req.getCrowdPreference());
+        }
+        if (req.getUserVector() != null) {
+            persona.setUserVector(safeUserVector(req.getUserVector()));
         }
 
         persona = travelPersonaRepository.save(persona);
@@ -134,7 +177,9 @@ public class UserService {
 
     public List<TravelPersonaResponse> getAllPersonas(String userId) {
         findUserById(userId);
+        purgeLegacyPersonas(userId);
         return travelPersonaRepository.findByUserId(userId).stream()
+                .filter(persona -> !isLegacyPersona(persona))
                 .map(this::mapToPersonaResponse)
                 .collect(Collectors.toList());
     }
@@ -220,6 +265,7 @@ public class UserService {
                 .travelPersonas(
                         user.getTravelPersonas() != null
                                 ? user.getTravelPersonas().stream()
+                                        .filter(persona -> !isLegacyPersona(persona))
                                         .map(this::mapToPersonaResponse)
                                         .collect(Collectors.toList())
                                 : Collections.emptyList())
@@ -229,11 +275,58 @@ public class UserService {
     private TravelPersonaResponse mapToPersonaResponse(TravelPersona persona) {
         return TravelPersonaResponse.builder()
                 .id(persona.getId())
-                .travelStyles(persona.getTravelStyles() != null ? persona.getTravelStyles() : Collections.emptyList())
-                .interests(persona.getInterests() != null ? persona.getInterests() : Collections.emptyList())
-                .travelFrequency(persona.getTravelFrequency())
-                .preferredPace(persona.getPreferredPace())
+                .name(persona.getName())
+                .isDefault(Boolean.TRUE.equals(persona.getIsDefault()))
+                .tempo(persona.getTempo())
+                .socialPreference(persona.getSocialPreference())
+                .naturePreference(persona.getNaturePreference())
+                .historyPreference(persona.getHistoryPreference())
+                .foodImportance(persona.getFoodImportance())
+                .alcoholPreference(persona.getAlcoholPreference())
+                .transportStyle(persona.getTransportStyle())
+                .budgetLevel(persona.getBudgetLevel())
+                .tripLength(persona.getTripLength())
+                .crowdPreference(persona.getCrowdPreference())
+                .userVector(safeUserVector(persona.getUserVector()))
                 .build();
+    }
+
+    private void clearDefaultsIfNeeded(String userId, Boolean requestedDefault) {
+        if (!Boolean.TRUE.equals(requestedDefault)) {
+            return;
+        }
+        List<TravelPersona> personas = travelPersonaRepository.findByUserId(userId);
+        for (TravelPersona persona : personas) {
+            if (!isLegacyPersona(persona) && Boolean.TRUE.equals(persona.getIsDefault())) {
+                persona.setIsDefault(Boolean.FALSE);
+                travelPersonaRepository.save(persona);
+            }
+        }
+    }
+
+    private void purgeLegacyPersonas(String userId) {
+        List<TravelPersona> personas = travelPersonaRepository.findByUserId(userId);
+        List<TravelPersona> legacy = personas.stream()
+                .filter(this::isLegacyPersona)
+                .toList();
+        if (!legacy.isEmpty()) {
+            travelPersonaRepository.deleteAll(legacy);
+        }
+    }
+
+    private boolean isLegacyPersona(TravelPersona persona) {
+        return persona != null
+                && (persona.getName() == null || persona.getName().isBlank()
+                        || persona.getUserVector() == null
+                        || persona.getUserVector().isEmpty());
+    }
+
+    private Map<String, String> safeUserVector(Map<String, String> userVector) {
+        return userVector == null
+                ? Collections.emptyMap()
+                : userVector.entrySet().stream()
+                        .filter(entry -> entry.getKey() != null && entry.getValue() != null)
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (left, right) -> right));
     }
 
     private TravelPlanResponse mapToPlanResponse(TravelPlan plan) {

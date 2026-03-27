@@ -1,245 +1,272 @@
-import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import type { AppDispatch } from './index';
-import { getStoredToken, removeToken, userApi } from '../services/userService';
-import type { UserData, TravelPersonaData } from '../services/userService';
+import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import {
+    userApi,
+    getStoredToken,
+    removeToken,
+    type UserData,
+} from '../services/userService';
+import type { TravelProfile } from '../types/travelProfile';
+import { hydrateTravelProfile } from '../utils/travelProfile';
 
-// Travel persona interface
-export interface TravelPersona {
-    travelStyles: string[];
-    interests: string[];
-    travelFrequency: string;
-    preferredPace: string;
-    userVector?: Record<string, string | number | boolean>;
-    weight_parkVeSeyirNoktalari?: number | string;
-    weight_geceHayati?: number | string;
-    weight_restoranToleransi?: number | string;
-    weight_landmark?: number | string;
-    weight_dogalAlanlar?: number | string;
-    weight_tarihiAlanlar?: number | string;
-    weight_kafeTatli?: number | string;
-    weight_toplamPoiYogunlugu?: number | string;
-    weight_sparsity?: number | string;
-    weight_hotelCenterBias?: number | string;
-    weight_butceSeviyesi?: number | string;
-}
+export type TravelPersona = TravelProfile;
 
-// User interface
-export interface User {
+export interface AuthUser {
     id: string;
     email: string;
     name: string;
     avatar?: string;
-    travelPersona?: TravelPersona;
-    hasCompletedOnboarding: boolean;
+    travelPersonas: TravelPersona[];
 }
 
-// Auth state interface
 interface AuthState {
-    user: User | null;
+    user: AuthUser | null;
     isAuthenticated: boolean;
     isLoading: boolean;
     error: string | null;
     isNewSignup: boolean;
 }
 
-// Load initial state from localStorage
-const loadAuthState = (): AuthState => {
-    try {
-        const storedUser = localStorage.getItem('travelplanner_user');
-        if (storedUser) {
-            const user = JSON.parse(storedUser) as User;
-            return {
-                user,
-                isAuthenticated: true,
-                isLoading: false,
-                error: null,
-                isNewSignup: false,
-            };
+const initialState: AuthState = {
+    user: null,
+    isAuthenticated: false,
+    isLoading: false,
+    error: null,
+    isNewSignup: false,
+};
+
+const sortTravelPersonas = (personas: TravelPersona[]): TravelPersona[] =>
+    [...personas].sort((left, right) => {
+        if (left.isDefault === right.isDefault) {
+            return left.name.localeCompare(right.name, 'en');
         }
-    } catch (error) {
-        console.error('Error loading auth state:', error);
-    }
+        return left.isDefault ? -1 : 1;
+    });
+
+export const mapUserDataToUser = (user: UserData, _isNewSignup = false): AuthUser => {
+    const travelPersonas = sortTravelPersonas(
+        (user.travelPersonas ?? []).map((persona) => hydrateTravelProfile(persona)),
+    );
 
     return {
-        user: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: null,
-        isNewSignup: false,
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar,
+        travelPersonas,
     };
 };
 
-const initialState: AuthState = loadAuthState();
+export const restoreSession = createAsyncThunk(
+    'auth/restoreSession',
+    async (_, { rejectWithValue }) => {
+        const token = getStoredToken();
+        if (!token) {
+            return null;
+        }
 
-// Auth slice
+        try {
+            const me = await userApi.getMe();
+            return mapUserDataToUser(me);
+        } catch (error: any) {
+            removeToken();
+            return rejectWithValue(error?.message || 'Failed to restore session');
+        }
+    },
+);
+
+export const createTravelPersonaAsync = createAsyncThunk(
+    'auth/createTravelPersona',
+    async (persona: Omit<TravelPersona, 'id'>, { rejectWithValue }) => {
+        try {
+            const created = await userApi.createPersona(persona);
+            return hydrateTravelProfile(created);
+        } catch (error: any) {
+            return rejectWithValue(error?.message || 'Failed to save profile');
+        }
+    },
+);
+
+export const updateTravelPersonaAsync = createAsyncThunk(
+    'auth/updateTravelPersona',
+    async (payload: { id: string; persona: Omit<TravelPersona, 'id'> }, { rejectWithValue }) => {
+        try {
+            const updated = await userApi.updatePersona(payload.id, payload.persona);
+            return hydrateTravelProfile(updated);
+        } catch (error: any) {
+            return rejectWithValue(error?.message || 'Failed to update profile');
+        }
+    },
+);
+
+export const deleteTravelPersonaAsync = createAsyncThunk(
+    'auth/deleteTravelPersona',
+    async (personaId: string, { rejectWithValue }) => {
+        try {
+            await userApi.deletePersona(personaId);
+            return personaId;
+        } catch (error: any) {
+            return rejectWithValue(error?.message || 'Failed to delete profile');
+        }
+    },
+);
+
+export const setDefaultTravelPersonaAsync = createAsyncThunk(
+    'auth/setDefaultTravelPersona',
+    async (personaId: string, { getState, rejectWithValue }) => {
+        try {
+            const state = getState() as { auth: AuthState };
+            const persona = state.auth.user?.travelPersonas.find((item) => item.id === personaId);
+            if (!persona?.id) {
+                throw new Error('Default profile could not be found');
+            }
+
+            const { id: _ignoredId, ...request } = persona;
+
+            const updated = await userApi.updatePersona(persona.id, {
+                ...request,
+                isDefault: true,
+            });
+            return hydrateTravelProfile(updated);
+        } catch (error: any) {
+            return rejectWithValue(error?.message || 'Failed to update the default profile');
+        }
+    },
+);
+
 const authSlice = createSlice({
     name: 'auth',
     initialState,
     reducers: {
+        loginSuccess: (state, action: PayloadAction<AuthUser>) => {
+            state.user = action.payload;
+            state.isAuthenticated = true;
+            state.isLoading = false;
+            state.error = null;
+            state.isNewSignup = false;
+        },
+        signupSuccess: (state, action: PayloadAction<AuthUser>) => {
+            state.user = action.payload;
+            state.isAuthenticated = true;
+            state.isLoading = false;
+            state.error = null;
+            state.isNewSignup = true;
+        },
+        logout: (state) => {
+            removeToken();
+            state.user = null;
+            state.isAuthenticated = false;
+            state.isLoading = false;
+            state.error = null;
+            state.isNewSignup = false;
+        },
         setLoading: (state, action: PayloadAction<boolean>) => {
             state.isLoading = action.payload;
         },
         setError: (state, action: PayloadAction<string | null>) => {
             state.error = action.payload;
         },
-        loginSuccess: (state, action: PayloadAction<User>) => {
-            state.user = action.payload;
-            state.isAuthenticated = true;
-            state.isLoading = false;
-            state.error = null;
-            state.isNewSignup = false;
-            localStorage.setItem('travelplanner_user', JSON.stringify(action.payload));
-        },
-        logout: (state) => {
+        deleteAccount: (state) => {
+            removeToken();
             state.user = null;
             state.isAuthenticated = false;
             state.isLoading = false;
             state.error = null;
             state.isNewSignup = false;
-            localStorage.removeItem('travelplanner_user');
         },
-        signupSuccess: (state, action: PayloadAction<User>) => {
-            state.user = action.payload;
-            state.isAuthenticated = true;
-            state.isLoading = false;
-            state.error = null;
-            state.isNewSignup = true;
-            localStorage.setItem('travelplanner_user', JSON.stringify(action.payload));
+        updateUser: (state, action: PayloadAction<Partial<AuthUser>>) => {
+            if (!state.user) {
+                return;
+            }
+            state.user = {
+                ...state.user,
+                ...action.payload,
+                travelPersonas: action.payload.travelPersonas
+                    ? sortTravelPersonas(action.payload.travelPersonas)
+                    : state.user.travelPersonas,
+            };
         },
         clearNewSignup: (state) => {
             state.isNewSignup = false;
         },
-        updateUser: (state, action: PayloadAction<Partial<User>>) => {
-            if (state.user) {
-                state.user = { ...state.user, ...action.payload };
-                localStorage.setItem('travelplanner_user', JSON.stringify(state.user));
-            }
-        },
-        updateTravelPersona: (state, action: PayloadAction<TravelPersona>) => {
-            if (state.user) {
-                state.user.travelPersona = action.payload;
-                state.user.hasCompletedOnboarding = true;
-                localStorage.setItem('travelplanner_user', JSON.stringify(state.user));
-            }
-        },
-        deleteAccount: (state) => {
-            state.user = null;
-            state.isAuthenticated = false;
-            state.isLoading = false;
-            state.error = null;
-            state.isNewSignup = false;
-            localStorage.removeItem('travelplanner_user');
-        },
+    },
+    extraReducers: (builder) => {
+        builder
+            .addCase(restoreSession.pending, (state) => {
+                state.isLoading = true;
+            })
+            .addCase(restoreSession.fulfilled, (state, action) => {
+                state.isLoading = false;
+                if (action.payload) {
+                    state.user = action.payload;
+                    state.isAuthenticated = true;
+                    state.error = null;
+                } else {
+                    state.user = null;
+                    state.isAuthenticated = false;
+                }
+            })
+            .addCase(restoreSession.rejected, (state) => {
+                state.isLoading = false;
+                state.user = null;
+                state.isAuthenticated = false;
+            })
+            .addCase(createTravelPersonaAsync.fulfilled, (state, action) => {
+                if (!state.user) {
+                    return;
+                }
+
+                const nextPersonas = state.user.travelPersonas
+                    .filter((persona) => !action.payload.isDefault || !persona.isDefault)
+                    .concat(action.payload);
+                state.user.travelPersonas = sortTravelPersonas(nextPersonas);
+            })
+            .addCase(updateTravelPersonaAsync.fulfilled, (state, action) => {
+                if (!state.user) {
+                    return;
+                }
+
+                const nextPersonas = state.user.travelPersonas
+                    .filter((persona) => persona.id !== action.payload.id)
+                    .map((persona) => ({
+                        ...persona,
+                        isDefault: action.payload.isDefault ? false : persona.isDefault,
+                    }))
+                    .concat(action.payload);
+                state.user.travelPersonas = sortTravelPersonas(nextPersonas);
+            })
+            .addCase(setDefaultTravelPersonaAsync.fulfilled, (state, action) => {
+                if (!state.user) {
+                    return;
+                }
+
+                state.user.travelPersonas = sortTravelPersonas(
+                    state.user.travelPersonas.map((persona) =>
+                        persona.id === action.payload.id
+                            ? { ...action.payload, isDefault: true }
+                            : { ...persona, isDefault: false },
+                    ),
+                );
+            })
+            .addCase(deleteTravelPersonaAsync.fulfilled, (state, action) => {
+                if (!state.user) {
+                    return;
+                }
+                state.user.travelPersonas = state.user.travelPersonas.filter(
+                    (persona) => persona.id !== action.payload,
+                );
+            });
     },
 });
 
 export const {
+    loginSuccess,
+    signupSuccess,
+    logout,
     setLoading,
     setError,
-    loginSuccess,
-    logout,
-    signupSuccess,
-    clearNewSignup,
-    updateUser,
-    updateTravelPersona,
     deleteAccount,
+    updateUser,
+    clearNewSignup,
 } = authSlice.actions;
-
-// ─── Helper: map backend UserData to frontend User ───────────────────────────
-
-export const mapUserDataToUser = (data: UserData, hasCompletedOnboarding = true): User => {
-    const firstPersona = data.travelPersonas?.[0];
-    return {
-        id: data.id,
-        email: data.email,
-        name: data.name,
-        avatar: data.avatar,
-        hasCompletedOnboarding,
-        travelPersona: firstPersona
-            ? {
-                travelStyles: firstPersona.travelStyles,
-                interests: firstPersona.interests,
-                travelFrequency: firstPersona.travelFrequency,
-                preferredPace: firstPersona.preferredPace,
-                userVector: firstPersona.userVector,
-                weight_parkVeSeyirNoktalari: firstPersona.weight_parkVeSeyirNoktalari,
-                weight_geceHayati: firstPersona.weight_geceHayati,
-                weight_restoranToleransi: firstPersona.weight_restoranToleransi,
-                weight_landmark: firstPersona.weight_landmark,
-                weight_dogalAlanlar: firstPersona.weight_dogalAlanlar,
-                weight_tarihiAlanlar: firstPersona.weight_tarihiAlanlar,
-                weight_kafeTatli: firstPersona.weight_kafeTatli,
-                weight_toplamPoiYogunlugu: firstPersona.weight_toplamPoiYogunlugu,
-                weight_sparsity: firstPersona.weight_sparsity,
-                weight_hotelCenterBias: firstPersona.weight_hotelCenterBias,
-                weight_butceSeviyesi: firstPersona.weight_butceSeviyesi,
-            }
-            : undefined,
-    };
-};
-
-// ─── Thunks ──────────────────────────────────────────────────────────────────
-
-/** Restores user session from stored JWT token on app load. */
-export const restoreSession = () => async (dispatch: AppDispatch) => {
-    try {
-        const token = getStoredToken();
-        if (!token) return;
-
-        const userData = await userApi.getMe();
-        const user = mapUserDataToUser(userData, userData.travelPersonas && userData.travelPersonas.length > 0);
-        dispatch(loginSuccess(user));
-    } catch {
-        // Token is invalid or expired — clean up silently
-        removeToken();
-        localStorage.removeItem('travelplanner_user');
-    }
-};
-
-/** Saves the travel persona to the backend (creates if none exists, updates if one does). */
-export const saveTravelPersona = (personaData: TravelPersona) => async (dispatch: AppDispatch) => {
-    try {
-        dispatch(setLoading(true));
-        
-        // Check for existing personas
-        const existingPersonas = await userApi.getPersonas();
-        
-        let savedPersona: TravelPersonaData;
-        if (existingPersonas.length > 0) {
-            // Update the first one
-            savedPersona = await userApi.updatePersona(existingPersonas[0].id!, personaData);
-        } else {
-            // Create new
-            savedPersona = await userApi.createPersona(personaData);
-        }
-        
-        // Update local state
-        dispatch(updateTravelPersona({
-            travelStyles: savedPersona.travelStyles,
-            interests: savedPersona.interests,
-            travelFrequency: savedPersona.travelFrequency,
-            preferredPace: savedPersona.preferredPace,
-            userVector: savedPersona.userVector,
-            weight_parkVeSeyirNoktalari: savedPersona.weight_parkVeSeyirNoktalari,
-            weight_geceHayati: savedPersona.weight_geceHayati,
-            weight_restoranToleransi: savedPersona.weight_restoranToleransi,
-            weight_landmark: savedPersona.weight_landmark,
-            weight_dogalAlanlar: savedPersona.weight_dogalAlanlar,
-            weight_tarihiAlanlar: savedPersona.weight_tarihiAlanlar,
-            weight_kafeTatli: savedPersona.weight_kafeTatli,
-            weight_toplamPoiYogunlugu: savedPersona.weight_toplamPoiYogunlugu,
-            weight_sparsity: savedPersona.weight_sparsity,
-            weight_hotelCenterBias: savedPersona.weight_hotelCenterBias,
-            weight_butceSeviyesi: savedPersona.weight_butceSeviyesi,
-        }));
-        
-        dispatch(setError(null));
-    } catch (error) {
-        console.error('Error saving travel persona:', error);
-        dispatch(setError('Failed to save travel persona. Please try again.'));
-    } finally {
-        dispatch(setLoading(false));
-    }
-};
 
 export default authSlice.reducer;
