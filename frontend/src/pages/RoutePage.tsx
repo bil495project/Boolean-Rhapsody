@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
     Box,
     Typography,
@@ -40,16 +40,26 @@ import MapPanel from '../components/chat/MapPanel';
 import ResizableDivider from '../components/chat/ResizableDivider';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { toggleSidebar } from '../store/chatSlice';
-import { generateRoutesThunk, clearRoutes } from '../store/routeSlice';
+import { generateRoutesThunk, clearRoutes, hydrateSavedRoute } from '../store/routeSlice';
 import { addSaveDestination } from '../store/savedSlice';
 import { syncToggleToBackend } from '../store/savedThunks';
 import { setStops } from '../store/navigationSlice';
+import {
+    createSavedRouteThunk,
+    fetchSavedRouteDetail,
+    updateSavedRouteThunk,
+} from '../store/savedRoutesSlice';
 import {
     createTravelPersonaAsync,
     type TravelPersona,
 } from '../store/authSlice';
 import { placeService } from '../services/placeService';
-import type { RouteData, RoutePointData, RouteConstraints } from '../services/routeService';
+import type {
+    GenerateRoutesPayload,
+    RouteConstraints,
+    RouteData,
+    RoutePointData,
+} from '../services/routeService';
 import type { MapDestination } from '../data/destinations';
 import TravelProfileBuilder from '../components/travel/TravelProfileBuilder';
 import { defaultTravelProfile, summarizeTravelProfile } from '../utils/travelProfile';
@@ -96,6 +106,76 @@ function mapTypesToCategory(types: string[] | undefined): string {
     if (joined.includes('bar') || joined.includes('nightclub')) return 'Bars & Nightclubs';
     if (joined.includes('hotel') || joined.includes('lodging')) return 'Hotels';
     return 'Landmarks';
+}
+
+function getCategoryBadge(types: string[] | undefined): { label: string; sx: Record<string, string> } {
+    const category = mapTypesToCategory(types);
+
+    switch (category) {
+        case 'Cafes & Desserts':
+            return {
+                label: 'Cafe',
+                sx: {
+                    bgcolor: 'rgba(245, 158, 11, 0.14)',
+                    color: '#FCD34D',
+                    borderColor: 'rgba(245, 158, 11, 0.28)',
+                },
+            };
+        case 'Restaurants':
+            return {
+                label: 'Restaurant',
+                sx: {
+                    bgcolor: 'rgba(34, 197, 94, 0.14)',
+                    color: '#86EFAC',
+                    borderColor: 'rgba(34, 197, 94, 0.28)',
+                },
+            };
+        case 'Parks':
+            return {
+                label: 'Park',
+                sx: {
+                    bgcolor: 'rgba(16, 185, 129, 0.14)',
+                    color: '#6EE7B7',
+                    borderColor: 'rgba(16, 185, 129, 0.28)',
+                },
+            };
+        case 'Historic Places':
+            return {
+                label: 'Historic',
+                sx: {
+                    bgcolor: 'rgba(251, 113, 133, 0.14)',
+                    color: '#FDA4AF',
+                    borderColor: 'rgba(251, 113, 133, 0.28)',
+                },
+            };
+        case 'Bars & Nightclubs':
+            return {
+                label: 'Nightlife',
+                sx: {
+                    bgcolor: 'rgba(192, 132, 252, 0.16)',
+                    color: '#E9D5FF',
+                    borderColor: 'rgba(192, 132, 252, 0.3)',
+                },
+            };
+        case 'Hotels':
+            return {
+                label: 'Hotel',
+                sx: {
+                    bgcolor: 'rgba(148, 163, 184, 0.16)',
+                    color: '#E2E8F0',
+                    borderColor: 'rgba(148, 163, 184, 0.3)',
+                },
+            };
+        default:
+            return {
+                label: 'Landmark',
+                sx: {
+                    bgcolor: 'rgba(96, 165, 250, 0.14)',
+                    color: '#BFDBFE',
+                    borderColor: 'rgba(96, 165, 250, 0.28)',
+                },
+            };
+    }
 }
 
 function mapPriceLevel(priceLevel: string | null | undefined): 1 | 2 | 3 | 4 {
@@ -216,22 +296,25 @@ const RouteCard = ({ route, index, onApprove, isApproving, isApproved }: RouteCa
                 </Typography>
 
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    {validPoints.map((point, idx) => (
-                        <Box
-                            key={point.poiId || idx}
-                            sx={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 1.5,
-                                p: 1.5,
-                                borderRadius: 'md',
-                                bgcolor: 'background.level1',
-                                transition: 'background-color 0.2s',
-                                '&:hover': {
-                                    bgcolor: 'background.level2',
-                                },
-                            }}
-                        >
+                    {validPoints.map((point, idx) => {
+                        const categoryBadge = getCategoryBadge(point.types);
+
+                        return (
+                            <Box
+                                key={point.poiId || idx}
+                                sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1.5,
+                                    p: 1.5,
+                                    borderRadius: 'md',
+                                    bgcolor: 'background.level1',
+                                    transition: 'background-color 0.2s',
+                                    '&:hover': {
+                                        bgcolor: 'background.level2',
+                                    },
+                                }}
+                            >
                             {/* Stop number */}
                             <Box
                                 sx={{
@@ -264,6 +347,19 @@ const RouteCard = ({ route, index, onApprove, isApproving, isApproved }: RouteCa
                                 >
                                     {point.poiName || 'Unknown'}
                                 </Typography>
+                                <Chip
+                                    size="sm"
+                                    variant="soft"
+                                    sx={{
+                                        mt: 0.75,
+                                        mb: point.formattedAddress ? 0.75 : 0,
+                                        fontWeight: 700,
+                                        lineHeight: 1.1,
+                                        ...categoryBadge.sx,
+                                    }}
+                                >
+                                    {categoryBadge.label}
+                                </Chip>
                                 {point.formattedAddress && (
                                     <Typography
                                         level="body-xs"
@@ -296,8 +392,9 @@ const RouteCard = ({ route, index, onApprove, isApproving, isApproved }: RouteCa
                                     {point.plannedVisitMin} min
                                 </Chip>
                             )}
-                        </Box>
-                    ))}
+                            </Box>
+                        );
+                    })}
                 </Box>
             </Box>
 
@@ -335,10 +432,12 @@ const RouteCard = ({ route, index, onApprove, isApproving, isApproved }: RouteCa
 const RoutePage = () => {
     const dispatch = useAppDispatch();
     const navigate = useNavigate();
+    const { savedRouteId: savedRouteParam } = useParams();
 
     const { isAuthenticated, user } = useAppSelector((state) => state.auth);
     const { sidebarOpen, mapFullscreen, chatPanelWidth } = useAppSelector((state) => state.chat);
-    const { routes, isLoading, error } = useAppSelector((state) => state.route);
+    const { routes, isLoading, error, currentRequest, savedRouteId, savedRouteTitle } = useAppSelector((state) => state.route);
+    const { isSaving: isSavedRouteSaving } = useAppSelector((state) => state.savedRoutes);
 
     const isMobile = useMediaQuery('(max-width: 768px)');
     const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
@@ -357,6 +456,7 @@ const RoutePage = () => {
     const [draftProfile, setDraftProfile] = useState<TravelPersona>(defaultTravelProfile());
     const [routeProfileBuilderKey, setRouteProfileBuilderKey] = useState(0);
     const [isSavingProfile, setIsSavingProfile] = useState(false);
+    const [isUpdatingSavedRoute, setIsUpdatingSavedRoute] = useState(false);
 
     // ─── Constraint state ────────────────────────────────────────────────────
     const [stayAtHotel, setStayAtHotel] = useState(true);
@@ -454,6 +554,11 @@ const RoutePage = () => {
         setApprovedRouteIds(new Set());
     };
 
+    const prepareForRouteRefresh = () => {
+        setActiveRouteIdx(null);
+        setApprovedRouteIds(new Set());
+    };
+
     const handleStartProfileBuilder = () => {
         setRouteProfileMode('builder');
         setDraftProfile(defaultTravelProfile());
@@ -532,11 +637,22 @@ const RoutePage = () => {
     };
 
     const buildConstraints = (): RouteConstraints => {
+        const hasStartAnchor =
+            (startAnchorKind === 'PLACE' && Boolean(startPlaceId))
+            || (startAnchorKind === 'TYPE' && Boolean(startPoiType));
+        const hasEndAnchor =
+            (endAnchorKind === 'PLACE' && Boolean(endPlaceId))
+            || (endAnchorKind === 'TYPE' && Boolean(endPoiType));
+
         const constraints: RouteConstraints = {
             stayAtHotel,
             needsBreakfast,
             needsLunch,
             needsDinner,
+            startWithPoi: hasStartAnchor,
+            endWithPoi: hasEndAnchor,
+            startWithHotel: stayAtHotel && !hasStartAnchor ? true : undefined,
+            endWithHotel: stayAtHotel && !hasEndAnchor ? true : undefined,
             startAnchor: null,
             endAnchor: null,
             poiSlots: null,
@@ -572,8 +688,71 @@ const RoutePage = () => {
         return constraints;
     };
 
+    const applyAnchorToState = (anchor: RouteConstraints['startAnchor'], target: 'start' | 'end') => {
+        const setKind = target === 'start' ? setStartAnchorKind : setEndAnchorKind;
+        const setPlaceId = target === 'start' ? setStartPlaceId : setEndPlaceId;
+        const setPlaceOption = target === 'start' ? setStartPlaceOption : setEndPlaceOption;
+        const setPoiType = target === 'start' ? setStartPoiType : setEndPoiType;
+        const setMinRating = target === 'start' ? setStartMinRating : setEndMinRating;
+        const setMinRatingCount = target === 'start' ? setStartMinRatingCount : setEndMinRatingCount;
+
+        if (!anchor) {
+            setKind('');
+            setPlaceId('');
+            setPlaceOption(null);
+            setPoiType('');
+            setMinRating('');
+            setMinRatingCount('');
+            return;
+        }
+
+        if (anchor.kind === 'PLACE' && anchor.placeId) {
+            setKind('PLACE');
+            setPlaceId(anchor.placeId);
+            setPlaceOption({ id: anchor.placeId, name: anchor.placeId, address: '' });
+            setPoiType('');
+            setMinRating('');
+            setMinRatingCount('');
+            return;
+        }
+
+        if (anchor.kind === 'TYPE' && anchor.poiType) {
+            setKind('TYPE');
+            setPlaceId('');
+            setPlaceOption(null);
+            setPoiType(anchor.poiType);
+            setMinRating(anchor.filters?.minRating !== undefined ? String(anchor.filters.minRating) : '');
+            setMinRatingCount(anchor.filters?.minRatingCount !== undefined ? String(anchor.filters.minRatingCount) : '');
+            return;
+        }
+
+        setKind('');
+        setPlaceId('');
+        setPlaceOption(null);
+        setPoiType('');
+        setMinRating('');
+        setMinRatingCount('');
+    };
+
+    const applyGenerateRequestToForm = (payload: GenerateRoutesPayload) => {
+        setRouteCount(payload.k ?? 3);
+        setCenterPoint(
+            typeof payload.centerLat === 'number' && typeof payload.centerLng === 'number'
+                ? [payload.centerLat, payload.centerLng]
+                : null,
+        );
+
+        const constraints = payload.constraints;
+        setStayAtHotel(constraints?.stayAtHotel ?? true);
+        setNeedsBreakfast(constraints?.needsBreakfast ?? false);
+        setNeedsLunch(constraints?.needsLunch ?? false);
+        setNeedsDinner(constraints?.needsDinner ?? false);
+        applyAnchorToState(constraints?.startAnchor ?? null, 'start');
+        applyAnchorToState(constraints?.endAnchor ?? null, 'end');
+    };
+
     const handleGenerate = () => {
-        resetRouteSession();
+        prepareForRouteRefresh();
         dispatch(generateRoutesThunk({
             k: routeCount,
             centerLat: centerPoint?.[0],
@@ -585,14 +764,108 @@ const RoutePage = () => {
     };
 
     useEffect(() => {
-        if (isLoading || routes.length === 0 || (activeRouteIdx !== null && activeRouteIdx >= routes.length)) {
+        if (isLoading || routes.length === 0) {
             setActiveRouteIdx(null);
+            return;
+        }
+        if (activeRouteIdx === null || activeRouteIdx >= routes.length) {
+            setActiveRouteIdx(0);
         }
     }, [activeRouteIdx, isLoading, routes.length]);
+
+    useEffect(() => {
+        if (!isAuthenticated || !savedRouteParam) {
+            return;
+        }
+
+        let cancelled = false;
+        dispatch(fetchSavedRouteDetail(savedRouteParam))
+            .unwrap()
+            .then((detail) => {
+                if (cancelled) {
+                    return;
+                }
+                dispatch(hydrateSavedRoute({
+                    route: detail.route,
+                    generateRequest: detail.generateRequest,
+                    savedRouteId: detail.id,
+                    title: detail.title,
+                }));
+                applyGenerateRequestToForm(detail.generateRequest);
+                setRouteProfileMode('none');
+                setSessionProfile(null);
+                setSnackbar({
+                    open: true,
+                    message: `Loaded saved route: ${detail.title}`,
+                    color: 'success',
+                });
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setSnackbar({
+                        open: true,
+                        message: 'Saved route could not be loaded.',
+                        color: 'danger',
+                    });
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [dispatch, isAuthenticated, savedRouteParam]);
+
+    const handleUpdateSavedRoute = async () => {
+        const routeToPersist = activeRoute ?? routes[0];
+        if (!savedRouteId || !currentRequest || !routeToPersist) {
+            return;
+        }
+
+        setIsUpdatingSavedRoute(true);
+        try {
+            const detail = await dispatch(updateSavedRouteThunk({
+                savedRouteId,
+                payload: {
+                    title: savedRouteTitle || undefined,
+                    route: routeToPersist,
+                    generateRequest: currentRequest,
+                },
+            })).unwrap();
+
+            dispatch(hydrateSavedRoute({
+                route: detail.route,
+                generateRequest: detail.generateRequest,
+                savedRouteId: detail.id,
+                title: detail.title,
+            }));
+            setSnackbar({
+                open: true,
+                message: 'Saved route updated.',
+                color: 'success',
+            });
+        } catch {
+            setSnackbar({
+                open: true,
+                message: 'Saved route could not be updated.',
+                color: 'danger',
+            });
+        } finally {
+            setIsUpdatingSavedRoute(false);
+        }
+    };
 
     const handleApprove = async (route: RouteData) => {
         setApprovingRouteId(route.routeId);
         try {
+            let savedRouteMessage = 'Route approved!';
+            if (!savedRouteId && currentRequest) {
+                const detail = await dispatch(createSavedRouteThunk({
+                    route,
+                    generateRequest: currentRequest,
+                })).unwrap();
+                savedRouteMessage = `Route approved and saved as "${detail.title}".`;
+            }
+
             const validPoints = route.points.filter((p) => p.poiId);
             // Save all POIs to the user's saved places (addSaveDestination only adds, never removes)
             for (const point of validPoints) {
@@ -607,7 +880,7 @@ const RoutePage = () => {
             setApprovedRouteIds((prev) => new Set(prev).add(route.routeId));
             setSnackbar({
                 open: true,
-                message: `Route approved! Navigating with ${validPoints.length} stops...`,
+                message: `${savedRouteMessage} Navigating with ${validPoints.length} stops...`,
                 color: 'success',
             });
 
@@ -825,6 +1098,34 @@ const RoutePage = () => {
                         >
                             Change selection
                         </Button>
+                    </Card>
+                )}
+
+                {savedRouteId && (
+                    <Card variant="soft" color="primary" sx={{ mb: 3, p: 2.5 }}>
+                        <Typography level="title-sm" sx={{ fontWeight: 700 }}>
+                            Saved route mode
+                        </Typography>
+                        <Typography level="body-sm" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                            {savedRouteTitle || 'Saved route'} is loaded from the database as an exact snapshot.
+                            Use Update Saved Route when you want to overwrite that record explicitly.
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mt: 2 }}>
+                            <Button
+                                onClick={handleUpdateSavedRoute}
+                                loading={isUpdatingSavedRoute || isSavedRouteSaving}
+                                disabled={!currentRequest || routes.length === 0}
+                            >
+                                Update Saved Route
+                            </Button>
+                            <Button
+                                variant="plain"
+                                color="neutral"
+                                onClick={() => navigate('/saved-routes')}
+                            >
+                                Back to Saved Routes
+                            </Button>
+                        </Box>
                     </Card>
                 )}
 

@@ -1,4 +1,4 @@
-import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
+import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import {
     routeService,
     type GenerateRoutesPayload,
@@ -19,12 +19,25 @@ interface RouteState {
     routes: RouteData[];
     isLoading: boolean;
     error: string | null;
+    currentRequest: GenerateRoutesPayload | null;
+    savedRouteId: string | null;
+    savedRouteTitle: string | null;
+}
+
+interface HydrateSavedRoutePayload {
+    route: RouteData;
+    generateRequest: GenerateRoutesPayload;
+    savedRouteId: string;
+    title: string;
 }
 
 const initialState: RouteState = {
     routes: [],
     isLoading: false,
     error: null,
+    currentRequest: null,
+    savedRouteId: null,
+    savedRouteTitle: null,
 };
 
 function buildUserVector(
@@ -106,7 +119,8 @@ export const generateRoutesThunk = createAsyncThunk(
         try {
             const state = getState() as RootState;
             const payload = buildGenerateRoutesPayload(state, params);
-            return await routeService.generateRoutes(payload);
+            const routes = await routeService.generateRoutes(payload);
+            return { routes, payload };
         } catch (error: any) {
             return rejectWithValue(
                 error?.response?.data?.error || error.message || 'Failed to generate routes',
@@ -122,6 +136,17 @@ const routeSlice = createSlice({
         clearRoutes: (state) => {
             state.routes = [];
             state.error = null;
+            state.currentRequest = null;
+            state.savedRouteId = null;
+            state.savedRouteTitle = null;
+        },
+        hydrateSavedRoute: (state, action: PayloadAction<HydrateSavedRoutePayload>) => {
+            state.routes = [action.payload.route];
+            state.error = null;
+            state.isLoading = false;
+            state.currentRequest = action.payload.generateRequest;
+            state.savedRouteId = action.payload.savedRouteId;
+            state.savedRouteTitle = action.payload.title;
         },
     },
     extraReducers: (builder) => {
@@ -133,7 +158,8 @@ const routeSlice = createSlice({
             })
             .addCase(generateRoutesThunk.fulfilled, (state, action) => {
                 state.isLoading = false;
-                state.routes = action.payload;
+                state.routes = action.payload.routes;
+                state.currentRequest = action.payload.payload;
             })
             .addCase(generateRoutesThunk.rejected, (state, action) => {
                 state.isLoading = false;
@@ -142,5 +168,5 @@ const routeSlice = createSlice({
     },
 });
 
-export const { clearRoutes } = routeSlice.actions;
+export const { clearRoutes, hydrateSavedRoute } = routeSlice.actions;
 export default routeSlice.reducer;

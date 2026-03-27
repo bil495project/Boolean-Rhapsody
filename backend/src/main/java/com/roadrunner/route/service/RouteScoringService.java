@@ -73,9 +73,9 @@ public class RouteScoringService {
      * Budget is intentionally neutral for now because price data is not usable.
      */
     public double scoreInteriorCandidate(Place place,
+                                         RouteLabel label,
                                          double categoryWeight,
                                          double budgetLevel,
-                                         boolean isNightlife,
                                          double sparsity,
                                          double anchorLat,
                                          double anchorLng,
@@ -83,6 +83,10 @@ public class RouteScoringService {
         double ratingNorm = ratingQualityScore(place);
         double popNorm = popularityConfidence(place);
         double qualityScore = qualityConfidenceScore(place);
+        double budgetCompatibility = switch (label) {
+            case RESTORAN_TOLERANSI, KAFE_TATLI -> computeBudgetCompatibility(place, budgetLevel);
+            default -> 1.0;
+        };
 
         double distKm = GeoUtils.haversineKm(anchorLat, anchorLng,
                 place.getLatitude(), place.getLongitude());
@@ -92,6 +96,7 @@ public class RouteScoringService {
         return (0.52 * qualityScore)
                 + (0.18 * ratingNorm)
                 + (0.08 * popNorm)
+                + (0.08 * budgetCompatibility)
                 + (0.18 * categoryWeight)
                 + (0.04 * randomBonus)
                 - distPenalty;
@@ -102,7 +107,13 @@ public class RouteScoringService {
      * Currently neutral because price data is not populated reliably.
      */
     public double computeBudgetCompatibility(Place place, double budgetLevel) {
-        return 1.0;
+        int priceOrdinal = parsePriceOrdinal(place.getPriceLevel());
+        if (priceOrdinal < 0) {
+            return 0.65;
+        }
+        double target = 0.5 + (Math.max(0.0, Math.min(1.0, budgetLevel)) * 3.0);
+        double distance = Math.abs(priceOrdinal - target);
+        return Math.max(0.0, 1.0 - (distance / 4.0));
     }
 
     double qualityConfidenceScore(Place place) {
