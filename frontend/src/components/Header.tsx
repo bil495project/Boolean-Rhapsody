@@ -17,7 +17,6 @@ import { useColorScheme } from '@mui/joy/styles';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
 import ExploreIcon from '@mui/icons-material/Explore';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import roadrunnerLogo from '../assets/roadrunner.jpg';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
@@ -25,6 +24,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AvatarMenu from './AvatarMenu';
+import RoadrunnerBirdLogo from './RoadrunnerBirdLogo';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { logout } from '../store/authSlice';
 
@@ -58,7 +58,7 @@ const Header = () => {
     };
 
     const navLinks = [
-        { label: 'Start Planning', path: '/chat', icon: <AutoAwesomeIcon /> },
+        { label: 'Start Planning', path: '/chat', icon: <RoadrunnerBirdLogo size={20} /> },
         { label: 'Explore', path: '/explore', icon: <ExploreIcon /> },
     ];
 

@@ -8,7 +8,6 @@ import {
     IconButton,
 } from '@mui/joy';
 import { useColorScheme } from '@mui/joy/styles';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import MuseumIcon from '@mui/icons-material/Museum';
 import ParkIcon from '@mui/icons-material/Park';
 import LandscapeIcon from '@mui/icons-material/Landscape';
@@ -16,6 +15,7 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import RoadrunnerBirdLogo from '../components/RoadrunnerBirdLogo';
 
 const beachBgUrl = 'https://images.unsplash.com/photo-1651757621103-122c41860956?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0cmF2ZWwlMjBiZWFjaCUyMG9jZWFuJTIwYWVyaWFsfGVufDF8fHx8MTc2NDYxNDIwMnww&ixlib=rb-4.1.0&q=80&w=1920';
 
@@ -161,7 +161,7 @@ const LandingPage = () => {
                             onChange={(e) => setSearchQuery(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                             startDecorator={
-                                <AutoAwesomeIcon sx={{ color: 'primary.500', ml: 0.5 }} />
+                                <RoadrunnerBirdLogo size={20} sx={{ ml: 0.5 }} />
                             }
                             endDecorator={
                                 <IconButton

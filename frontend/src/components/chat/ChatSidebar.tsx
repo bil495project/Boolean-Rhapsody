@@ -34,7 +34,6 @@ import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import AddIcon from '@mui/icons-material/Add';
 import MenuIcon from '@mui/icons-material/Menu';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import EditIcon from '@mui/icons-material/Edit';
 import PushPinIcon from '@mui/icons-material/PushPin';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -45,6 +44,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import LogoutIcon from '@mui/icons-material/Logout';
 import MapIcon from '@mui/icons-material/Map';
 import RouteIcon from '@mui/icons-material/Route';
+import RoadrunnerBirdLogo from '../RoadrunnerBirdLogo';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { toggleSidebar, setActiveChat, deleteChatAsync, updateChatTitleAsync, toggleMapFullscreen } from '../../store/chatSlice';
 import { logout } from '../../store/authSlice';
@@ -221,7 +221,7 @@ const ChatSidebar = ({ mobile = false, onClose }: ChatSidebarProps) => {
                     },
                 }}
             >
-                <AutoAwesomeIcon sx={{ fontSize: 28, color: 'primary.500' }} />
+                <RoadrunnerBirdLogo size={28} />
                 <Typography level="h4" sx={{ fontWeight: 700, flex: 1 }}>
                     TravelPlanner
                 </Typography>

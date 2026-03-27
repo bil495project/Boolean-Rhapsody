@@ -23,7 +23,6 @@ import GoogleIcon from '@mui/icons-material/Google';
 import AppleIcon from '@mui/icons-material/Apple';
 import EmailIcon from '@mui/icons-material/Email';
 import LockIcon from '@mui/icons-material/Lock';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { loginSuccess, setLoading, setError } from '../store/authSlice';
 import { isValidEmail, getEmailError, getPasswordError } from '../utils/validation';
@@ -31,6 +30,7 @@ import { RECAPTCHA_ACTIONS, executeRecaptchaToken } from '../utils/recaptcha';
 import { authApi, extractErrorMessage } from '../services/userService';
 import { mapUserDataToUser } from '../store/authSlice';
 import beachBg from '../assets/beach-bg.png';
+import RoadrunnerBirdLogo from '../components/RoadrunnerBirdLogo';
 
 const LoginPage = () => {
     const [email, setEmail] = useState('');
@@ -132,7 +132,7 @@ const LoginPage = () => {
             >
                 {/* Logo */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                    <AutoAwesomeIcon sx={{ fontSize: 28, color: 'primary.500' }} />
+                    <RoadrunnerBirdLogo size={28} />
                     <Typography level="h4" sx={{ fontWeight: 700 }}>
                         TravelPlanner AI
                     </Typography>

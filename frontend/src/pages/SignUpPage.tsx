@@ -25,7 +25,6 @@ import AppleIcon from '@mui/icons-material/Apple';
 import EmailIcon from '@mui/icons-material/Email';
 import LockIcon from '@mui/icons-material/Lock';
 import PersonIcon from '@mui/icons-material/Person';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { signupSuccess, setLoading, setError } from '../store/authSlice';
@@ -42,6 +41,7 @@ import { RECAPTCHA_ACTIONS, executeRecaptchaToken } from '../utils/recaptcha';
 import { authApi, extractErrorMessage } from '../services/userService';
 import { mapUserDataToUser } from '../store/authSlice';
 import beachBg from '../assets/beach-bg.png';
+import RoadrunnerBirdLogo from '../components/RoadrunnerBirdLogo';
 
 const SignUpPage = () => {
     const [name, setName] = useState('');
@@ -187,7 +187,7 @@ const SignUpPage = () => {
             >
                 {/* Logo */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
-                    <AutoAwesomeIcon sx={{ fontSize: 28, color: 'primary.500' }} />
+                    <RoadrunnerBirdLogo size={28} />
                     <Typography level="h4" sx={{ fontWeight: 700 }}>
                         TravelPlanner AI
                     </Typography>

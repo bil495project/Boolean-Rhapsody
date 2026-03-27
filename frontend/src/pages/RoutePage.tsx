@@ -344,7 +344,7 @@ const RoutePage = () => {
     });
     const [routeCount, setRouteCount] = useState<number>(3);
     const [centerPoint, setCenterPoint] = useState<[number, number] | null>(null);
-    const [hoveredRouteIdx, setHoveredRouteIdx] = useState<number | null>(null);
+    const [activeRouteIdx, setActiveRouteIdx] = useState<number | null>(null);
 
     // ─── Constraint state ────────────────────────────────────────────────────
     const [stayAtHotel, setStayAtHotel] = useState(true);
@@ -410,13 +410,16 @@ const RoutePage = () => {
     }, []);
 
     // Show only the hovered route's points on the map
-    const hoveredRoute = hoveredRouteIdx !== null ? routes[hoveredRouteIdx] : null;
-    const routeDestinations: MapDestination[] = hoveredRoute
-        ? hoveredRoute.points.filter((p) => p.poiId).map(mapPointToDestination)
-        : [];
-    const routeLineCoords: [number, number][] | null = hoveredRoute
-        ? hoveredRoute.points.filter(p => p.poiId).map(p => [p.latitude, p.longitude] as [number, number])
+    const activeRoute = activeRouteIdx !== null && activeRouteIdx < routes.length
+        ? routes[activeRouteIdx]
         : null;
+    const routeDestinations: MapDestination[] = activeRoute
+        ? activeRoute.points.filter((p) => p.poiId).map(mapPointToDestination)
+        : [];
+    const routeLineCoords: [number, number][] | null = activeRoute
+        ? activeRoute.points.map(p => [p.latitude, p.longitude] as [number, number])
+        : null;
+    const activeRouteMapKey = activeRoute?.routeId || 'no-route';
 
     if (!isAuthenticated) {
         return <Navigate to="/login" replace />;
@@ -465,6 +468,7 @@ const RoutePage = () => {
 
     const handleGenerate = () => {
         dispatch(clearRoutes());
+        setActiveRouteIdx(null);
         setApprovedRouteIds(new Set());
         dispatch(generateRoutesThunk({
             k: routeCount,
@@ -473,6 +477,12 @@ const RoutePage = () => {
             constraints: buildConstraints(),
         }));
     };
+
+    useEffect(() => {
+        if (isLoading || routes.length === 0 || (activeRouteIdx !== null && activeRouteIdx >= routes.length)) {
+            setActiveRouteIdx(null);
+        }
+    }, [activeRouteIdx, isLoading, routes.length]);
 
     const handleApprove = async (route: RouteData) => {
         setApprovingRouteId(route.routeId);
@@ -876,8 +886,7 @@ const RoutePage = () => {
                         {routes.map((route, idx) => (
                             <Box
                                 key={route.routeId || idx}
-                                onMouseEnter={() => setHoveredRouteIdx(idx)}
-                                onMouseLeave={() => setHoveredRouteIdx(null)}
+                                onMouseEnter={() => setActiveRouteIdx(idx)}
                             >
                                 <RouteCard
                                     route={route}
@@ -959,6 +968,9 @@ const RoutePage = () => {
                                     route={routeLineCoords}
                                     orderedDestinations={routeDestinations}
                                     onMapClick={(latlng) => setCenterPoint([latlng.lat, latlng.lng])}
+                                    disableClustering
+                                    fitCoordinates={routeLineCoords}
+                                    markerKeyPrefix={activeRouteMapKey}
                                 />
                             </Box>
                         )}
@@ -1001,6 +1013,9 @@ const RoutePage = () => {
                                 orderedDestinations={routeDestinations}
                                 onDestinationSelect={handleMapClickForCenter}
                                 onMapClick={(latlng) => setCenterPoint([latlng.lat, latlng.lng])}
+                                disableClustering
+                                fitCoordinates={routeLineCoords}
+                                markerKeyPrefix={activeRouteMapKey}
                             />
                         </Box>
                     </Box>
