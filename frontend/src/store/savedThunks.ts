@@ -24,7 +24,7 @@ export const fetchSavedFromBackend = createAsyncThunk(
 // Thunk to sync local changes to backend
 export const syncToggleToBackend = createAsyncThunk(
     'saved/syncToggleToBackend',
-    async (destination: MapDestination, { getState, rejectWithValue }) => {
+    async (_destination: MapDestination, { getState, rejectWithValue }) => {
         const state = getState() as any;
         const isAuthenticated = state.auth.isAuthenticated;
         const savedDestinations = state.saved.destinations;

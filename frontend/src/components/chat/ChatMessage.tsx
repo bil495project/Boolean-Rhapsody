@@ -213,13 +213,13 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
                             mt: 2,
                             p: 2,
                             bgcolor: (theme) => 
-                                theme.vars.palette.mode === 'dark' 
+                                theme.palette.mode === 'dark' 
                                     ? 'rgba(15, 23, 42, 0.4)' // Deep slate
                                     : 'background.level1',
                             borderRadius: '16px',
                             border: '1px solid',
                             borderColor: (theme) =>
-                                theme.vars.palette.mode === 'dark'
+                                theme.palette.mode === 'dark'
                                     ? 'rgba(51, 65, 85, 0.5)' 
                                     : 'divider',
                             position: 'relative',
@@ -241,7 +241,7 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
                                 level="body-sm" 
                                 sx={{ 
                                     color: (theme) =>
-                                        theme.vars.palette.mode === 'dark'
+                                        theme.palette.mode === 'dark'
                                             ? 'text.secondary'
                                             : 'text.primary',
                                     fontWeight: 600,

@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -59,6 +60,11 @@ class UserServiceTest {
 
     @InjectMocks
     private UserService userService;
+
+    @org.junit.jupiter.api.BeforeEach
+    void initDefaults() {
+        lenient().when(travelPersonaRepository.findByUserId(any())).thenReturn(Collections.emptyList());
+    }
 
     // --- getCurrentUser ---
 
@@ -204,22 +210,8 @@ class UserServiceTest {
         // given
         User user = buildTestUser();
         when(userRepository.findById(TEST_USER_ID)).thenReturn(Optional.of(user));
-
-        TravelPersonaRequest req = TravelPersonaRequest.builder()
-                .travelStyles(Arrays.asList("adventure", "relaxation"))
-                .interests(Arrays.asList("history", "food"))
-                .travelFrequency("monthly")
-                .preferredPace("fast")
-                .build();
-
-        TravelPersona savedPersona = TravelPersona.builder()
-                .id("persona-id-1")
-                .user(user)
-                .travelStyles(Arrays.asList("adventure", "relaxation"))
-                .interests(Arrays.asList("history", "food"))
-                .travelFrequency("monthly")
-                .preferredPace("fast")
-                .build();
+        TravelPersonaRequest req = buildPersonaRequest("Tarih Rotam", false);
+        TravelPersona savedPersona = buildPersona(user, "persona-id-1", "Tarih Rotam", false);
 
         when(travelPersonaRepository.save(any(TravelPersona.class))).thenReturn(savedPersona);
 
@@ -229,8 +221,8 @@ class UserServiceTest {
         // then
         assertThat(response).isNotNull();
         assertThat(response.getId()).isEqualTo("persona-id-1");
-        assertThat(response.getTravelStyles()).containsExactly("adventure", "relaxation");
-        assertThat(response.getInterests()).containsExactly("history", "food");
+        assertThat(response.getName()).isEqualTo("Tarih Rotam");
+        assertThat(response.getUserVector()).containsEntry("weight_tarihiAlanlar", "0.900");
         verify(travelPersonaRepository, times(1)).save(any(TravelPersona.class));
     }
 
@@ -253,19 +245,15 @@ class UserServiceTest {
     void shouldReturnUpdatedPersonaResponse_whenOwnershipIsValid() {
         // given
         User user = buildTestUser();
-        TravelPersona persona = TravelPersona.builder()
-                .id("persona-id-1")
-                .user(user)
-                .travelStyles(Arrays.asList("old"))
-                .interests(Arrays.asList("old"))
-                .build();
+        TravelPersona persona = buildPersona(user, "persona-id-1", "Eski Profil", false);
 
         when(travelPersonaRepository.findById("persona-id-1")).thenReturn(Optional.of(persona));
         when(travelPersonaRepository.save(any(TravelPersona.class))).thenReturn(persona);
 
         TravelPersonaRequest req = TravelPersonaRequest.builder()
-                .travelStyles(Arrays.asList("new-style"))
-                .interests(Arrays.asList("new-interest"))
+                .name("Yeni Profil")
+                .historyPreference(0.95)
+                .userVector(Map.of("weight_tarihiAlanlar", "0.950"))
                 .build();
 
         // when
@@ -365,9 +353,9 @@ class UserServiceTest {
         when(userRepository.findById(TEST_USER_ID)).thenReturn(Optional.of(user));
 
         List<TravelPersona> personas = Arrays.asList(
-                TravelPersona.builder().id("p1").user(user).travelStyles(Arrays.asList("a")).interests(Arrays.asList("b")).build(),
-                TravelPersona.builder().id("p2").user(user).travelStyles(Arrays.asList("c")).interests(Arrays.asList("d")).build(),
-                TravelPersona.builder().id("p3").user(user).travelStyles(Arrays.asList("e")).interests(Arrays.asList("f")).build());
+                buildPersona(user, "p1", "Profil 1", false),
+                buildPersona(user, "p2", "Profil 2", true),
+                buildPersona(user, "p3", "Profil 3", false));
         when(travelPersonaRepository.findByUserId(TEST_USER_ID)).thenReturn(personas);
 
         // when
@@ -375,6 +363,21 @@ class UserServiceTest {
 
         // then
         assertThat(result).hasSize(3);
+    }
+
+    @Test
+    void shouldKeepSingleDefault_whenCreatingNewDefaultPersona() {
+        User user = buildTestUser();
+        TravelPersona existingDefault = buildPersona(user, "p1", "Varsayilan", true);
+        when(userRepository.findById(TEST_USER_ID)).thenReturn(Optional.of(user));
+        when(travelPersonaRepository.findByUserId(TEST_USER_ID)).thenReturn(List.of(existingDefault));
+        when(travelPersonaRepository.save(any(TravelPersona.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TravelPersonaResponse response = userService.addTravelPersona(TEST_USER_ID, buildPersonaRequest("Yeni Varsayilan", true));
+
+        assertThat(response.getIsDefault()).isTrue();
+        verify(travelPersonaRepository, atLeast(2)).save(any(TravelPersona.class));
+        assertThat(existingDefault.getIsDefault()).isFalse();
     }
 
     @Test
@@ -544,6 +547,48 @@ class UserServiceTest {
     }
 
     // --- helper ---
+
+    private TravelPersonaRequest buildPersonaRequest(String name, boolean isDefault) {
+        return TravelPersonaRequest.builder()
+                .name(name)
+                .isDefault(isDefault)
+                .tempo(0.75)
+                .socialPreference(0.50)
+                .naturePreference(0.40)
+                .historyPreference(0.90)
+                .foodImportance(0.80)
+                .alcoholPreference(0.0)
+                .transportStyle(0.33)
+                .budgetLevel(0.50)
+                .tripLength(0.50)
+                .crowdPreference(0.25)
+                .userVector(Map.of(
+                        "weight_tarihiAlanlar", "0.900",
+                        "weight_restoranToleransi", "0.800"))
+                .build();
+    }
+
+    private TravelPersona buildPersona(User user, String id, String name, boolean isDefault) {
+        return TravelPersona.builder()
+                .id(id)
+                .user(user)
+                .name(name)
+                .isDefault(isDefault)
+                .tempo(0.75)
+                .socialPreference(0.50)
+                .naturePreference(0.40)
+                .historyPreference(0.90)
+                .foodImportance(0.80)
+                .alcoholPreference(0.0)
+                .transportStyle(0.33)
+                .budgetLevel(0.50)
+                .tripLength(0.50)
+                .crowdPreference(0.25)
+                .userVector(Map.of(
+                        "weight_tarihiAlanlar", "0.900",
+                        "weight_restoranToleransi", "0.800"))
+                .build();
+    }
 
     private User buildTestUser() {
         return User.builder()

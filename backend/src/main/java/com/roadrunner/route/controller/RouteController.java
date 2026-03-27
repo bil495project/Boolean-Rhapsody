@@ -1,7 +1,9 @@
 package com.roadrunner.route.controller;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -49,8 +51,9 @@ public class RouteController {
     public List<RouteResponse> generateRoutes(
             @RequestBody @Valid GenerateRoutesRequest req) {
         boolean stayAtHotel = parseStayAtHotel(req);
+        Map<String, String> generationVector = buildGenerationUserVector(req);
         List<Route> routes = routeService.generateRoutes(
-                req.getUserVector(), stayAtHotel, req.getK());
+                generationVector, stayAtHotel, req.getK());
         return routes.stream()
                 .map(RouteResponse::fromRoute)
                 .toList();
@@ -169,14 +172,22 @@ public class RouteController {
         if (req.getConstraints() == null) {
             return true;
         }
-        Object raw = req.getConstraints().get("stayAtHotel");
-        if (raw instanceof Boolean bool) {
-            return bool;
+        return req.getConstraints().getStayAtHotel() == null
+                || req.getConstraints().getStayAtHotel();
+    }
+
+    private Map<String, String> buildGenerationUserVector(GenerateRoutesRequest req) {
+        Map<String, String> generationVector = new HashMap<>();
+        if (req.getUserVector() != null) {
+            generationVector.putAll(req.getUserVector());
         }
-        if (raw instanceof String text) {
-            return Boolean.parseBoolean(text);
+        if (req.getCenterLat() != null) {
+            generationVector.put("centerLat", String.valueOf(req.getCenterLat()));
         }
-        return true;
+        if (req.getCenterLng() != null) {
+            generationVector.put("centerLng", String.valueOf(req.getCenterLng()));
+        }
+        return generationVector;
     }
 
     private boolean isHotelLoopRoute(Route route) {

@@ -15,6 +15,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.util.ArrayList;
 import java.util.Optional;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Arrays;
@@ -180,8 +181,8 @@ class UserRepositoryIntegrationTest {
                 .build();
         user = userRepository.save(user);
 
-        TravelPersona p1 = TravelPersona.builder().user(user).travelStyles(Arrays.asList("a")).interests(Arrays.asList("b")).build();
-        TravelPersona p2 = TravelPersona.builder().user(user).travelStyles(Arrays.asList("c")).interests(Arrays.asList("d")).build();
+        TravelPersona p1 = TravelPersona.builder().user(user).name("Profil 1").userVector(Map.of("weight_landmark", "0.6")).build();
+        TravelPersona p2 = TravelPersona.builder().user(user).name("Profil 2").userVector(Map.of("weight_tarihiAlanlar", "0.8")).build();
         travelPersonaRepository.save(p1);
         travelPersonaRepository.save(p2);
 

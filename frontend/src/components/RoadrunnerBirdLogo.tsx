@@ -1,5 +1,6 @@
 import { Box } from '@mui/joy';
-import { useColorScheme, type SxProps } from '@mui/joy/styles';
+import { useColorScheme } from '@mui/joy/styles';
+import type { SxProps } from '@mui/system';
 import roadrunnerBird from '../assets/roadrunnerbird.png';
 import roadrunnerBirdWhite from '../assets/roadrunnerbird_white.png';
 
