@@ -42,7 +42,7 @@ public class LLMService {
      * @param history the last N messages for context (may be null)
      * @return LLMChatResponse with status, response text, and optional tool_used
      */
-    public LLMChatResponse chat(String query, List<LLMChatRequest.ChatMessageDto> history) {
+    public LLMChatResponse chat(String query, String userId, List<LLMChatRequest.ChatMessageDto> history) {
         String endpoint = llmServerUrl + "/chatbot";
         logger.info("Forwarding chat query to LLM Server: {}", endpoint);
 
@@ -50,6 +50,11 @@ public class LLMService {
             // Build the request body matching Flask server's expected format
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("query", query);
+
+            // Forward the authenticated user's ID to Flask for agent-level persona lookups
+            if (userId != null && !userId.isEmpty()) {
+                requestBody.put("user_id", userId);
+            }
 
             // Include history if available
             if (history != null && !history.isEmpty()) {
@@ -107,7 +112,7 @@ public class LLMService {
     public String generateTitle(String firstMessage) {
         try {
             String titleQuery = "Generate a short title (max 60 chars) for this travel chat: \"" + firstMessage + "\"";
-            LLMChatResponse response = chat(titleQuery, null);
+            LLMChatResponse response = chat(titleQuery, null, null);
 
             if ("success".equals(response.getStatus()) && response.getResponse() != null) {
                 String title = response.getResponse()

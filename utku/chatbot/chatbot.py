@@ -7,7 +7,8 @@ import time
 from chatbot.ai_agents import (
     calculatorAgent, weatherAgent, UserProfileAgent_SetInfo, 
     UserFeedbackAgent, XAIJustificationAgent, Route_search_agent, 
-    POI_suggest_agent, ItineraryModificationAgent,ChatTitleAgent, POIDataAgent
+    POI_suggest_agent, ItineraryModificationAgent, ChatTitleAgent,
+    POIDataAgent, UserPersonaListAgent
 )
 
 # --- Configuration ---
@@ -47,6 +48,7 @@ TOOLS = [
     {"type": "function", "function": ItineraryModificationAgent.tool_template},
     {"type": "function", "function": ChatTitleAgent.tool_template},
     {"type": "function", "function": POIDataAgent.tool_template},
+    {"type": "function", "function": UserPersonaListAgent.tool_template},
 ]
 
 # chatbot.py updates

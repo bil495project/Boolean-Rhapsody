@@ -1,38 +1,42 @@
 package com.roadrunner.llm.controller;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.roadrunner.llm.dto.LLMChatRequest;
 import com.roadrunner.llm.dto.LLMChatResponse;
 import com.roadrunner.llm.service.LLMService;
+import com.roadrunner.security.JwtTokenProvider;
 
 import java.util.Map;
 
 /**
  * REST Controller that exposes LLM chat endpoints to the frontend.
- * 
- * Architecture: Frontend → /api/llm/** (this controller) → Flask LLM Server
+ *
+ * User ID Strategy:
+ *   The frontend sends user_id directly in the POST request body (from Redux state.auth.user.id).
+ *   The backend reads it via @JsonProperty("user_id") on LLMChatRequest.userId and
+ *   forwards it to Flask where persona-aware agents use it.
+ *   As a fallback, we also try to extract userId directly from the JWT token.
  */
 @RestController
 @RequestMapping("/api/llm")
 public class LLMController {
 
     private final LLMService llmService;
+    private final JwtTokenProvider jwtTokenProvider;
 
-    public LLMController(LLMService llmService) {
+    public LLMController(LLMService llmService, JwtTokenProvider jwtTokenProvider) {
         this.llmService = llmService;
+        this.jwtTokenProvider = jwtTokenProvider;
     }
 
-    /**
-     * POST /api/llm/chat
-     * Sends a chat message through the LLM pipeline.
-     * 
-     * Request body: { "query": "user message", "chatId": "optional" }
-     * Response: { "status": "success|error", "response": "text", "toolUsed": "optional" }
-     */
     @PostMapping("/chat")
-    public ResponseEntity<LLMChatResponse> chat(@RequestBody LLMChatRequest request) {
+    public ResponseEntity<LLMChatResponse> chat(
+            @RequestBody LLMChatRequest request,
+            HttpServletRequest httpRequest) {
+
         if (request.getQuery() == null || request.getQuery().trim().isEmpty()) {
             LLMChatResponse error = new LLMChatResponse();
             error.setStatus("error");
@@ -40,24 +44,42 @@ public class LLMController {
             return ResponseEntity.badRequest().body(error);
         }
 
-        LLMChatResponse response = llmService.chat(request.getQuery(), request.getHistory());
+        // Primary: userId sent directly in the request body by the frontend (most reliable)
+        // Fallback: extract from JWT token in the Authorization header
+        if (request.getUserId() == null || request.getUserId().isEmpty()) {
+            String userId = extractUserIdFromJwt(httpRequest);
+            if (userId != null) {
+                request.setUserId(userId);
+            }
+        }
+
+        System.out.println("[LLMController] chat() userId=" + request.getUserId());
+
+        LLMChatResponse response = llmService.chat(
+                request.getQuery(), request.getUserId(), request.getHistory());
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * POST /api/llm/title
-     * Generates a short title for a chat session.
-     * 
-     * Request body: { "query": "first user message" }
-     * Response: { "title": "generated title" }
-     */
     @PostMapping("/title")
     public ResponseEntity<Map<String, String>> generateTitle(@RequestBody LLMChatRequest request) {
         if (request.getQuery() == null || request.getQuery().trim().isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("title", "New Trip"));
         }
-
         String title = llmService.generateTitle(request.getQuery());
         return ResponseEntity.ok(Map.of("title", title));
+    }
+
+    /** Tries to parse the sub claim from the Bearer JWT, returns null on failure. */
+    private String extractUserIdFromJwt(HttpServletRequest httpRequest) {
+        String authHeader = httpRequest.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            try {
+                if (jwtTokenProvider.validateToken(token)) {
+                    return jwtTokenProvider.getUserIdFromToken(token);
+                }
+            } catch (Exception ignored) {}
+        }
+        return null;
     }
 }

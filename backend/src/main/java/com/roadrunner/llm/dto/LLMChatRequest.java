@@ -1,6 +1,7 @@
 package com.roadrunner.llm.dto;
 
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Request DTO for the LLM chat endpoint.
@@ -10,13 +11,16 @@ public class LLMChatRequest {
 
     private String query;
     private String chatId;
+    @JsonProperty("user_id")
+    private String userId;
     private List<ChatMessageDto> history;
 
     public LLMChatRequest() {}
 
-    public LLMChatRequest(String query, String chatId, List<ChatMessageDto> history) {
+    public LLMChatRequest(String query, String chatId, String userId, List<ChatMessageDto> history) {
         this.query = query;
         this.chatId = chatId;
+        this.userId = userId;
         this.history = history;
     }
 
@@ -34,6 +38,14 @@ public class LLMChatRequest {
 
     public void setChatId(String chatId) {
         this.chatId = chatId;
+    }
+
+    public String getUserId() {
+        return userId;
+    }
+
+    public void setUserId(String userId) {
+        this.userId = userId;
     }
 
     public List<ChatMessageDto> getHistory() {

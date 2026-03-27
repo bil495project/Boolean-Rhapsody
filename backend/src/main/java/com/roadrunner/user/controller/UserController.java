@@ -128,6 +128,13 @@ public class UserController {
         userService.deleteAccount(userId);
     }
 
+    @GetMapping("/{userId}/personas")
+    public ResponseEntity<List<TravelPersonaResponse>> getPersonasByUserId(@PathVariable String userId) {
+        // Internal endpoint: called by the Flask LLM agent on localhost (no JWT required).
+        // Relies on network-level trust (both services run on the same host).
+        return ResponseEntity.ok(userService.getAllPersonas(userId));
+    }
+
     private String getCurrentUserId() {
         return SecurityContextHolder.getContext().getAuthentication().getName();
     }
