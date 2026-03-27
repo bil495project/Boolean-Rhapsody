@@ -40,8 +40,12 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
-                        .requestMatchers("/api/places/**").permitAll() // POI data is publicly readable
-                        .requestMatchers("/api/llm/**").permitAll() // LLM chat endpoints
+                        .requestMatchers("/api/places/**").permitAll()
+                        .requestMatchers("/api/llm/title").permitAll() // Title generation does not need auth
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/users/*/personas").permitAll() // Internal:
+                                                                                                                       // Flask
+                                                                                                                       // LLM
+                                                                                                                       // agent
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) -> response

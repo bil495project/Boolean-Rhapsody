@@ -238,7 +238,7 @@ function get_auth_headers(): Record<string, string> {
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
     };
-    const token = localStorage.getItem('travelplanner_token');
+    const token = localStorage.getItem('roadrunner_token');
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
@@ -258,7 +258,8 @@ function get_auth_headers(): Record<string, string> {
  */
 export async function send_message(
     message: string,
-    history: ChatMessage[] = []
+    history: ChatMessage[] = [],
+    userId?: string
 ): Promise<ToolCallResult> {
     try {
         // Take only the last 10 messages for context
@@ -269,6 +270,7 @@ export async function send_message(
             headers: get_auth_headers(),
             body: JSON.stringify({
                 query: message,
+                user_id: userId ?? null, // Pass user ID directly so Flask agents can fetch personas
                 history: recentHistory.map((msg) => ({
                     role: msg.role,
                     content: msg.content,

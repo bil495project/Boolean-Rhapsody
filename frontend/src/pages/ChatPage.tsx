@@ -82,7 +82,7 @@ const ChatPage = () => {
                 // Get AI response
                 dispatch(setLoading(true));
                 try {
-                    const response: ToolCallResult = await sendMessage(initialQuery);
+                    const response: ToolCallResult = await sendMessage(initialQuery, [], user?.id);
                     await dispatch(addMessageAsync({
                         chatId: newId,
                         role: 'assistant',
@@ -164,7 +164,7 @@ const ChatPage = () => {
 
             dispatch(setLoading(true));
             try {
-                const response: ToolCallResult = await sendMessage(query);
+                const response: ToolCallResult = await sendMessage(query, [], user?.id);
                 await dispatch(addMessageAsync({
                     chatId: activeChat.id,
                     role: 'assistant',
