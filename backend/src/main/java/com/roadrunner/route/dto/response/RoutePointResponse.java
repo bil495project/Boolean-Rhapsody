@@ -30,4 +30,7 @@ public class RoutePointResponse {
     private int ratingCount;
     private String priceLevel;
     private int plannedVisitMin;
+    private boolean fixedAnchor;
+    private boolean protectedPoint;
+    private String protectionReason;
 }

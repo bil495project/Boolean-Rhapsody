@@ -21,47 +21,37 @@ import com.roadrunner.route.dto.response.RoutePointResponse;
 import com.roadrunner.route.dto.response.RouteResponse;
 import com.roadrunner.route.entity.Route;
 import com.roadrunner.route.entity.RoutePoint;
+import com.roadrunner.route.service.ResolvedRouteGenerationRequest;
 import com.roadrunner.route.service.RouteGenerationService;
+import com.roadrunner.route.service.RouteRequestInterpreter;
 
 import jakarta.validation.Valid;
 
-/**
- * REST controller for stateless route generation and mutation.
- * All endpoints require JWT authentication (covered by SecurityConfig's
- * {@code anyRequest().authenticated()}).
- */
 @RestController
 @RequestMapping("/api/routes")
 public class RouteController {
 
     private final RouteGenerationService routeService;
+    private final RouteRequestInterpreter requestInterpreter;
     private final PlaceRepository placeRepository;
 
     public RouteController(RouteGenerationService routeService,
+                           RouteRequestInterpreter requestInterpreter,
                            PlaceRepository placeRepository) {
         this.routeService = routeService;
+        this.requestInterpreter = requestInterpreter;
         this.placeRepository = placeRepository;
     }
-
-    // ------------------------------------------------------------------
-    // Generate
-    // ------------------------------------------------------------------
 
     @PostMapping("/generate")
     public List<RouteResponse> generateRoutes(
             @RequestBody @Valid GenerateRoutesRequest req) {
-        boolean stayAtHotel = parseStayAtHotel(req);
-        Map<String, String> generationVector = buildGenerationUserVector(req);
-        List<Route> routes = routeService.generateRoutes(
-                generationVector, stayAtHotel, req.getK());
+        ResolvedRouteGenerationRequest resolved = requestInterpreter.interpret(req);
+        List<Route> routes = routeService.generateRoutes(resolved, req.getK());
         return routes.stream()
                 .map(RouteResponse::fromRoute)
                 .toList();
     }
-
-    // ------------------------------------------------------------------
-    // Reroll
-    // ------------------------------------------------------------------
 
     @PostMapping("/reroll")
     public RouteResponse rerollPoint(
@@ -73,23 +63,14 @@ public class RouteController {
         return RouteResponse.fromRoute(updated);
     }
 
-    // ------------------------------------------------------------------
-    // Insert
-    // ------------------------------------------------------------------
-
     @PostMapping("/insert")
-    public RouteResponse insertPlace(
+    public RouteResponse insertPoint(
             @RequestBody @Valid InsertWithStateRequest req) {
         Route route = reconstructRoute(req.getCurrentRoute());
         Route updated = routeService.insertManualPOI(
-                route, req.getIndex(), req.getPoiId(),
-                req.getOriginalUserVector());
+                route, req.getIndex(), req.getPoiId(), req.getOriginalUserVector());
         return RouteResponse.fromRoute(updated);
     }
-
-    // ------------------------------------------------------------------
-    // Remove
-    // ------------------------------------------------------------------
 
     @PostMapping("/remove")
     public RouteResponse removePoint(
@@ -100,40 +81,16 @@ public class RouteController {
         return RouteResponse.fromRoute(updated);
     }
 
-    // ------------------------------------------------------------------
-    // Reorder
-    // ------------------------------------------------------------------
-
     @PostMapping("/reorder")
     public RouteResponse reorderPoints(
             @RequestBody @Valid ReorderWithStateRequest req) {
         Route route = reconstructRoute(req.getCurrentRoute());
-
-        List<Integer> fullOrder = req.getNewOrder();
-        List<Integer> interiorOrder = new ArrayList<>();
-        boolean hotelLoop = isHotelLoopRoute(route);
-        int exclusiveUpperBound = fullOrder != null
-                ? (hotelLoop ? fullOrder.size() - 1 : fullOrder.size())
-                : 0;
-        if (fullOrder != null && fullOrder.size() >= 2) {
-            for (int i = 1; i < exclusiveUpperBound; i++) {
-                interiorOrder.add(fullOrder.get(i) - 1);
-            }
-        }
-
+        List<Integer> interiorOrder = translateMutableInteriorOrder(route, req.getNewOrder());
         Route updated = routeService.reorderPOIs(
                 route, interiorOrder, req.getOriginalUserVector());
         return RouteResponse.fromRoute(updated);
     }
 
-    // ------------------------------------------------------------------
-    // Route reconstruction from DTO
-    // ------------------------------------------------------------------
-
-    /**
-     * Rebuilds a {@link Route} domain object from the client-held
-     * {@link RouteResponse} DTO by fetching each POI from the repository.
-     */
     private Route reconstructRoute(RouteResponse dto) {
         Route route = new Route();
         route.setRouteId(dto.getRouteId());
@@ -153,8 +110,11 @@ public class RouteController {
                 RoutePoint.RoutePointBuilder builder = RoutePoint.builder()
                         .index(rpr.getIndex())
                         .poi(place)
-                        .plannedVisitMin(rpr.getPlannedVisitMin());
-                if (place == null && (rpr.getLatitude() != 0.0 || rpr.getLongitude() != 0.0)) {
+                        .plannedVisitMin(rpr.getPlannedVisitMin())
+                        .fixedAnchor(rpr.isFixedAnchor())
+                        .protectedPoint(rpr.isProtectedPoint())
+                        .protectionReason(rpr.getProtectionReason());
+                if (place == null) {
                     builder.anchorName(rpr.getPoiName())
                             .anchorLatitude(rpr.getLatitude())
                             .anchorLongitude(rpr.getLongitude());
@@ -163,42 +123,49 @@ public class RouteController {
             }
         }
         route.setPoints(points);
-
-        // Segments are recomputed on mutation, no need to reconstruct them
         return route;
     }
 
-    private boolean parseStayAtHotel(GenerateRoutesRequest req) {
-        if (req.getConstraints() == null) {
-            return true;
+    private List<Integer> translateMutableInteriorOrder(Route route, List<Integer> newOrder) {
+        if (newOrder == null) {
+            return List.of();
         }
-        return req.getConstraints().getStayAtHotel() == null
-                || req.getConstraints().getStayAtHotel();
+
+        List<RoutePoint> points = route.getPoints();
+        int startIdx = hasFixedStart(route) ? 1 : 0;
+        int endExclusive = hasFixedEnd(route) ? points.size() - 1 : points.size();
+        Map<Integer, Integer> routeIndexToMutableIndex = new HashMap<>();
+
+        int mutableCursor = 0;
+        for (int routeIndex = startIdx; routeIndex < endExclusive; routeIndex++) {
+            if (!points.get(routeIndex).isProtectedPoint()) {
+                routeIndexToMutableIndex.put(routeIndex, mutableCursor++);
+            }
+        }
+
+        List<Integer> translated = new ArrayList<>();
+        for (Integer routeIndex : newOrder) {
+            Integer mutableIndex = routeIndexToMutableIndex.get(routeIndex);
+            if (mutableIndex != null) {
+                translated.add(mutableIndex);
+            }
+        }
+
+        if (!translated.isEmpty()) {
+            return translated;
+        }
+        return new ArrayList<>(newOrder);
     }
 
-    private Map<String, String> buildGenerationUserVector(GenerateRoutesRequest req) {
-        Map<String, String> generationVector = new HashMap<>();
-        if (req.getUserVector() != null) {
-            generationVector.putAll(req.getUserVector());
-        }
-        if (req.getCenterLat() != null) {
-            generationVector.put("centerLat", String.valueOf(req.getCenterLat()));
-        }
-        if (req.getCenterLng() != null) {
-            generationVector.put("centerLng", String.valueOf(req.getCenterLng()));
-        }
-        return generationVector;
+    private boolean hasFixedStart(Route route) {
+        return route.getPoints() != null
+                && !route.getPoints().isEmpty()
+                && route.getPoints().get(0).isFixedAnchor();
     }
 
-    private boolean isHotelLoopRoute(Route route) {
-        if (route.getPoints() == null || route.getPoints().size() < 2) {
-            return false;
-        }
-        RoutePoint first = route.getPoints().get(0);
-        RoutePoint last = route.getPoints().get(route.getPoints().size() - 1);
-        return first.getPoi() != null
-                && last.getPoi() != null
-                && first.getPoi().getId() != null
-                && first.getPoi().getId().equals(last.getPoi().getId());
+    private boolean hasFixedEnd(Route route) {
+        return route.getPoints() != null
+                && !route.getPoints().isEmpty()
+                && route.getPoints().get(route.getPoints().size() - 1).isFixedAnchor();
     }
 }

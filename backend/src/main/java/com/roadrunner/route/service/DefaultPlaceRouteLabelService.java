@@ -11,6 +11,7 @@ import com.roadrunner.place.entity.Place;
 
 /**
  * Default fallback route labeler backed by Google Place types.
+ * Keeps a single semantic routing label per POI.
  */
 @Service
 @Primary
@@ -105,17 +106,31 @@ public class DefaultPlaceRouteLabelService implements PlaceRouteLabeler {
     }
 
     private static int labelPriority(RouteLabel label) {
-        return switch (label) {
-            case HOTEL -> 0;
-            case GECE_HAYATI -> 1;
-            case TARIHI_ALANLAR -> 2;
-            case RESTORAN_TOLERANSI -> 3;
-            case KAFE_TATLI -> 4;
-            case PARK_VE_SEYIR_NOKTALARI -> 5;
-            case LANDMARK -> 6;
-            case DOGAL_ALANLAR -> 7;
-            case UNKNOWN -> 8;
-        };
+        if (label == RouteLabel.HOTEL) {
+            return 0;
+        }
+        if (label == RouteLabel.GECE_HAYATI) {
+            return 1;
+        }
+        if (label == RouteLabel.TARIHI_ALANLAR) {
+            return 2;
+        }
+        if (label == RouteLabel.RESTORAN_TOLERANSI) {
+            return 3;
+        }
+        if (label == RouteLabel.KAFE_TATLI) {
+            return 4;
+        }
+        if (label == RouteLabel.PARK_VE_SEYIR_NOKTALARI) {
+            return 5;
+        }
+        if (label == RouteLabel.LANDMARK) {
+            return 6;
+        }
+        if (label == RouteLabel.DOGAL_ALANLAR) {
+            return 7;
+        }
+        return 8;
     }
 
     private static boolean isHistoricMosque(List<String> types) {
