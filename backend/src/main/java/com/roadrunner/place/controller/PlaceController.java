@@ -107,4 +107,32 @@ public class PlaceController {
             @Valid @RequestBody PlaceBulkRequest request) {
         return ResponseEntity.ok(placeService.getPlacesByIds(request.getIds()));
     }
+
+    /**
+     * Returns places that belong to one of the 7 application-level categories.
+     *
+     * <p>Valid category values (case-insensitive):
+     * <ul>
+     *   <li>BARS_AND_NIGHTCLUBS</li>
+     *   <li>CAFES_AND_DESSERTS</li>
+     *   <li>HISTORIC_PLACES</li>
+     *   <li>HOTELS</li>
+     *   <li>LANDMARKS</li>
+     *   <li>PARKS</li>
+     *   <li>RESTAURANTS</li>
+     * </ul>
+     *
+     * <p>Results are pre-sorted by rating (highest first) and capped at {@code size}.
+     *
+     * @param category one of the 7 category names listed above
+     * @param size     maximum number of results; capped at 50 (default: 20)
+     */
+    @GetMapping("/by-category")
+    public ResponseEntity<List<PlaceResponse>> getPlacesByCategory(
+            @RequestParam String category,
+            @RequestParam(defaultValue = "20") int size) {
+
+        int limit = Math.min(size, 50); // hard cap — never return more than 50
+        return ResponseEntity.ok(placeService.getPlacesByCategory(category, limit));
+    }
 }

@@ -5,10 +5,10 @@ import re
 import sys
 import time
 from chatbot.ai_agents import (
-    calculatorAgent, weatherAgent, UserProfileAgent_SetInfo, 
-    UserFeedbackAgent, XAIJustificationAgent, Route_search_agent, 
+    calculatorAgent, weatherAgent, UserProfileAgent_SetInfo,
+    UserFeedbackAgent, XAIJustificationAgent, Route_search_agent,
     POI_suggest_agent, ItineraryModificationAgent, ChatTitleAgent,
-    POIDataAgent, UserPersonaListAgent
+    POI_data_agent, POI_search_agent, UserPersonaListAgent
 )
 
 # --- Configuration ---
@@ -47,7 +47,8 @@ TOOLS = [
     {"type": "function", "function": POI_suggest_agent.tool_template},
     {"type": "function", "function": ItineraryModificationAgent.tool_template},
     {"type": "function", "function": ChatTitleAgent.tool_template},
-    {"type": "function", "function": POIDataAgent.tool_template},
+    {"type": "function", "function": POI_data_agent.tool_template},
+    {"type": "function", "function": POI_search_agent.tool_template},
     {"type": "function", "function": UserPersonaListAgent.tool_template},
 ]
 

@@ -10,7 +10,7 @@ from chatbot.ai_agents import (
     calculatorAgent, weatherAgent, UserProfileAgent_SetInfo,
     UserFeedbackAgent, XAIJustificationAgent, Route_search_agent,
     POI_suggest_agent, ItineraryModificationAgent, ChatTitleAgent,
-    POIDataAgent, UserPersonaListAgent
+    POI_data_agent, POI_search_agent, UserPersonaListAgent
 )
 
 app = Flask(__name__)
@@ -25,8 +25,9 @@ TOOL_REGISTRY = {
     "suggest_poi":         POI_suggest_agent(),            # Matches TC-LLM-U-003
     "modify_itinerary":    ItineraryModificationAgent(),   # Matches TC-LLM-U-007
     "generate_chat_title": ChatTitleAgent(),               # Matches TC-LLM-U-015
-    "get_poi_details":     POIDataAgent(),                 # Supports context for justification
-    "get_user_personas":   UserPersonaListAgent(),         # Lists user's travel personas
+    "get_poi_details":          POI_data_agent(),        # Lookup by name (single or multi-instance)
+    "search_poi_by_category":   POI_search_agent(),      # Browse by category (cafes, restaurants…)
+    "get_user_personas":        UserPersonaListAgent(),  # Lists user's travel personas
 }
 
 # Agents that require the user_id to be injected at call time.
@@ -67,7 +68,19 @@ def handle_chat():
                     "When a user asks about their travel persona or what kind of traveller they are, "
                     "always use the get_user_personas tool. "
                     "When creating or optimising a route, use search_route — it will automatically "
-                    "load the user's saved preferences from the database."
+                    "load the user's saved preferences from the database. "
+                    "When a user asks about a specific place, landmark, cafe, restaurant, or any "
+                    "point of interest, ALWAYS use the get_poi_details tool to fetch the real details "
+                    "from the local database — do NOT guess or make up information. "
+                    "The tool handles both unique places (e.g. 'Anıtkabir') and generic names that "
+                    "may have many branches (e.g. 'Aspava', 'Starbucks') — it returns all matches "
+                    "with full details including name, type, address, rating, price level and status. "
+                    "When the user asks for a RECOMMENDATION or wants to EXPLORE a type of place "
+                    "(e.g. 'suggest a cafe', 'what restaurants are nearby?', 'find me a park'), "
+                    "use the search_poi_by_category tool instead — it returns the top-rated places "
+                    "for one of the 7 categories: BARS_AND_NIGHTCLUBS, CAFES_AND_DESSERTS, "
+                    "HISTORIC_PLACES, HOTELS, LANDMARKS, PARKS, RESTAURANTS. "
+                    "Present all tool results exactly as returned — do not summarise or omit details."
                 )
             },
         ]
