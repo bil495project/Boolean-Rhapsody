@@ -82,4 +82,19 @@ public interface PlaceService {
      * @return list of matching PlaceResponse DTOs (order not guaranteed)
      */
     List<PlaceResponse> getPlacesByIds(List<String> ids);
+
+    /**
+     * Returns places that belong to one of the 7 application-level categories
+     * (e.g. "CAFES_AND_DESSERTS", "RESTAURANTS", "HISTORIC_PLACES", …).
+     * Each category maps to one or more Google Place type keywords; a place is
+     * included if its {@code types} column contains ANY of those keywords
+     * (case-insensitive). Results are pre-sorted by rating (highest first) and
+     * capped at {@code limit}.
+     *
+     * @param category one of the 7 PlaceCategory names (see PlaceServiceImpl)
+     * @param limit    maximum number of results to return
+     * @return matching places sorted by rating descending
+     * @throws IllegalArgumentException if the category string is unknown
+     */
+    List<PlaceResponse> getPlacesByCategory(String category, int limit);
 }

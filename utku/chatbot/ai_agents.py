@@ -359,38 +359,282 @@ class ChatTitleAgent(BaseAgent):
         return first_message[:50] + "..." if len(first_message) > 50 else first_message
 
 
-class POIDataAgent(BaseAgent):
+# ---------------------------------------------------------------------------
+# Agent: POI_data_agent
+# ---------------------------------------------------------------------------
+
+# Price-level tokens returned by the backend → human-readable labels
+_PRICE_LEVEL_LABELS = {
+    "PRICE_LEVEL_FREE":        "Free",
+    "PRICE_LEVEL_INEXPENSIVE": "Inexpensive (₺)",
+    "PRICE_LEVEL_MODERATE":    "Moderate (₺₺)",
+    "PRICE_LEVEL_EXPENSIVE":   "Expensive (₺₺₺)",
+    "PRICE_LEVEL_VERY_EXPENSIVE": "Very expensive (₺₺₺₺)",
+}
+
+
+def _format_place(p: dict) -> str:
+    """
+    Converts a single PlaceResponse dict (from the backend JSON)
+    into a clean, human-readable one-liner that lists every attribute.
+
+    Example output:
+        Place_name: Anıtkabir, Place_type: point_of_interest, historical,
+        Address: Anıttepe, 06570 Ankara, Coordinates: (39.9255°N, 32.8378°E),
+        Rating: 4.8 ⭐ (12,345 reviews), Price_level: Free, Status: Operational
+    """
+    name     = p.get("name", "Unknown")
+    types    = p.get("types") or "N/A"
+    address  = p.get("formattedAddress") or "N/A"
+    lat      = p.get("latitude")
+    lng      = p.get("longitude")
+    rating   = p.get("ratingScore")
+    r_count  = p.get("ratingCount")
+    price    = p.get("priceLevel")
+    status   = p.get("businessStatus")
+
+    coords = f"({lat:.4f}°N, {lng:.4f}°E)" if lat is not None and lng is not None else "N/A"
+
+    if rating is not None and r_count is not None:
+        rating_str = f"{rating} ⭐ ({r_count:,} reviews)"
+    elif rating is not None:
+        rating_str = f"{rating} ⭐"
+    else:
+        rating_str = "N/A"
+
+    price_str  = _PRICE_LEVEL_LABELS.get(price, price) if price else "N/A"
+    status_str = status.replace("_", " ").capitalize() if status else "N/A"
+
+    return (
+        f"Place_name: {name}, "
+        f"Place_type: {types}, "
+        f"Address: {address}, "
+        f"Coordinates: {coords}, "
+        f"Rating: {rating_str}, "
+        f"Price_level: {price_str}, "
+        f"Status: {status_str}"
+    )
+
+
+class POI_data_agent(BaseAgent):
+    """
+    Fetches POI details from the local database via the Spring Boot backend.
+
+    Behaviour
+    ---------
+    • The agent calls ``GET /api/places/search?name=<poi_name>`` which performs a
+      case-insensitive *substring* search across all rows in the places table.
+    • If one result is returned it is treated as a well-known, unique place
+      (e.g. "Anıtkabir") and its details are shown directly.
+    • If multiple results are returned (e.g. searching "Aspava") all candidates
+      are listed so the user can see every matching location.
+    • All database columns (name, types, address, coordinates, rating, price,
+      status) are included in the output.
+
+    The LLM should call this tool whenever the user asks about a specific place,
+    a category of places, or wants to know the details of a POI.
+    """
+
     tool_template = {
         "name": "get_poi_details",
-        "description": "Fetches historical and cultural facts about a specific POI to provide context for recommendations.",
+        "description": (
+            "Searches the local POI database by name and returns the full details "
+            "(type, address, coordinates, rating, price level, status) of every matching place. "
+            "Use this for BOTH well-known singular places (e.g. 'Anıtkabir', 'Kocatepe Camii') "
+            "AND generic place names that may have multiple instances (e.g. 'Aspava', 'Starbucks'). "
+            "Always prefer this tool over guessing when the user asks about a specific location."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
-                "poi_name": {"type": "string"}
+                "poi_name": {
+                    "type": "string",
+                    "description": (
+                        "The name (or partial name) of the place to look up. "
+                        "Examples: 'Anıtkabir', 'Aspava', 'cafe', 'museum'."
+                    )
+                }
             },
             "required": ["poi_name"]
         }
     }
 
-    def __call__(self, poi_name: str):
-        """Fetches historical/cultural summary from Wikipedia."""
-        print(f"[SYSTEM] POIDataAgent: Fetching Wikipedia summary for '{poi_name}'")
+    def __call__(self, poi_name: str) -> str:
+        print(f"[SYSTEM] POI_data_agent: searching database for '{poi_name}'")
+
         try:
-            url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{poi_name.replace(' ', '_')}"
-            response = requests.get(url, timeout=5)
-            if response.status_code == 200:
-                return response.json().get('extract', f"Detailed information about {poi_name}.")
+            # Use the existing /api/places/search endpoint (substring, case-insensitive).
+            # The endpoint is permit-all so no auth token is needed for this
+            # server-to-server call.
+            url    = f"{BACKEND_URL}/api/places/search"
+            params = {"name": poi_name, "size": 50}   # fetch up to 50 matches
+            resp   = requests.get(url, params=params, timeout=5)
 
-            url_tr = f"https://tr.wikipedia.org/api/rest_v1/page/summary/{poi_name.replace(' ', '_')}"
-            response_tr = requests.get(url_tr, timeout=5)
-            if response_tr.status_code == 200:
-                return response_tr.json().get('extract', f"{poi_name} hakkında detaylı bilgi.")
+            if resp.status_code != 200:
+                print(f"[WARN] POI_data_agent: backend returned HTTP {resp.status_code}")
+                return (
+                    f"I couldn't retrieve information for '{poi_name}' from the database "
+                    f"(HTTP {resp.status_code}). Please try again later."
+                )
+
+            data    = resp.json()
+            # Spring's Page<PlaceResponse> wraps results in a 'content' array
+            results = data.get("content", data) if isinstance(data, dict) else data
+
+            if not results:
+                return (
+                    f"No places matching '{poi_name}' were found in the database. "
+                    "The place may not be listed yet or the name may be spelled differently."
+                )
+
+            if len(results) == 1:
+                # Single match — treat as a definitive, well-known place
+                place_line = _format_place(results[0])
+                return f"Here are the details for **{results[0].get('name', poi_name)}**:\n\n{place_line}"
+
+            # Multiple matches — list all of them
+            header = (
+                f"Found **{len(results)}** places matching '{poi_name}'. "
+                "Here are all of them:\n"
+            )
+            lines = [f"{i + 1}. {_format_place(p)}" for i, p in enumerate(results)]
+            return header + "\n".join(lines)
+
+        except requests.exceptions.ConnectionError:
+            print("[ERROR] POI_data_agent: cannot connect to backend")
+            return (
+                "I'm currently unable to reach the place database. "
+                "Please ensure the backend server is running."
+            )
         except Exception as e:
-            print(f"[ERROR] POIDataAgent Wikipedia call failed: {str(e)}")
+            print(f"[ERROR] POI_data_agent: {str(e)}")
+            return f"An unexpected error occurred while searching for '{poi_name}': {str(e)}"
 
-        # Hardcoded fallback
-        db = {
-            "Anitkabir": "A symbol of modern Turkey, matching your interest in 'history' and 'architecture'.",
-            "Kocatepe Mosque": "The largest mosque in Ankara, fitting 'culture' and 'landmarks'."
+
+# ---------------------------------------------------------------------------
+# Agent: POI_search_agent
+# ---------------------------------------------------------------------------
+
+# The 7 canonical categories recognised by the backend.
+# Shown verbatim in the LLM tool description so the model always picks a valid one.
+_VALID_CATEGORIES = {
+    "BARS_AND_NIGHTCLUBS": "Bars & Nightclubs",
+    "CAFES_AND_DESSERTS":  "Cafes & Desserts",
+    "HISTORIC_PLACES":     "Historic Places",
+    "HOTELS":              "Hotels",
+    "LANDMARKS":           "Landmarks",
+    "PARKS":               "Parks",
+    "RESTAURANTS":         "Restaurants",
+}
+
+
+class POI_search_agent(BaseAgent):
+    """
+    Searches the local POI database by place category and returns the
+    top-rated matches with all their attributes.
+
+    The LLM is responsible for mapping the user's natural-language request
+    to one of the 7 fixed category keys.  The agent then calls:
+
+        GET /api/places/by-category?category=<CATEGORY>&size=<limit>
+
+    Results are sorted by rating (highest first) and formatted using the
+    same ``_format_place`` helper as ``POI_data_agent``.
+
+    Category → use when the user asks about
+    ─────────────────────────────────────────
+    BARS_AND_NIGHTCLUBS  → bars, pubs, clubs, nightlife
+    CAFES_AND_DESSERTS   → cafes, coffee shops, bakeries, desserts
+    HISTORIC_PLACES      → museums, churches, mosques, historical sites
+    HOTELS               → hotels, accommodations, lodging, places to stay
+    LANDMARKS            → landmarks, famous buildings, stadiums, city halls
+    PARKS                → parks, gardens, nature, outdoor spaces
+    RESTAURANTS          → restaurants, food places, eateries, dining
+    """
+
+    tool_template = {
+        "name": "search_poi_by_category",
+        "description": (
+            "Searches the local POI database for places that belong to a specific category "
+            "and returns the top-rated matches with full details (name, type, address, "
+            "coordinates, rating, price level, status). "
+            "Use this when the user asks for a RECOMMENDATION or wants to EXPLORE a type of place "
+            "(e.g. 'find me a cafe', 'suggest a restaurant', 'what museums are there?'). "
+            "Map the user's intent to EXACTLY ONE of the 7 valid category values: "
+            "BARS_AND_NIGHTCLUBS, CAFES_AND_DESSERTS, HISTORIC_PLACES, HOTELS, "
+            "LANDMARKS, PARKS, RESTAURANTS."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "place_category": {
+                    "type": "string",
+                    "enum": list(_VALID_CATEGORIES.keys()),
+                    "description": (
+                        "The category of place to search for. Must be one of: "
+                        "BARS_AND_NIGHTCLUBS, CAFES_AND_DESSERTS, HISTORIC_PLACES, "
+                        "HOTELS, LANDMARKS, PARKS, RESTAURANTS."
+                    )
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": (
+                        "Maximum number of results to return. Defaults to 10. "
+                        "Use a higher value (up to 20) when the user asks for many options."
+                    )
+                }
+            },
+            "required": ["place_category"]
         }
-        return db.get(poi_name, "A popular landmark matching your travel profile.")
+    }
+
+    def __call__(self, place_category: str, limit: int = 10) -> str:
+        # Normalise input — accept both 'cafes_and_desserts' and 'CAFES_AND_DESSERTS'
+        key = place_category.strip().upper()
+
+        if key not in _VALID_CATEGORIES:
+            valid = ", ".join(_VALID_CATEGORIES.keys())
+            return (
+                f"'{place_category}' is not a recognised category. "
+                f"Please use one of: {valid}."
+            )
+
+        category_label = _VALID_CATEGORIES[key]
+        effective_limit = max(1, min(limit, 50))
+        print(f"[SYSTEM] POI_search_agent: searching '{key}' (limit={effective_limit})")
+
+        try:
+            url    = f"{BACKEND_URL}/api/places/by-category"
+            params = {"category": key, "size": effective_limit}
+            resp   = requests.get(url, params=params, timeout=5)
+
+            if resp.status_code != 200:
+                print(f"[WARN] POI_search_agent: backend returned HTTP {resp.status_code}")
+                return (
+                    f"I couldn't retrieve {category_label} places from the database "
+                    f"(HTTP {resp.status_code}). Please try again later."
+                )
+
+            results = resp.json()  # backend returns a plain List<PlaceResponse>
+
+            if not results:
+                return (
+                    f"No {category_label} places were found in the database. "
+                    "The database may not have entries for this category yet."
+                )
+
+            count = len(results)
+            header = f"Found **{count}** {category_label} place{'s' if count != 1 else ''}, sorted by rating:\n"
+            lines  = [f"{i + 1}. {_format_place(p)}" for i, p in enumerate(results)]
+            return header + "\n".join(lines)
+
+        except requests.exceptions.ConnectionError:
+            print("[ERROR] POI_search_agent: cannot connect to backend")
+            return (
+                "I'm currently unable to reach the place database. "
+                "Please ensure the backend server is running."
+            )
+        except Exception as e:
+            print(f"[ERROR] POI_search_agent: {str(e)}")
+            return f"An unexpected error occurred while searching for {category_label}: {str(e)}"
+
