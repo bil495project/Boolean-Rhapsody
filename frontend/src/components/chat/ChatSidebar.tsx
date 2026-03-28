@@ -31,6 +31,7 @@ import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import NavigationIcon from '@mui/icons-material/Navigation';
 import ExploreIcon from '@mui/icons-material/Explore';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
+import BookmarkAddedIcon from '@mui/icons-material/BookmarkAdded';
 import AddIcon from '@mui/icons-material/Add';
 import MenuIcon from '@mui/icons-material/Menu';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
@@ -75,6 +76,7 @@ const ChatSidebar = ({ mobile = false, onClose }: ChatSidebarProps) => {
         { label: 'Chats', icon: <ChatBubbleOutlineIcon />, path: '/chat' },
         { label: 'Explore', icon: <ExploreIcon />, path: '/explore' },
         { label: 'Saved', icon: <BookmarkBorderIcon />, path: '/saved' },
+        { label: 'Saved Routes', icon: <BookmarkAddedIcon />, path: '/saved-routes' },
         { label: 'Route', icon: <RouteIcon />, path: '/route' },
         { label: 'Navigation', icon: <NavigationIcon />, path: '/navigation' },
     ];
@@ -245,7 +247,11 @@ const ChatSidebar = ({ mobile = false, onClose }: ChatSidebarProps) => {
                     // Determine if this item is selected based on current URL
                     const isSelected = item.path === '/chat'
                         ? location.pathname.startsWith('/chat')
-                        : location.pathname === item.path;
+                        : item.path === '/route'
+                            ? location.pathname.startsWith('/route')
+                            : item.path === '/saved-routes'
+                                ? location.pathname.startsWith('/saved-routes')
+                                : location.pathname === item.path;
 
                     return (
                         <ListItem key={item.path}>

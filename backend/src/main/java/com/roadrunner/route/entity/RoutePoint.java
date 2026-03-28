@@ -24,6 +24,9 @@ public class RoutePoint {
     private String anchorName;
     private Double anchorLatitude;
     private Double anchorLongitude;
+    private boolean fixedAnchor;
+    private boolean protectedPoint;
+    private String protectionReason;
 
     public void assignPOI(Place poi) {
         this.poi = poi;

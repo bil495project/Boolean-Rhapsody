@@ -21,6 +21,7 @@ import SettingsPage from './pages/AccountSettingsPage';
 import ChatPage from './pages/ChatPage';
 import ExplorePage from './pages/ExplorePage';
 import SavedPage from './pages/SavedPage';
+import SavedRoutesPage from './pages/SavedRoutesPage';
 import NavigationPage from './pages/NavigationPage';
 import RoutePage from './pages/RoutePage';
 
@@ -57,8 +58,10 @@ function AppInner() {
           <Route path="/signup" element={<Navigate to="/auth" replace />} />
           <Route path="/explore" element={<ExplorePage />} />
           <Route path="/saved" element={<SavedPage />} />
+          <Route path="/saved-routes" element={<SavedRoutesPage />} />
           <Route path="/navigation" element={<NavigationPage />} />
           <Route path="/route" element={<RoutePage />} />
+          <Route path="/route/saved/:savedRouteId" element={<RoutePage />} />
           <Route path="/onboarding" element={<TravelPersonaPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/settings" element={<SettingsPage />} />

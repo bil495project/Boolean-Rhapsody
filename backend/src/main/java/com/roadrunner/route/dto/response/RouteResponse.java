@@ -60,6 +60,9 @@ public class RouteResponse {
                             ? p.getRatingCount() : 0)
                     .priceLevel(p != null ? p.getPriceLevel() : null)
                     .plannedVisitMin(rp.getPlannedVisitMin())
+                    .fixedAnchor(rp.isFixedAnchor())
+                    .protectedPoint(rp.isProtectedPoint())
+                    .protectionReason(rp.getProtectionReason())
                     .build());
         }
 

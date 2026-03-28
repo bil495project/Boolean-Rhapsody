@@ -21,6 +21,10 @@ public class RouteConstraintsRequest {
     private Boolean needsBreakfast;
     private Boolean needsLunch;
     private Boolean needsDinner;
+    private Boolean startWithPoi;
+    private Boolean endWithPoi;
+    private Boolean startWithHotel;
+    private Boolean endWithHotel;
 
     @Valid
     private RouteAnchorRequest startAnchor;

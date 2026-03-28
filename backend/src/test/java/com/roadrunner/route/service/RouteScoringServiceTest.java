@@ -104,18 +104,41 @@ class RouteScoringServiceTest {
     }
 
     @Test
-    @DisplayName("Budget scoring su an notr")
-    void shouldTreatBudgetAsNeutral() {
-        Place place = buildPlaceWithPrice("r1", "Neutral", "restaurant",
+    @DisplayName("Budget bias sadece restoran ve kafe seciminde calisir")
+    void shouldApplyBudgetBiasOnlyToRestaurantAndCafe() {
+        Place restaurant = buildPlaceWithPrice("r1", "Neutral", "restaurant",
+                ANKARA_LAT, ANKARA_LNG, 4.5, 350, "PRICE_LEVEL_EXPENSIVE");
+        Place park = buildPlaceWithPrice("p1", "Park", "park",
                 ANKARA_LAT, ANKARA_LNG, 4.5, 350, "PRICE_LEVEL_EXPENSIVE");
 
         double lowBudgetScore = scoringService.scoreInteriorCandidate(
-                place, 0.8, 0.0, false, 0.5, ANKARA_LAT, ANKARA_LNG, 0.0);
+                restaurant, RouteLabel.RESTORAN_TOLERANSI, 0.8, 0.0, 0.5, ANKARA_LAT, ANKARA_LNG, 0.0);
         double highBudgetScore = scoringService.scoreInteriorCandidate(
-                place, 0.8, 1.0, false, 0.5, ANKARA_LAT, ANKARA_LNG, 0.0);
+                restaurant, RouteLabel.RESTORAN_TOLERANSI, 0.8, 1.0, 0.5, ANKARA_LAT, ANKARA_LNG, 0.0);
+
+        double lowBudgetPark = scoringService.scoreInteriorCandidate(
+                park, RouteLabel.PARK_VE_SEYIR_NOKTALARI, 0.8, 0.0, 0.5, ANKARA_LAT, ANKARA_LNG, 0.0);
+        double highBudgetPark = scoringService.scoreInteriorCandidate(
+                park, RouteLabel.PARK_VE_SEYIR_NOKTALARI, 0.8, 1.0, 0.5, ANKARA_LAT, ANKARA_LNG, 0.0);
+
+        assertThat(highBudgetScore).isGreaterThan(lowBudgetScore);
+        assertThat(highBudgetPark).isEqualTo(lowBudgetPark);
+        assertThat(scoringService.computeBudgetCompatibility(restaurant, 1.0))
+                .isGreaterThan(scoringService.computeBudgetCompatibility(restaurant, 0.1));
+    }
+
+    @Test
+    @DisplayName("Nightlife budget-blind kalir")
+    void shouldKeepNightlifeBudgetBlind() {
+        Place nightlife = buildPlaceWithPrice("n1", "Nightlife", "bar",
+                ANKARA_LAT, ANKARA_LNG, 4.5, 350, "PRICE_LEVEL_EXPENSIVE");
+
+        double lowBudgetScore = scoringService.scoreInteriorCandidate(
+                nightlife, RouteLabel.GECE_HAYATI, 0.8, 0.0, 0.5, ANKARA_LAT, ANKARA_LNG, 0.0);
+        double highBudgetScore = scoringService.scoreInteriorCandidate(
+                nightlife, RouteLabel.GECE_HAYATI, 0.8, 1.0, 0.5, ANKARA_LAT, ANKARA_LNG, 0.0);
 
         assertThat(lowBudgetScore).isEqualTo(highBudgetScore);
-        assertThat(scoringService.computeBudgetCompatibility(place, 0.1)).isEqualTo(1.0);
     }
 
     @Test
@@ -124,9 +147,9 @@ class RouteScoringServiceTest {
         Place far = buildPlace("p1", "Far", "park", ANKARA_LAT + 0.2, ANKARA_LNG + 0.2, 4.5, 220, "OPERATIONAL");
 
         double compactScore = scoringService.scoreInteriorCandidate(
-                far, 0.7, 0.5, false, 0.1, ANKARA_LAT, ANKARA_LNG, 0.0);
+                far, RouteLabel.PARK_VE_SEYIR_NOKTALARI, 0.7, 0.5, 0.1, ANKARA_LAT, ANKARA_LNG, 0.0);
         double spreadScore = scoringService.scoreInteriorCandidate(
-                far, 0.7, 0.5, false, 0.9, ANKARA_LAT, ANKARA_LNG, 0.0);
+                far, RouteLabel.PARK_VE_SEYIR_NOKTALARI, 0.7, 0.5, 0.9, ANKARA_LAT, ANKARA_LNG, 0.0);
 
         assertThat(compactScore).isLessThan(spreadScore);
     }

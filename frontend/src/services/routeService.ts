@@ -31,6 +31,9 @@ export interface RoutePointData {
     ratingCount: number;
     priceLevel: string | null;
     plannedVisitMin: number;
+    fixedAnchor?: boolean;
+    protectedPoint?: boolean;
+    protectionReason?: string | null;
 }
 
 export interface RouteSegmentData {
@@ -89,6 +92,10 @@ export interface RouteConstraints {
     needsBreakfast: boolean;
     needsLunch: boolean;
     needsDinner: boolean;
+    startWithPoi?: boolean;
+    endWithPoi?: boolean;
+    startWithHotel?: boolean;
+    endWithHotel?: boolean;
     startAnchor: RouteAnchor | null;
     endAnchor: RouteAnchor | null;
     poiSlots: RoutePoiSlot[] | null;
