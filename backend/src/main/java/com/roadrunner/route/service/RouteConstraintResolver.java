@@ -42,7 +42,8 @@ public class RouteConstraintResolver {
     public RouteConstraintSpec resolve(GenerateRoutesRequest req, Map<String, String> userVector) {
         RouteConstraintsRequest constraints = req.getConstraints();
         if (constraints == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "constraints are required for constrained route generation");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "constraints are required for constrained route generation");
         }
 
         validateAnchor(constraints.getStartAnchor(), "startAnchor");
@@ -135,10 +136,12 @@ public class RouteConstraintResolver {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " PLACE requires placeId");
             }
             if (anchor.getPoiType() != null && !anchor.getPoiType().isBlank()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " PLACE must not include poiType");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        fieldName + " PLACE must not include poiType");
             }
             if (anchor.getFilters() != null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " PLACE must not include filters");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        fieldName + " PLACE must not include filters");
             }
             return;
         }
@@ -167,10 +170,12 @@ public class RouteConstraintResolver {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " PLACE requires placeId");
                 }
                 if (slot.getPoiType() != null && !slot.getPoiType().isBlank()) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " PLACE must not include poiType");
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            fieldName + " PLACE must not include poiType");
                 }
                 if (slot.getFilters() != null) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " PLACE must not include filters");
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            fieldName + " PLACE must not include filters");
                 }
                 continue;
             }
@@ -179,7 +184,8 @@ public class RouteConstraintResolver {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " TYPE requires poiType");
                 }
                 if (slot.getPlaceId() != null && !slot.getPlaceId().isBlank()) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " TYPE must not include placeId");
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            fieldName + " TYPE must not include placeId");
                 }
                 continue;
             }

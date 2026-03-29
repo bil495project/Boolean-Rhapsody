@@ -7,7 +7,7 @@ import re
 from openai import OpenAI
 from chatbot.ai_agents import (
     calculatorAgent, weatherAgent, UserProfileAgent_SetInfo,
-    UserFeedbackAgent, XAIJustificationAgent, Route_search_agent,
+    UserFeedbackAgent, XAIJustificationAgent,
     POI_suggest_agent, ItineraryModificationAgent, ChatTitleAgent,
     POI_data_agent, POI_search_agent, UserPersonaListAgent,
     RouteGenerationFormatAgent
@@ -27,7 +27,6 @@ TOOLS = [
     {"type": "function", "function": UserProfileAgent_SetInfo.tool_template},
     {"type": "function", "function": UserFeedbackAgent.tool_template},
     {"type": "function", "function": XAIJustificationAgent.tool_template},
-    {"type": "function", "function": Route_search_agent.tool_template},
     {"type": "function", "function": POI_suggest_agent.tool_template},
     {"type": "function", "function": ItineraryModificationAgent.tool_template},
     {"type": "function", "function": ChatTitleAgent.tool_template},
