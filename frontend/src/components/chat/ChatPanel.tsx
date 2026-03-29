@@ -36,6 +36,14 @@ const ChatPanel = ({
     const dispatch = useAppDispatch();
     const navigate = useNavigate();
     const { activeChat, isLoading, sidebarOpen } = useAppSelector((state) => state.chat);
+    const orderedMessages = activeChat?.messages
+        ? [...activeChat.messages].sort((a, b) => {
+            if (a.timestamp !== b.timestamp) {
+                return a.timestamp - b.timestamp;
+            }
+            return a.id.localeCompare(b.id);
+        })
+        : [];
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -112,7 +120,7 @@ const ChatPanel = ({
 
         try {
             // Build chat history for context
-            const history: GeminiMessage[] = activeChat.messages.map((msg) => ({
+            const history: GeminiMessage[] = orderedMessages.map((msg) => ({
                 role: msg.role === 'user' ? 'user' : 'assistant',
                 content: msg.content,
             }));
@@ -235,7 +243,7 @@ const ChatPanel = ({
                 )}
 
                 {/* Messages */}
-                {!isNewChatMode && activeChat?.messages.map((message) => (
+                {!isNewChatMode && orderedMessages.map((message) => (
                     <ChatMessage key={message.id} message={message} />
                 ))}
 

@@ -16,6 +16,8 @@ export interface Destination {
     phone?: string;
     website?: string;
     reviewCount?: number;
+    businessStatus?: string;
+    types?: string[];
 }
 
 interface DestinationCardProps {

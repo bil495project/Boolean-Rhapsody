@@ -123,14 +123,18 @@ const SavedRoutesPage = () => {
     };
 
     const content = (
-        <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 2, md: 3 } }}>
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <Box
                 sx={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: 2,
-                    mb: 3,
                     flexWrap: 'wrap',
+                    px: { xs: 2, md: 3 },
+                    py: 2,
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
+                    bgcolor: 'background.body',
                 }}
             >
                 {(isMobile || !sidebarOpen) && (
@@ -143,96 +147,156 @@ const SavedRoutesPage = () => {
                     </IconButton>
                 )}
                 <Box sx={{ flex: 1 }}>
-                    <Typography level="h4" sx={{ fontWeight: 700 }}>
+                    <Typography level="h4" sx={{ fontWeight: 700, mb: 0.25 }}>
                         Saved Routes
                     </Typography>
-                    <Typography level="body-sm" sx={{ color: 'text.secondary' }}>
+                    <Typography level="body-sm" sx={{ color: 'text.secondary', maxWidth: 560 }}>
                         Approved routes are persisted here as exact snapshots.
                     </Typography>
                 </Box>
             </Box>
 
-            {error && (
-                <Alert color="danger" sx={{ mb: 2 }}>
-                    {error}
-                </Alert>
-            )}
+            <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 2, md: 3 } }}>
+                {error && (
+                    <Alert color="danger" sx={{ mb: 2 }}>
+                        {error}
+                    </Alert>
+                )}
 
-            {!isLoading && summaries.length === 0 && (
-                <Card variant="soft" color="neutral" sx={{ p: 3 }}>
-                    <Typography level="title-md" sx={{ fontWeight: 700, mb: 0.5 }}>
-                        No saved routes yet
-                    </Typography>
-                    <Typography level="body-sm" sx={{ color: 'text.secondary' }}>
-                        Generate a route and use Approve to store it here.
-                    </Typography>
-                </Card>
-            )}
-
-            <Box sx={{ display: 'grid', gap: 2 }}>
-                {summaries.map((savedRoute) => (
-                    <Card key={savedRoute.id} variant="outlined" sx={{ p: 2.5 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
-                            <Box sx={{ minWidth: 0, flex: 1 }}>
-                                <Typography level="title-lg" sx={{ fontWeight: 700 }}>
-                                    {savedRoute.title}
-                                </Typography>
-                                <Typography level="body-xs" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                                    Created {formatTimestamp(savedRoute.createdAt)}
-                                </Typography>
-                                <Typography level="body-xs" sx={{ color: 'text.secondary' }}>
-                                    Updated {formatTimestamp(savedRoute.updatedAt)}
-                                </Typography>
-                            </Box>
-                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                                <Button
-                                    size="sm"
-                                    startDecorator={<OpenInNewIcon />}
-                                    onClick={() => navigate(`/route/saved/${savedRoute.id}`)}
-                                >
-                                    Open
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    variant="outlined"
-                                    color="neutral"
-                                    startDecorator={<EditIcon />}
-                                    onClick={() => openRenameModal(savedRoute.id, savedRoute.title)}
-                                >
-                                    Rename
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    variant="outlined"
-                                    color="danger"
-                                    startDecorator={<DeleteIcon />}
-                                    onClick={() => openDeleteModal(savedRoute.id, savedRoute.title)}
-                                >
-                                    Delete
-                                </Button>
-                            </Box>
-                        </Box>
-
-                        <Divider sx={{ my: 2 }} />
-
-                        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                            <Typography level="body-sm">
-                                {savedRoute.stopCount} stops
-                            </Typography>
-                            <Typography level="body-sm" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <AccessTimeIcon sx={{ fontSize: 16 }} />
-                                {formatDuration(savedRoute.totalDurationSec)}
-                            </Typography>
-                            <Typography level="body-sm" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <StraightenIcon sx={{ fontSize: 16 }} />
-                                {formatDistance(savedRoute.totalDistanceM)}
-                            </Typography>
-                            <Typography level="body-sm" sx={{ textTransform: 'capitalize' }}>
-                                {savedRoute.travelMode || 'driving'}
-                            </Typography>
-                        </Box>
+                {!isLoading && summaries.length === 0 && (
+                    <Card variant="soft" color="neutral" sx={{ p: 3 }}>
+                        <Typography level="title-md" sx={{ fontWeight: 700, mb: 0.5 }}>
+                            No saved routes yet
+                        </Typography>
+                        <Typography level="body-sm" sx={{ color: 'text.secondary' }}>
+                            Generate a route and use Approve to store it here.
+                        </Typography>
                     </Card>
-                ))}
+                )}
+
+                <Box sx={{ display: 'grid', gap: 2.25 }}>
+                    {summaries.map((savedRoute) => (
+                        <Card
+                            key={savedRoute.id}
+                            variant="outlined"
+                            sx={{
+                                p: 0,
+                                overflow: 'hidden',
+                                borderRadius: 'xl',
+                                bgcolor: 'background.surface',
+                                borderColor: 'rgba(142, 161, 186, 0.22)',
+                                boxShadow: 'sm',
+                            }}
+                        >
+                            <Box
+                                sx={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    gap: 2,
+                                    flexWrap: 'wrap',
+                                    alignItems: 'flex-start',
+                                    px: { xs: 2, md: 3 },
+                                    py: 2.5,
+                                }}
+                            >
+                                <Box sx={{ minWidth: 0, flex: 1 }}>
+                                    <Typography level="title-lg" sx={{ fontWeight: 700, mb: 0.75 }}>
+                                        {savedRoute.title}
+                                    </Typography>
+                                    <Typography level="body-sm" sx={{ color: 'text.secondary', lineHeight: 1.7 }}>
+                                        Created {formatTimestamp(savedRoute.createdAt)}
+                                        <br />
+                                        Updated {formatTimestamp(savedRoute.updatedAt)}
+                                    </Typography>
+                                </Box>
+                                <Box
+                                    sx={{
+                                        display: 'flex',
+                                        gap: 1,
+                                        flexWrap: 'wrap',
+                                        justifyContent: { xs: 'stretch', sm: 'flex-end' },
+                                        width: { xs: '100%', md: 'auto' },
+                                    }}
+                                >
+                                    <Button
+                                        size="sm"
+                                        startDecorator={<OpenInNewIcon />}
+                                        onClick={() => navigate(`/route/saved/${savedRoute.id}`)}
+                                        sx={{
+                                            minHeight: 36,
+                                            minWidth: { xs: '100%', sm: 108 },
+                                            px: 1.5,
+                                            fontWeight: 700,
+                                            borderRadius: 'lg',
+                                        }}
+                                    >
+                                        Open
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="outlined"
+                                        color="neutral"
+                                        startDecorator={<EditIcon />}
+                                        onClick={() => openRenameModal(savedRoute.id, savedRoute.title)}
+                                        sx={{
+                                            minHeight: 36,
+                                            minWidth: { xs: 'calc(50% - 4px)', sm: 108 },
+                                            px: 1.5,
+                                            fontWeight: 600,
+                                            borderRadius: 'lg',
+                                        }}
+                                    >
+                                        Rename
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="outlined"
+                                        color="danger"
+                                        startDecorator={<DeleteIcon />}
+                                        onClick={() => openDeleteModal(savedRoute.id, savedRoute.title)}
+                                        sx={{
+                                            minHeight: 36,
+                                            minWidth: { xs: 'calc(50% - 4px)', sm: 108 },
+                                            px: 1.5,
+                                            fontWeight: 600,
+                                            borderRadius: 'lg',
+                                        }}
+                                    >
+                                        Delete
+                                    </Button>
+                                </Box>
+                            </Box>
+
+                            <Divider />
+
+                            <Box
+                                sx={{
+                                    display: 'flex',
+                                    gap: 2.5,
+                                    flexWrap: 'wrap',
+                                    px: { xs: 2, md: 3 },
+                                    py: 2,
+                                    color: 'text.secondary',
+                                }}
+                            >
+                                <Typography level="body-sm" sx={{ fontWeight: 600 }}>
+                                    {savedRoute.stopCount} stops
+                                </Typography>
+                                <Typography level="body-sm" sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                    <AccessTimeIcon sx={{ fontSize: 16 }} />
+                                    {formatDuration(savedRoute.totalDurationSec)}
+                                </Typography>
+                                <Typography level="body-sm" sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                    <StraightenIcon sx={{ fontSize: 16 }} />
+                                    {formatDistance(savedRoute.totalDistanceM)}
+                                </Typography>
+                                <Typography level="body-sm" sx={{ textTransform: 'capitalize' }}>
+                                    {savedRoute.travelMode || 'driving'}
+                                </Typography>
+                            </Box>
+                        </Card>
+                    ))}
+                </Box>
             </Box>
         </Box>
     );

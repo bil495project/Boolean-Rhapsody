@@ -16,6 +16,7 @@ import com.roadrunner.route.dto.request.GenerateRoutesRequest;
 import com.roadrunner.route.dto.request.InsertWithStateRequest;
 import com.roadrunner.route.dto.request.RemoveWithStateRequest;
 import com.roadrunner.route.dto.request.RouteAnchorRequest;
+import com.roadrunner.route.dto.request.RouteBoundarySelectionRequest;
 import com.roadrunner.route.dto.request.RouteCandidateFiltersRequest;
 import com.roadrunner.route.dto.request.RouteConstraintsRequest;
 import com.roadrunner.route.dto.request.RoutePreferencesRequest;
@@ -262,6 +263,56 @@ class RouteControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("Generate explicit start=end model ile hotelden place'e rota kurar")
+    void shouldGenerateWithExplicitBoundarySelections() throws Exception {
+        GenerateRoutesRequest req = new GenerateRoutesRequest();
+        req.setUserVector(buildValidUserVector());
+        req.setPreferences(buildPreferences());
+        req.setK(1);
+
+        RouteConstraintsRequest constraints = constraints(false, true, false, false);
+        constraints.setStartPoint(new RouteBoundarySelectionRequest("HOTEL", null, null, null));
+        constraints.setEndPoint(new RouteBoundarySelectionRequest("PLACE", "m1", null, null));
+        req.setConstraints(constraints);
+
+        MvcResult result = mockMvc.perform(post("/api/routes/generate")
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        List<RouteResponse> routes = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                new TypeReference<>() {});
+
+        RouteResponse route = routes.get(0);
+        assertThat(route.getPoints().get(0).getPoiId()).isNotBlank();
+        assertThat(route.getPoints().get(0).getTypes()).contains("hotel");
+        assertThat(route.getPoints().get(route.getPoints().size() - 1).getPoiId()).isEqualTo("m1");
+    }
+
+    @Test
+    @DisplayName("Generate explicit ve legacy boundary alanlari karistiksa 400 doner")
+    void shouldRejectMixedExplicitAndLegacyBoundaryFields() throws Exception {
+        GenerateRoutesRequest req = new GenerateRoutesRequest();
+        req.setUserVector(buildValidUserVector());
+        req.setPreferences(buildPreferences());
+        req.setK(1);
+
+        RouteConstraintsRequest constraints = constraints(false, false, false, false);
+        constraints.setStartWithHotel(true);
+        constraints.setStartPoint(new RouteBoundarySelectionRequest("HOTEL", null, null, null));
+        req.setConstraints(constraints);
+
+        mockMvc.perform(post("/api/routes/generate")
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     @DisplayName("Generate sonucu ayni hotel ile baslayip bitiyor")
     void shouldReturnHotelAnchoredRoute() throws Exception {
         RouteResponse route = generateOneRoute();
@@ -303,14 +354,14 @@ class RouteControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("Reroll hotel anchorlari degistirmiyor")
-    void shouldKeepAnchorsOnReroll() throws Exception {
+    @DisplayName("Reroll hotel anchorlarini da degistirebilir")
+    void shouldAllowRerollingHotelAnchor() throws Exception {
         RouteResponse route = generateOneRoute();
         String hotelId = route.getPoints().get(0).getPoiId();
 
         RerollWithStateRequest req = new RerollWithStateRequest();
         req.setCurrentRoute(route);
-        req.setIndex(1);
+        req.setIndex(0);
         req.setIndexParams(new HashMap<>());
         req.setOriginalUserVector(buildValidUserVector());
 
@@ -324,8 +375,7 @@ class RouteControllerIntegrationTest {
         RouteResponse updated = objectMapper.readValue(
                 result.getResponse().getContentAsString(), RouteResponse.class);
 
-        assertThat(updated.getPoints().get(0).getPoiId()).isEqualTo(hotelId);
-        assertThat(updated.getPoints().get(updated.getPoints().size() - 1).getPoiId()).isEqualTo(hotelId);
+        assertThat(updated.getPoints().get(0).getPoiId()).isNotEqualTo(hotelId);
     }
 
     @Test
@@ -356,14 +406,14 @@ class RouteControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("Remove yalnizca interior noktayi silip hotel anchorlari koruyor")
-    void shouldRemoveInteriorOnly() throws Exception {
+    @DisplayName("Remove hotel anchor noktasini da silebilir")
+    void shouldAllowRemovingAnchorPoints() throws Exception {
         RouteResponse route = generateOneRoute();
         String hotelId = route.getPoints().get(0).getPoiId();
 
         RemoveWithStateRequest req = new RemoveWithStateRequest();
         req.setCurrentRoute(route);
-        req.setIndex(1);
+        req.setIndex(0);
         req.setOriginalUserVector(buildValidUserVector());
 
         MvcResult result = mockMvc.perform(post("/api/routes/remove")
@@ -376,24 +426,22 @@ class RouteControllerIntegrationTest {
         RouteResponse updated = objectMapper.readValue(
                 result.getResponse().getContentAsString(), RouteResponse.class);
 
-        assertThat(updated.getPoints().get(0).getPoiId()).isEqualTo(hotelId);
-        assertThat(updated.getPoints().get(updated.getPoints().size() - 1).getPoiId()).isEqualTo(hotelId);
+        assertThat(updated.getPoints()).hasSize(route.getPoints().size() - 1);
+        assertThat(updated.getPoints().get(0).getPoiId()).isNotEqualTo(hotelId);
         assertThat(updated.getSegments()).hasSize(updated.getPoints().size() - 1);
     }
 
     @Test
-    @DisplayName("Reorder sadece interior sirayi degistiriyor")
-    void shouldReorderInteriorOnly() throws Exception {
+    @DisplayName("Reorder tum poi noktalarini yeniden siralayabilir")
+    void shouldReorderAllPoiPoints() throws Exception {
         RouteResponse route = generateOneRoute();
         int size = route.getPoints().size();
-        String hotelId = route.getPoints().get(0).getPoiId();
+        String originalSecondPoiId = route.getPoints().get(size - 2).getPoiId();
 
         List<Integer> fullOrder = new ArrayList<>();
-        fullOrder.add(0);
-        for (int i = size - 2; i >= 1; i--) {
+        for (int i = size - 1; i >= 0; i--) {
             fullOrder.add(i);
         }
-        fullOrder.add(size - 1);
 
         ReorderWithStateRequest req = new ReorderWithStateRequest();
         req.setCurrentRoute(route);
@@ -410,8 +458,7 @@ class RouteControllerIntegrationTest {
         RouteResponse updated = objectMapper.readValue(
                 result.getResponse().getContentAsString(), RouteResponse.class);
 
-        assertThat(updated.getPoints().get(0).getPoiId()).isEqualTo(hotelId);
-        assertThat(updated.getPoints().get(updated.getPoints().size() - 1).getPoiId()).isEqualTo(hotelId);
+        assertThat(updated.getPoints().get(1).getPoiId()).isEqualTo(originalSecondPoiId);
         assertThat(updated.getSegments()).hasSize(updated.getPoints().size() - 1);
     }
 

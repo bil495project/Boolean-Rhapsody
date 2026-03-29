@@ -1,6 +1,7 @@
 package com.roadrunner.user.service;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -24,6 +25,10 @@ import com.roadrunner.user.repository.UserRepository;
 @SuppressWarnings("null")
 @Transactional
 public class ChatService {
+
+    private static final Comparator<Message> MESSAGE_ORDER = Comparator
+            .comparingLong(Message::getTimestamp)
+            .thenComparing(message -> message.getId() == null ? "" : message.getId());
 
     private final ChatRepository chatRepository;
     private final MessageRepository messageRepository;
@@ -120,21 +125,20 @@ public class ChatService {
     }
 
     private ChatResponse mapToChatResponse(Chat chat) {
-        // Maps a Chat object to a ChatResponse object
-        // and maps the messages to MessageResponse objects
-        // and returns the ChatResponse object
+        List<MessageResponse> orderedMessages = chat.getMessages() != null
+                ? chat.getMessages().stream()
+                        .sorted(MESSAGE_ORDER)
+                        .map(this::mapToMessageResponse)
+                        .collect(Collectors.toList())
+                : Collections.emptyList();
+
         return ChatResponse.builder()
                 .id(chat.getId())
                 .title(chat.getTitle())
                 .duration(chat.getDuration())
                 .createdAt(chat.getCreatedAt())
                 .updatedAt(chat.getUpdatedAt())
-                .messages(
-                        chat.getMessages() != null
-                                ? chat.getMessages().stream()
-                                        .map(this::mapToMessageResponse)
-                                        .collect(Collectors.toList())
-                                : Collections.emptyList())
+                .messages(orderedMessages)
                 .build();
     }
 
