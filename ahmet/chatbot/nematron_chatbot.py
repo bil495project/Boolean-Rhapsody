@@ -6,9 +6,11 @@ import os
 import re
 from openai import OpenAI
 from chatbot.ai_agents import (
-    calculatorAgent, weatherAgent, UserProfileAgent_SetInfo, 
-    UserFeedbackAgent, XAIJustificationAgent, Route_search_agent, 
-    POI_suggest_agent, ItineraryModificationAgent,ChatTitleAgent, POIDataAgent
+    calculatorAgent, weatherAgent, UserProfileAgent_SetInfo,
+    UserFeedbackAgent, XAIJustificationAgent, Route_search_agent,
+    POI_suggest_agent, ItineraryModificationAgent, ChatTitleAgent,
+    POI_data_agent, POI_search_agent, UserPersonaListAgent,
+    RouteGenerationFormatAgent
 )
 
 # Connect to your local llama.cpp server
@@ -29,7 +31,10 @@ TOOLS = [
     {"type": "function", "function": POI_suggest_agent.tool_template},
     {"type": "function", "function": ItineraryModificationAgent.tool_template},
     {"type": "function", "function": ChatTitleAgent.tool_template},
-    {"type": "function", "function": POIDataAgent.tool_template},
+    {"type": "function", "function": POI_data_agent.tool_template},
+    {"type": "function", "function": POI_search_agent.tool_template},
+    {"type": "function", "function": UserPersonaListAgent.tool_template},
+    {"type": "function", "function": RouteGenerationFormatAgent.tool_template},
 ]
 
 def get_openai_tools():
@@ -86,13 +91,3 @@ def ask_question(messages: list): # Accept the whole history
         "content": response_content, 
         "reasoning": reasoning_content
         }
-
-if __name__ == "__main__":
-    query = sys.argv[1] if len(sys.argv) > 1 else "What is the weather in Paris in celsius?"
-    
-    print("\n" + "="*50)
-    result = run_conversation(query)
-    print(f"USER: {query}")
-    print(f"RESULT TYPE: {result['type']}")
-    print(f"RAW DATA: {result['content']}")
-    print("="*50 + "\n")
