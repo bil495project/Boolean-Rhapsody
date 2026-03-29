@@ -91,3 +91,8 @@ body {
 .grecaptcha-badge {
   visibility: hidden !important;
 }
+
+/* Fix marker cluster text color in dark mode */
+.marker-cluster div {
+  color: #333 !important;
+}

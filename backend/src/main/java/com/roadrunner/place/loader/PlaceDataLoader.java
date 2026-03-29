@@ -15,7 +15,9 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Seeds the {@code places} table from categorized CSV files in
@@ -56,12 +58,13 @@ public class PlaceDataLoader implements ApplicationRunner {
             }
 
             int grandTotal = 0;
+            Set<String> seenIds = new HashSet<>();
             for (Resource resource : resources) {
                 String filename = resource.getFilename();
                 String categoryHint = extractCategory(filename);
                 log.info("Processing {} (category hint: {})...", filename, categoryHint);
 
-                int count = seedFromResource(resource, categoryHint);
+                int count = seedFromResource(resource, categoryHint, seenIds);
                 grandTotal += count;
             }
 
@@ -72,9 +75,9 @@ public class PlaceDataLoader implements ApplicationRunner {
     }
 
     /**
-     * Seeds data from a single resource.
+     * Seeds data from a single resource, skipping IDs already seen in previous files.
      */
-    private int seedFromResource(Resource resource, String categoryHint) {
+    private int seedFromResource(Resource resource, String categoryHint, Set<String> seenIds) {
         int total = 0;
         int skipped = 0;
 
@@ -92,7 +95,7 @@ public class PlaceDataLoader implements ApplicationRunner {
             while ((line = reader.readLine()) != null) {
                 try {
                     Place place = parseLine(line, categoryHint);
-                    if (place != null) {
+                    if (place != null && seenIds.add(place.getId())) {
                         batch.add(place);
                     } else {
                         skipped++;
@@ -104,15 +107,13 @@ public class PlaceDataLoader implements ApplicationRunner {
                 }
 
                 if (batch.size() == BATCH_SIZE) {
-                    placeRepository.saveAll(batch);
-                    total += batch.size();
+                    total += saveBatch(batch, resource.getFilename());
                     batch.clear();
                 }
             }
 
             if (!batch.isEmpty()) {
-                placeRepository.saveAll(batch);
-                total += batch.size();
+                total += saveBatch(batch, resource.getFilename());
             }
 
             log.info("Resource {} complete. Inserted: {}, Skipped: {}",
@@ -122,6 +123,29 @@ public class PlaceDataLoader implements ApplicationRunner {
             log.error("Error reading {}: {}", resource.getFilename(), e.getMessage());
         }
         return total;
+    }
+
+    /**
+     * Saves a batch, falling back to per-item saves if the batch fails
+     * (e.g., due to an unexpected constraint violation).
+     */
+    private int saveBatch(List<Place> batch, String filename) {
+        try {
+            placeRepository.saveAll(batch);
+            return batch.size();
+        } catch (Exception e) {
+            log.warn("Batch save failed for {}, retrying individually: {}", filename, e.getMessage());
+            int saved = 0;
+            for (Place place : batch) {
+                try {
+                    placeRepository.save(place);
+                    saved++;
+                } catch (Exception ex) {
+                    log.warn("Skipping place {} ({}): {}", place.getId(), place.getName(), ex.getMessage());
+                }
+            }
+            return saved;
+        }
     }
 
     /**

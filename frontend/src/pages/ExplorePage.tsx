@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Box, Drawer } from '@mui/joy';
 import { useMediaQuery } from '@mui/system';
@@ -48,7 +48,7 @@ const ExplorePage = () => {
   };
 
   // When user clicks a destination, create a new chat about it
-  const handleDestinationSelect = async (destination: MapDestination) => {
+  const handleDestinationSelect = useCallback(async (destination: MapDestination) => {
     const query = `Tell me more about ${destination.name} in Ankara. What can I do there and what should I know before visiting?`;
     const title = await generateTripTitle(query);
 
@@ -81,7 +81,7 @@ const ExplorePage = () => {
     } finally {
       dispatch(setLoading(false));
     }
-  };
+  }, [dispatch, navigate]);
 
   return (
     <Box

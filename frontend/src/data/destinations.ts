@@ -14,7 +14,7 @@ export const ankaraDestinations: MapDestination[] = [
         image: 'https://images.unsplash.com/photo-1589561084283-930aa7b1ce50?w=800',
         rating: 4.9,
         priceLevel: 1,
-        category: 'Historical',
+        category: 'Historic Places',
         coordinates: [39.9254, 32.8369],
         description: 'Türkiye Cumhuriyeti\'nin kurucusu Mustafa Kemal Atatürk\'ün anıt mezarı. 1944-1953 yılları arasında inşa edilen bu muhteşem yapı, Türk mimarisinin en önemli eserlerinden biridir.',
         openingHours: '09:00 - 17:00',
@@ -29,7 +29,7 @@ export const ankaraDestinations: MapDestination[] = [
         image: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?w=800',
         rating: 4.8,
         priceLevel: 1,
-        category: 'Historical',
+        category: 'Historic Places',
         coordinates: [39.9182, 32.8599],
     },
     {
@@ -39,7 +39,7 @@ export const ankaraDestinations: MapDestination[] = [
         image: 'https://images.unsplash.com/photo-1590846083693-f23fdede3a7e?w=800',
         rating: 4.7,
         priceLevel: 1,
-        category: 'Historical',
+        category: 'Historic Places',
         coordinates: [39.9411, 32.8642],
     },
     {
@@ -49,7 +49,7 @@ export const ankaraDestinations: MapDestination[] = [
         image: 'https://www.baskentankarameclisi.com/cdn/anadolumedeniyetlerimuzesi_1606817182.jpg',
         rating: 4.9,
         priceLevel: 2,
-        category: 'Museum',
+        category: 'Historic Places',
         coordinates: [39.9388, 32.8600],
     },
     {
@@ -59,7 +59,7 @@ export const ankaraDestinations: MapDestination[] = [
         image: 'https://images.unsplash.com/photo-1568454537842-d933259bb258?w=800',
         rating: 4.5,
         priceLevel: 1,
-        category: 'Park',
+        category: 'Parks',
         coordinates: [39.9369, 32.8524],
     },
     {
@@ -79,7 +79,7 @@ export const ankaraDestinations: MapDestination[] = [
         image: 'https://images.unsplash.com/photo-1554907984-15263bfd63bd?w=800',
         rating: 4.7,
         priceLevel: 2,
-        category: 'Museum',
+        category: 'Historic Places',
         coordinates: [39.9398, 32.8608],
     },
     {
@@ -89,7 +89,7 @@ export const ankaraDestinations: MapDestination[] = [
         image: 'https://images.unsplash.com/photo-1519677100203-a0e668c92439?w=800',
         rating: 4.6,
         priceLevel: 2,
-        category: 'Culture',
+        category: 'Historic Places',
         coordinates: [39.9362, 32.8670],
     },
     {
@@ -109,7 +109,7 @@ export const ankaraDestinations: MapDestination[] = [
         image: 'https://images.unsplash.com/photo-1439066615861-d1af74d74000?w=800',
         rating: 4.5,
         priceLevel: 1,
-        category: 'Nature',
+        category: 'Parks',
         coordinates: [39.8205, 32.8042],
     },
     {
@@ -143,7 +143,7 @@ export const cafeDestinations: MapDestination[] = [
         image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800',
         rating: 4.5,
         priceLevel: 2,
-        category: 'Cafe',
+        category: 'Cafes & Desserts',
         coordinates: [39.9000, 32.8600],
     },
     {
@@ -153,7 +153,7 @@ export const cafeDestinations: MapDestination[] = [
         image: 'https://images.unsplash.com/photo-1453614512568-c4024d13c247?w=800',
         rating: 4.3,
         priceLevel: 2,
-        category: 'Cafe',
+        category: 'Cafes & Desserts',
         coordinates: [39.9208, 32.8541],
     },
     {
@@ -163,7 +163,7 @@ export const cafeDestinations: MapDestination[] = [
         image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=800',
         rating: 4.4,
         priceLevel: 2,
-        category: 'Cafe',
+        category: 'Cafes & Desserts',
         coordinates: [39.9167, 32.8333],
     },
     {
@@ -173,7 +173,7 @@ export const cafeDestinations: MapDestination[] = [
         image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800',
         rating: 4.6,
         priceLevel: 3,
-        category: 'Cafe',
+        category: 'Cafes & Desserts',
         coordinates: [39.8989, 32.8611],
     },
     {
@@ -183,7 +183,7 @@ export const cafeDestinations: MapDestination[] = [
         image: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800',
         rating: 4.7,
         priceLevel: 3,
-        category: 'Cafe',
+        category: 'Cafes & Desserts',
         coordinates: [39.9050, 32.8550],
     },
 ];

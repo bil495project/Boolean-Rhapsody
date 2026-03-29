@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Box, IconButton, Typography, Card, CardCover, CardContent } from '@mui/joy';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
@@ -66,7 +66,7 @@ const createCustomIcon = (color: string = '#00BFA6', number?: number) => {
     });
 };
 
-// Component to handle map resize on fullscreen toggle
+// Component to handle map resize on fullscreen toggle or container resize
 const MapResizeHandler = ({ fullscreen }: { fullscreen: boolean }) => {
     const map = useMap();
 
@@ -75,6 +75,30 @@ const MapResizeHandler = ({ fullscreen }: { fullscreen: boolean }) => {
             map.invalidateSize();
         }, 100);
     }, [fullscreen, map]);
+
+    // Also observe container size changes (e.g. from divider drag)
+    useEffect(() => {
+        const container = map.getContainer();
+        if (!container) return;
+
+        let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
+        const observer = new ResizeObserver(() => {
+            // Skip invalidation while a panel drag is in progress
+            // The ResizableDivider sets data-resizing on the parent during drag
+            if (container.closest('[data-resizing]')) return;
+
+            if (resizeTimeout) clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                map.invalidateSize();
+            }, 150);
+        });
+
+        observer.observe(container);
+        return () => {
+            observer.disconnect();
+            if (resizeTimeout) clearTimeout(resizeTimeout);
+        };
+    }, [map]);
 
     return null;
 };
@@ -152,7 +176,7 @@ const MapPanel = ({
     markerKeyPrefix = 'default',
 }: MapPanelProps) => {
     const dispatch = useAppDispatch();
-    const { mapFullscreen } = useAppSelector((state) => state.chat);
+    const mapFullscreen = useAppSelector((state) => state.chat.mapFullscreen);
 
     // Hover-based popup
     const [hoveredDestination, setHoveredDestination] = useState<MapDestination | null>(null);
@@ -214,7 +238,7 @@ const MapPanel = ({
         setHoveredDestination(null);
         setPopupPosition(null);
     };
-    const { destinations: savedDestinations } = useAppSelector(state => state.saved);
+    const savedDestinations = useAppSelector(state => state.saved.destinations);
 
     const handleSaveClick = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -287,13 +311,13 @@ const MapPanel = ({
                 {/* Destination markers */}
                 {disableClustering ? (
                     <>
-                        {destinations.map((destination) => {
+                        {destinations.map((destination, idx) => {
                             const orderIndex = orderedDestinations.findIndex(d => d.id === destination.id);
                             const orderNumber = orderIndex !== -1 ? orderIndex + 1 : undefined;
 
                             return (
                                 <Marker
-                                    key={`${markerKeyPrefix}-${destination.id}`}
+                                    key={`${markerKeyPrefix}-${destination.id}-${idx}`}
                                     position={destination.coordinates}
                                     icon={createCustomIcon(
                                         highlightedDestination?.id === destination.id || hoveredDestination?.id === destination.id
@@ -311,13 +335,13 @@ const MapPanel = ({
                     </>
                 ) : (
                     <MarkerClusterGroup chunkedLoading>
-                        {destinations.map((destination) => {
+                        {destinations.map((destination, idx) => {
                             const orderIndex = orderedDestinations.findIndex(d => d.id === destination.id);
                             const orderNumber = orderIndex !== -1 ? orderIndex + 1 : undefined;
 
                             return (
                                 <Marker
-                                    key={`${markerKeyPrefix}-${destination.id}`}
+                                    key={`${markerKeyPrefix}-${destination.id}-${idx}`}
                                     position={destination.coordinates}
                                     icon={createCustomIcon(
                                         highlightedDestination?.id === destination.id || hoveredDestination?.id === destination.id
@@ -366,6 +390,9 @@ const MapPanel = ({
                                 src={hoveredDestination.image}
                                 alt={hoveredDestination.name}
                                 style={{ objectFit: 'cover' }}
+                                onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                }}
                             />
                         </CardCover>
                         <CardCover
@@ -477,4 +504,4 @@ const MapPanel = ({
     );
 };
 
-export default MapPanel;
+export default React.memo(MapPanel);
