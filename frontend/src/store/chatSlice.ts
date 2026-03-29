@@ -46,6 +46,16 @@ interface ChatState {
 
 // ─── Helpers: map backend data → frontend shape ──────────────────────────────
 
+const compareMessages = (a: Message, b: Message) => {
+    if (a.timestamp !== b.timestamp) {
+        return a.timestamp - b.timestamp;
+    }
+    return a.id.localeCompare(b.id);
+};
+
+const sortMessagesChronologically = (messages: Message[]) =>
+    [...messages].sort(compareMessages);
+
 const mapMessageData = (m: MessageData): Message => ({
     id: m.id,
     role: m.role as 'user' | 'assistant',
@@ -59,7 +69,7 @@ const mapChatData = (c: ChatData): Chat => ({
     id: c.id,
     title: c.title,
     duration: c.duration,
-    messages: (c.messages ?? []).map(mapMessageData),
+    messages: sortMessagesChronologically((c.messages ?? []).map(mapMessageData)),
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
 });
@@ -136,6 +146,7 @@ const chatSlice = createSlice({
             const chat = state.chats.find((c) => c.id === action.payload.chatId);
             if (chat) {
                 chat.messages.push(action.payload.message);
+                chat.messages = sortMessagesChronologically(chat.messages);
                 chat.updatedAt = Date.now();
                 if (state.activeChat?.id === action.payload.chatId) {
                     state.activeChat = chat;

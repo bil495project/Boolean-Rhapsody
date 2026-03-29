@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
     Box,
@@ -19,28 +19,19 @@ import {
     FormLabel,
     Select,
     Option,
-    Autocomplete,
-    AutocompleteOption,
-    ListItemContent,
 } from '@mui/joy';
-import SearchIcon from '@mui/icons-material/Search';
 import { useMediaQuery } from '@mui/system';
 import RouteIcon from '@mui/icons-material/Route';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import LocationOnIcon from '@mui/icons-material/LocationOn';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import StraightenIcon from '@mui/icons-material/Straighten';
-import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk';
-import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
-import StarIcon from '@mui/icons-material/Star';
 import MenuIcon from '@mui/icons-material/Menu';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import ChatSidebar from '../components/chat/ChatSidebar';
 import MapPanel from '../components/chat/MapPanel';
 import ResizableDivider from '../components/chat/ResizableDivider';
+import EditableRouteCard from '../components/route/EditableRouteCard';
+import PlaceSearchAutocomplete from '../components/route/PlaceSearchAutocomplete';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { toggleSidebar } from '../store/chatSlice';
-import { generateRoutesThunk, clearRoutes, hydrateSavedRoute } from '../store/routeSlice';
+import { generateRoutesThunk, clearRoutes, hydrateSavedRoute, replaceRouteAtIndex } from '../store/routeSlice';
 import { addSaveDestination } from '../store/savedSlice';
 import { syncToggleToBackend } from '../store/savedThunks';
 import { setStops } from '../store/navigationSlice';
@@ -53,32 +44,23 @@ import {
     createTravelPersonaAsync,
     type TravelPersona,
 } from '../store/authSlice';
-import { placeService } from '../services/placeService';
 import type {
     GenerateRoutesPayload,
     RouteConstraints,
     RouteData,
     RoutePointData,
+    RouteBoundarySelection,
+    RouteBoundarySelectionType,
 } from '../services/routeService';
+import { placeService } from '../services/placeService';
+import { routeService } from '../services/routeService';
 import type { MapDestination } from '../data/destinations';
 import TravelProfileBuilder from '../components/travel/TravelProfileBuilder';
 import { defaultTravelProfile, summarizeTravelProfile } from '../utils/travelProfile';
+import { mapTypesArrayToCategory } from '../utils/placeCategory';
+import { getPlaceImage } from '../utils/placeImage';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function formatDuration(seconds: number): string {
-    if (seconds < 60) return `${seconds}s`;
-    const mins = Math.round(seconds / 60);
-    if (mins < 60) return `${mins} min`;
-    const hrs = Math.floor(mins / 60);
-    const remainMins = mins % 60;
-    return remainMins > 0 ? `${hrs}h ${remainMins}m` : `${hrs}h`;
-}
-
-function formatDistance(meters: number): string {
-    if (meters < 1000) return `${Math.round(meters)} m`;
-    return `${(meters / 1000).toFixed(1)} km`;
-}
 
 function mapPointToDestination(point: RoutePointData): MapDestination {
     const category = mapTypesToCategory(point.types);
@@ -86,7 +68,11 @@ function mapPointToDestination(point: RoutePointData): MapDestination {
         id: point.poiId || `point-${point.index}`,
         name: point.poiName || 'Unknown Place',
         location: point.formattedAddress || '',
-        image: 'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=800',
+        image: getPlaceImage({
+            id: point.poiId || `point-${point.index}`,
+            name: point.poiName || 'Unknown Place',
+            category,
+        }),
         rating: point.ratingScore || 4.0,
         priceLevel: mapPriceLevel(point.priceLevel),
         category,
@@ -96,58 +82,7 @@ function mapPointToDestination(point: RoutePointData): MapDestination {
 }
 
 function mapTypesToCategory(types: string[] | undefined): string {
-    if (!types || types.length === 0) return 'Landmarks';
-    const joined = types.join(' ').toLowerCase();
-    if (joined.includes('cafe') || joined.includes('dessert')) return 'Cafes & Desserts';
-    if (joined.includes('restaurant') || joined.includes('food')) return 'Restaurants';
-    if (joined.includes('park')) return 'Parks';
-    if (joined.includes('museum') || joined.includes('art')) return 'Landmarks';
-    if (joined.includes('history') || joined.includes('mosque')) return 'Historic Places';
-    if (joined.includes('bar') || joined.includes('nightclub')) return 'Bars & Nightclubs';
-    if (joined.includes('hotel') || joined.includes('lodging')) return 'Hotels';
-    return 'Landmarks';
-}
-
-function getCategoryBadge(types: string[] | undefined): { label: string; color: 'primary' | 'danger' | 'success' | 'warning' | 'neutral' } {
-    const category = mapTypesToCategory(types);
-
-    switch (category) {
-        case 'Cafes & Desserts':
-            return {
-                label: 'Cafe',
-                color: 'warning',
-            };
-        case 'Restaurants':
-            return {
-                label: 'Restaurant',
-                color: 'danger',
-            };
-        case 'Parks':
-            return {
-                label: 'Park',
-                color: 'success',
-            };
-        case 'Historic Places':
-            return {
-                label: 'Historic',
-                color: 'neutral',
-            };
-        case 'Bars & Nightclubs':
-            return {
-                label: 'Nightlife',
-                color: 'neutral',
-            };
-        case 'Hotels':
-            return {
-                label: 'Hotel',
-                color: 'neutral',
-            };
-        default:
-            return {
-                label: 'Landmark',
-                color: 'primary',
-            };
-    }
+    return mapTypesArrayToCategory(types);
 }
 
 function mapPriceLevel(priceLevel: string | null | undefined): 1 | 2 | 3 | 4 {
@@ -161,11 +96,6 @@ function mapPriceLevel(priceLevel: string | null | undefined): 1 | 2 | 3 | 4 {
     }
 }
 
-function getTravelModeIcon(mode: string | undefined) {
-    if (mode?.toLowerCase().includes('walk')) return <DirectionsWalkIcon sx={{ fontSize: 18 }} />;
-    return <DirectionsCarIcon sx={{ fontSize: 18 }} />;
-}
-
 // ─── POI Type Options ────────────────────────────────────────────────────────
 
 const POI_TYPE_OPTIONS = [
@@ -177,227 +107,6 @@ const POI_TYPE_OPTIONS = [
     { value: 'HISTORIC_PLACE', label: 'Historic Place' },
     { value: 'BAR_NIGHTCLUB', label: 'Bar & Nightclub' },
 ];
-
-// ─── Place Search Option ─────────────────────────────────────────────────────
-
-interface PlaceOption {
-    id: string;
-    name: string;
-    address: string;
-}
-
-// ─── Route Card Component ────────────────────────────────────────────────────
-
-interface RouteCardProps {
-    route: RouteData;
-    index: number;
-    onApprove: (route: RouteData) => void;
-    isApproving: boolean;
-    isApproved: boolean;
-}
-
-const RouteCard = ({ route, index, onApprove, isApproving, isApproved }: RouteCardProps) => {
-    const validPoints = route.points.filter((p) => p.poiId);
-
-    return (
-        <Card
-            id={`route-card-${index}`}
-            variant="outlined"
-            sx={{
-                overflow: 'hidden',
-                transition: 'all 0.3s ease-in-out',
-                '&:hover': {
-                    boxShadow: 'lg',
-                    borderColor: 'primary.400',
-                },
-            }}
-        >
-            {/* Card Header */}
-            <Box
-                sx={{
-                    p: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: 1,
-                    background: 'linear-gradient(135deg, var(--joy-palette-primary-softBg), var(--joy-palette-primary-softBg))',
-                    borderBottom: '1px solid',
-                    borderColor: 'divider',
-                }}
-            >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                    <RouteIcon sx={{ color: 'primary.500', fontSize: 24 }} />
-                    <Typography level="title-lg" sx={{ fontWeight: 700 }}>
-                        Route {index + 1}
-                    </Typography>
-                    {route.feasible ? (
-                        <Chip size="sm" variant="soft" color="success">Feasible</Chip>
-                    ) : (
-                        <Chip size="sm" variant="soft" color="warning">Long Route</Chip>
-                    )}
-                </Box>
-
-                {/* Stats */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <AccessTimeIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                        <Typography level="body-sm" sx={{ color: 'text.secondary' }}>
-                            ~{formatDuration(route.totalDurationSec)}
-                        </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <StraightenIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                        <Typography level="body-sm" sx={{ color: 'text.secondary' }}>
-                            ~{formatDistance(route.totalDistanceM)}
-                        </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        {getTravelModeIcon(route.travelMode)}
-                        <Typography level="body-sm" sx={{ color: 'text.secondary', textTransform: 'capitalize' }}>
-                            {route.travelMode || 'driving'}
-                        </Typography>
-                    </Box>
-                </Box>
-            </Box>
-
-            {/* Points List */}
-            <Box sx={{ p: 2 }}>
-                <Typography level="body-sm" sx={{ fontWeight: 600, mb: 1.5, color: 'text.secondary' }}>
-                    {validPoints.length} stops
-                </Typography>
-
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    {validPoints.map((point, idx) => {
-                        const categoryBadge = getCategoryBadge(point.types);
-
-                        return (
-                            <Box
-                                key={point.poiId || idx}
-                                sx={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 1.5,
-                                    p: 1.5,
-                                    borderRadius: 'md',
-                                    bgcolor: 'background.level1',
-                                    transition: 'background-color 0.2s',
-                                    '&:hover': {
-                                        bgcolor: 'background.level2',
-                                    },
-                                }}
-                            >
-                            {/* Stop number */}
-                            <Box
-                                sx={{
-                                    width: 28,
-                                    height: 28,
-                                    borderRadius: '50%',
-                                    bgcolor: 'primary.softBg',
-                                    color: 'primary.600',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontWeight: 700,
-                                    fontSize: 13,
-                                    flexShrink: 0,
-                                }}
-                            >
-                                {idx + 1}
-                            </Box>
-
-                            {/* POI info */}
-                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <Typography
-                                    level="body-sm"
-                                    sx={{
-                                        fontWeight: 600,
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap',
-                                    }}
-                                >
-                                    {point.poiName || 'Unknown'}
-                                </Typography>
-                                <Chip
-                                    size="sm"
-                                    variant="soft"
-                                    color={categoryBadge.color}
-                                    sx={{
-                                        mt: 0.75,
-                                        mb: point.formattedAddress ? 0.75 : 0,
-                                        fontWeight: 700,
-                                        lineHeight: 1.1,
-                                    }}
-                                >
-                                    {categoryBadge.label}
-                                </Chip>
-                                {point.formattedAddress && (
-                                    <Typography
-                                        level="body-xs"
-                                        sx={{
-                                            color: 'text.secondary',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                            whiteSpace: 'nowrap',
-                                        }}
-                                    >
-                                        <LocationOnIcon sx={{ fontSize: 12, mr: 0.3, verticalAlign: 'middle' }} />
-                                        {point.formattedAddress}
-                                    </Typography>
-                                )}
-                            </Box>
-
-                            {/* Rating */}
-                            {point.ratingScore > 0 && (
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, flexShrink: 0 }}>
-                                    <StarIcon sx={{ fontSize: 14, color: '#FFB800' }} />
-                                    <Typography level="body-xs" sx={{ fontWeight: 600 }}>
-                                        {point.ratingScore.toFixed(1)}
-                                    </Typography>
-                                </Box>
-                            )}
-
-                            {/* Visit duration */}
-                            {point.plannedVisitMin > 0 && (
-                                <Chip size="sm" variant="outlined" color="neutral" sx={{ flexShrink: 0 }}>
-                                    {point.plannedVisitMin} min
-                                </Chip>
-                            )}
-                            </Box>
-                        );
-                    })}
-                </Box>
-            </Box>
-
-            <Divider />
-
-            {/* Approve Button */}
-            <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end' }}>
-                <Button
-                    id={`approve-route-${index}`}
-                    variant={isApproved ? 'soft' : 'solid'}
-                    color={isApproved ? 'success' : 'primary'}
-                    startDecorator={
-                        isApproving ? (
-                            <CircularProgress size="sm" />
-                        ) : (
-                            <CheckCircleIcon />
-                        )
-                    }
-                    disabled={isApproving || isApproved}
-                    onClick={() => onApprove(route)}
-                    sx={{
-                        fontWeight: 600,
-                        transition: 'all 0.2s',
-                    }}
-                >
-                    {isApproving ? 'Saving...' : isApproved ? 'Approved' : 'Approve'}
-                </Button>
-            </Box>
-        </Card>
-    );
-};
 
 // ─── Route Page ──────────────────────────────────────────────────────────────
 
@@ -429,69 +138,33 @@ const RoutePage = () => {
     const [routeProfileBuilderKey, setRouteProfileBuilderKey] = useState(0);
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [isUpdatingSavedRoute, setIsUpdatingSavedRoute] = useState(false);
+    const [mutatingRouteId, setMutatingRouteId] = useState<string | null>(null);
 
     // ─── Constraint state ────────────────────────────────────────────────────
-    const [stayAtHotel, setStayAtHotel] = useState(true);
     const [needsBreakfast, setNeedsBreakfast] = useState(true);
     const [needsLunch, setNeedsLunch] = useState(false);
     const [needsDinner, setNeedsDinner] = useState(true);
-
-    // Start anchor
-    const [startAnchorKind, setStartAnchorKind] = useState<'PLACE' | 'TYPE' | ''>('');
-    const [startPlaceId, setStartPlaceId] = useState('');
-    const [startPlaceOption, setStartPlaceOption] = useState<PlaceOption | null>(null);
-    const [startPlaceOptions, setStartPlaceOptions] = useState<PlaceOption[]>([]);
-    const [startPlaceLoading, setStartPlaceLoading] = useState(false);
+    const [startPointType, setStartPointType] = useState<RouteBoundarySelectionType>('HOTEL');
+    const [endPointType, setEndPointType] = useState<RouteBoundarySelectionType>('HOTEL');
+    const [startSelectedPlace, setStartSelectedPlace] = useState<MapDestination | null>(null);
+    const [endSelectedPlace, setEndSelectedPlace] = useState<MapDestination | null>(null);
     const [startPoiType, setStartPoiType] = useState('');
     const [startMinRating, setStartMinRating] = useState<string>('');
     const [startMinRatingCount, setStartMinRatingCount] = useState<string>('');
-
-    // End anchor
-    const [endAnchorKind, setEndAnchorKind] = useState<'PLACE' | 'TYPE' | ''>('');
-    const [endPlaceId, setEndPlaceId] = useState('');
-    const [endPlaceOption, setEndPlaceOption] = useState<PlaceOption | null>(null);
-    const [endPlaceOptions, setEndPlaceOptions] = useState<PlaceOption[]>([]);
-    const [endPlaceLoading, setEndPlaceLoading] = useState(false);
+    const [startPlaceOptions, setStartPlaceOptions] = useState<MapDestination[]>([]);
+    const [startPlaceLoading, setStartPlaceLoading] = useState(false);
     const [endPoiType, setEndPoiType] = useState('');
     const [endMinRating, setEndMinRating] = useState<string>('');
     const [endMinRatingCount, setEndMinRatingCount] = useState<string>('');
-
-    // Debounced place search
+    const [endPlaceOptions, setEndPlaceOptions] = useState<MapDestination[]>([]);
+    const [endPlaceLoading, setEndPlaceLoading] = useState(false);
+    const [activeInsertTarget, setActiveInsertTarget] = useState<{ routeIndex: number; insertIndex: number } | null>(null);
+    const [insertPlaceOptions, setInsertPlaceOptions] = useState<MapDestination[]>([]);
+    const [insertPlaceLoading, setInsertPlaceLoading] = useState(false);
+    const [insertSelectedPlace, setInsertSelectedPlace] = useState<MapDestination | null>(null);
     const startSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const endSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    const searchPlaces = useCallback(async (query: string, target: 'start' | 'end') => {
-        if (query.length < 2) {
-            if (target === 'start') setStartPlaceOptions([]);
-            else setEndPlaceOptions([]);
-            return;
-        }
-        const setLoading = target === 'start' ? setStartPlaceLoading : setEndPlaceLoading;
-        const setOptions = target === 'start' ? setStartPlaceOptions : setEndPlaceOptions;
-        setLoading(true);
-        try {
-            const results = await placeService.searchPlaces(query, 0, 10);
-            setOptions(results.map((p) => ({ id: p.id, name: p.name, address: p.location })));
-        } catch {
-            setOptions([]);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    const handlePlaceInputChange = useCallback((query: string, target: 'start' | 'end') => {
-        const timer = target === 'start' ? startSearchTimer : endSearchTimer;
-        if (timer.current) clearTimeout(timer.current);
-        timer.current = setTimeout(() => searchPlaces(query, target), 300);
-    }, [searchPlaces]);
-
-    // Cleanup timers
-    useEffect(() => {
-        return () => {
-            if (startSearchTimer.current) clearTimeout(startSearchTimer.current);
-            if (endSearchTimer.current) clearTimeout(endSearchTimer.current);
-        };
-    }, []);
+    const insertSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Show only the hovered route's points on the map
     const activeRoute = activeRouteIdx !== null && activeRouteIdx < routes.length
@@ -608,102 +281,220 @@ const RoutePage = () => {
         }
     };
 
-    const buildConstraints = (): RouteConstraints => {
-        const hasStartAnchor =
-            (startAnchorKind === 'PLACE' && Boolean(startPlaceId))
-            || (startAnchorKind === 'TYPE' && Boolean(startPoiType));
-        const hasEndAnchor =
-            (endAnchorKind === 'PLACE' && Boolean(endPlaceId))
-            || (endAnchorKind === 'TYPE' && Boolean(endPoiType));
+    const searchPlaces = useCallback(async (query: string, target: 'start' | 'end' | 'insert') => {
+        const setLoading = target === 'start'
+            ? setStartPlaceLoading
+            : target === 'end'
+                ? setEndPlaceLoading
+                : setInsertPlaceLoading;
+        const setOptions = target === 'start'
+            ? setStartPlaceOptions
+            : target === 'end'
+                ? setEndPlaceOptions
+                : setInsertPlaceOptions;
 
-        const constraints: RouteConstraints = {
-            stayAtHotel,
-            needsBreakfast,
-            needsLunch,
-            needsDinner,
-            startWithPoi: hasStartAnchor,
-            endWithPoi: hasEndAnchor,
-            startWithHotel: stayAtHotel && !hasStartAnchor ? true : undefined,
-            endWithHotel: stayAtHotel && !hasEndAnchor ? true : undefined,
-            startAnchor: null,
-            endAnchor: null,
-            poiSlots: null,
-            requestedVisitCount: null,
-        };
-
-        if (startAnchorKind === 'PLACE' && startPlaceId) {
-            constraints.startAnchor = { kind: 'PLACE', placeId: startPlaceId };
-        } else if (startAnchorKind === 'TYPE' && startPoiType) {
-            constraints.startAnchor = {
-                kind: 'TYPE',
-                poiType: startPoiType,
-                filters: {
-                    ...(startMinRating ? { minRating: parseFloat(startMinRating) } : {}),
-                    ...(startMinRatingCount ? { minRatingCount: parseInt(startMinRatingCount, 10) } : {}),
-                },
-            };
+        if (query.trim().length < 2) {
+            setOptions([]);
+            return;
         }
 
-        if (endAnchorKind === 'PLACE' && endPlaceId) {
-            constraints.endAnchor = { kind: 'PLACE', placeId: endPlaceId };
-        } else if (endAnchorKind === 'TYPE' && endPoiType) {
-            constraints.endAnchor = {
-                kind: 'TYPE',
-                poiType: endPoiType,
-                filters: {
-                    ...(endMinRating ? { minRating: parseFloat(endMinRating) } : {}),
-                    ...(endMinRatingCount ? { minRatingCount: parseInt(endMinRatingCount, 10) } : {}),
-                },
-            };
+        setLoading(true);
+        try {
+            const results = await placeService.searchPlaces(query, 0, 10);
+            const filtered = target === 'insert' && activeInsertTarget
+                ? results.filter((destination) => !routes[activeInsertTarget.routeIndex]?.points.some((point) => point.poiId === destination.id))
+                : results;
+            setOptions(filtered);
+        } catch {
+            setOptions([]);
+        } finally {
+            setLoading(false);
         }
+    }, [activeInsertTarget, routes]);
 
-        return constraints;
+    const handlePlaceInputChange = useCallback((query: string, target: 'start' | 'end' | 'insert') => {
+        const timer = target === 'start'
+            ? startSearchTimer
+            : target === 'end'
+                ? endSearchTimer
+                : insertSearchTimer;
+
+        if (timer.current) {
+            clearTimeout(timer.current);
+        }
+        timer.current = setTimeout(() => {
+            void searchPlaces(query, target);
+        }, 300);
+    }, [searchPlaces]);
+
+    const closeInsertPicker = () => {
+        setActiveInsertTarget(null);
+        setInsertSelectedPlace(null);
+        setInsertPlaceOptions([]);
+        setInsertPlaceLoading(false);
     };
 
-    const applyAnchorToState = (anchor: RouteConstraints['startAnchor'], target: 'start' | 'end') => {
-        const setKind = target === 'start' ? setStartAnchorKind : setEndAnchorKind;
-        const setPlaceId = target === 'start' ? setStartPlaceId : setEndPlaceId;
-        const setPlaceOption = target === 'start' ? setStartPlaceOption : setEndPlaceOption;
+    useEffect(() => () => {
+        if (startSearchTimer.current) clearTimeout(startSearchTimer.current);
+        if (endSearchTimer.current) clearTimeout(endSearchTimer.current);
+        if (insertSearchTimer.current) clearTimeout(insertSearchTimer.current);
+    }, []);
+
+    const buildFilters = (minRating: string, minRatingCount: string) => {
+        const filters: NonNullable<RouteBoundarySelection['filters']> = {};
+        if (minRating) {
+            filters.minRating = parseFloat(minRating);
+        }
+        if (minRatingCount) {
+            filters.minRatingCount = parseInt(minRatingCount, 10);
+        }
+        return Object.keys(filters).length > 0 ? filters : undefined;
+    };
+
+    const buildBoundarySelection = (
+        type: RouteBoundarySelectionType,
+        selectedPlace: MapDestination | null,
+        poiType: string,
+        minRating: string,
+        minRatingCount: string,
+    ): RouteBoundarySelection | null => {
+        switch (type) {
+            case 'HOTEL':
+                return { type: 'HOTEL' };
+            case 'PLACE':
+                return selectedPlace?.id
+                    ? { type: 'PLACE', placeId: selectedPlace.id }
+                    : { type: 'PLACE' };
+            case 'TYPE':
+                return {
+                    type: 'TYPE',
+                    poiType: poiType || undefined,
+                    filters: buildFilters(minRating, minRatingCount),
+                };
+            case 'NONE':
+            default:
+                return null;
+        }
+    };
+
+    const buildConstraints = (): RouteConstraints => ({
+        needsBreakfast,
+        needsLunch,
+        needsDinner,
+        startPoint: buildBoundarySelection(
+            startPointType,
+            startSelectedPlace,
+            startPoiType,
+            startMinRating,
+            startMinRatingCount,
+        ),
+        endPoint: buildBoundarySelection(
+            endPointType,
+            endSelectedPlace,
+            endPoiType,
+            endMinRating,
+            endMinRatingCount,
+        ),
+        startAnchor: null,
+        endAnchor: null,
+        poiSlots: null,
+        requestedVisitCount: null,
+    });
+
+    const findPlaceOption = (placeId?: string | null): MapDestination | null => {
+        if (!placeId) {
+            return null;
+        }
+        const knownPlaces = [
+            startSelectedPlace,
+            endSelectedPlace,
+            insertSelectedPlace,
+            ...startPlaceOptions,
+            ...endPlaceOptions,
+            ...insertPlaceOptions,
+        ].filter((place): place is MapDestination => Boolean(place));
+
+        return knownPlaces.find((place) => place.id === placeId) ?? null;
+    };
+
+    const legacyConstraintToBoundarySelection = (
+        constraints: RouteConstraints | undefined,
+        target: 'start' | 'end',
+    ): RouteBoundarySelection | null => {
+        if (!constraints) {
+            return null;
+        }
+
+        const explicit = target === 'start' ? constraints.startPoint : constraints.endPoint;
+        if (explicit) {
+            return explicit;
+        }
+
+        const withPoi = target === 'start' ? constraints.startWithPoi : constraints.endWithPoi;
+        const withHotel = target === 'start' ? constraints.startWithHotel : constraints.endWithHotel;
+        const anchor = target === 'start' ? constraints.startAnchor : constraints.endAnchor;
+
+        if (withHotel && anchor?.kind === 'PLACE' && anchor.placeId) {
+            return { type: 'PLACE', placeId: anchor.placeId };
+        }
+
+        if (withHotel) {
+            return { type: 'HOTEL' };
+        }
+
+        if (withPoi && anchor?.kind === 'PLACE' && anchor.placeId) {
+            return { type: 'PLACE', placeId: anchor.placeId };
+        }
+
+        if (withPoi && anchor?.kind === 'TYPE' && anchor.poiType) {
+            return { type: 'TYPE', poiType: anchor.poiType, filters: anchor.filters };
+        }
+
+        if (constraints.stayAtHotel && !withPoi && !anchor) {
+            return { type: 'HOTEL' };
+        }
+
+        return null;
+    };
+
+    const applyBoundarySelectionToState = (
+        boundary: RouteBoundarySelection | null,
+        target: 'start' | 'end',
+    ) => {
+        const setType = target === 'start' ? setStartPointType : setEndPointType;
+        const setSelectedPlace = target === 'start' ? setStartSelectedPlace : setEndSelectedPlace;
         const setPoiType = target === 'start' ? setStartPoiType : setEndPoiType;
         const setMinRating = target === 'start' ? setStartMinRating : setEndMinRating;
         const setMinRatingCount = target === 'start' ? setStartMinRatingCount : setEndMinRatingCount;
 
-        if (!anchor) {
-            setKind('');
-            setPlaceId('');
-            setPlaceOption(null);
+        if (!boundary) {
+            setType('NONE');
+            setSelectedPlace(null);
             setPoiType('');
             setMinRating('');
             setMinRatingCount('');
             return;
         }
 
-        if (anchor.kind === 'PLACE' && anchor.placeId) {
-            setKind('PLACE');
-            setPlaceId(anchor.placeId);
-            setPlaceOption({ id: anchor.placeId, name: anchor.placeId, address: '' });
-            setPoiType('');
-            setMinRating('');
-            setMinRatingCount('');
-            return;
-        }
-
-        if (anchor.kind === 'TYPE' && anchor.poiType) {
-            setKind('TYPE');
-            setPlaceId('');
-            setPlaceOption(null);
-            setPoiType(anchor.poiType);
-            setMinRating(anchor.filters?.minRating !== undefined ? String(anchor.filters.minRating) : '');
-            setMinRatingCount(anchor.filters?.minRatingCount !== undefined ? String(anchor.filters.minRatingCount) : '');
-            return;
-        }
-
-        setKind('');
-        setPlaceId('');
-        setPlaceOption(null);
-        setPoiType('');
-        setMinRating('');
-        setMinRatingCount('');
+        setType(boundary.type);
+        setSelectedPlace(boundary.type === 'PLACE' ? findPlaceOption(boundary.placeId) ?? (boundary.placeId ? {
+            id: boundary.placeId,
+            name: boundary.placeId,
+            location: '',
+            image: getPlaceImage({
+                id: boundary.placeId,
+                name: boundary.placeId,
+                category: 'Landmarks',
+            }),
+            rating: 0,
+            priceLevel: 1,
+            category: 'Landmarks',
+            coordinates: [0, 0],
+            reviewCount: 0,
+        } : null) : null);
+        setPoiType(boundary.type === 'TYPE' ? boundary.poiType || '' : '');
+        setMinRating(boundary.type === 'TYPE' && boundary.filters?.minRating !== undefined ? String(boundary.filters.minRating) : '');
+        setMinRatingCount(boundary.type === 'TYPE' && boundary.filters?.minRatingCount !== undefined ? String(boundary.filters.minRatingCount) : '');
     };
 
     const applyGenerateRequestToForm = (payload: GenerateRoutesPayload) => {
@@ -715,15 +506,40 @@ const RoutePage = () => {
         );
 
         const constraints = payload.constraints;
-        setStayAtHotel(constraints?.stayAtHotel ?? true);
         setNeedsBreakfast(constraints?.needsBreakfast ?? false);
         setNeedsLunch(constraints?.needsLunch ?? false);
         setNeedsDinner(constraints?.needsDinner ?? false);
-        applyAnchorToState(constraints?.startAnchor ?? null, 'start');
-        applyAnchorToState(constraints?.endAnchor ?? null, 'end');
+        applyBoundarySelectionToState(legacyConstraintToBoundarySelection(constraints, 'start'), 'start');
+        applyBoundarySelectionToState(legacyConstraintToBoundarySelection(constraints, 'end'), 'end');
+    };
+
+    const getGenerationValidationError = () => {
+        if (startPointType === 'PLACE' && !startSelectedPlace?.id) {
+            return 'Please choose a start place.';
+        }
+        if (endPointType === 'PLACE' && !endSelectedPlace?.id) {
+            return 'Please choose an end place.';
+        }
+        if (startPointType === 'TYPE' && !startPoiType) {
+            return 'Please choose a start type.';
+        }
+        if (endPointType === 'TYPE' && !endPoiType) {
+            return 'Please choose an end type.';
+        }
+        return null;
     };
 
     const handleGenerate = () => {
+        const validationError = getGenerationValidationError();
+        if (validationError) {
+            setSnackbar({
+                open: true,
+                message: validationError,
+                color: 'danger',
+            });
+            return;
+        }
+
         prepareForRouteRefresh();
         dispatch(generateRoutesThunk({
             k: routeCount,
@@ -787,14 +603,12 @@ const RoutePage = () => {
         };
     }, [dispatch, isAuthenticated, savedRouteParam]);
 
-    const handleUpdateSavedRoute = async () => {
-        const routeToPersist = activeRoute ?? routes[0];
-        if (!savedRouteId || !currentRequest || !routeToPersist) {
-            return;
+    const persistRouteSnapshot = async (routeToPersist: RouteData) => {
+        if (!currentRequest) {
+            return null;
         }
 
-        setIsUpdatingSavedRoute(true);
-        try {
+        if (savedRouteId) {
             const detail = await dispatch(updateSavedRouteThunk({
                 savedRouteId,
                 payload: {
@@ -810,6 +624,33 @@ const RoutePage = () => {
                 savedRouteId: detail.id,
                 title: detail.title,
             }));
+
+            return {
+                detail,
+                message: `Route approved and updated in "${detail.title}".`,
+            };
+        }
+
+        const detail = await dispatch(createSavedRouteThunk({
+            route: routeToPersist,
+            generateRequest: currentRequest,
+        })).unwrap();
+
+        return {
+            detail,
+            message: `Route approved and saved as "${detail.title}".`,
+        };
+    };
+
+    const handleUpdateSavedRoute = async () => {
+        const routeToPersist = activeRoute ?? routes[0];
+        if (!savedRouteId || !currentRequest || !routeToPersist) {
+            return;
+        }
+
+        setIsUpdatingSavedRoute(true);
+        try {
+            await persistRouteSnapshot(routeToPersist);
             setSnackbar({
                 open: true,
                 message: 'Saved route updated.',
@@ -830,12 +671,11 @@ const RoutePage = () => {
         setApprovingRouteId(route.routeId);
         try {
             let savedRouteMessage = 'Route approved!';
-            if (!savedRouteId && currentRequest) {
-                const detail = await dispatch(createSavedRouteThunk({
-                    route,
-                    generateRequest: currentRequest,
-                })).unwrap();
-                savedRouteMessage = `Route approved and saved as "${detail.title}".`;
+            if (currentRequest) {
+                const persisted = await persistRouteSnapshot(route);
+                if (persisted?.message) {
+                    savedRouteMessage = persisted.message;
+                }
             }
 
             const validPoints = route.points.filter((p) => p.poiId);
@@ -863,12 +703,113 @@ const RoutePage = () => {
         } catch (err) {
             setSnackbar({
                 open: true,
-                message: 'Failed to save places. Please try again.',
+                message: 'Failed to approve and save the route. Please try again.',
                 color: 'danger',
             });
         } finally {
             setApprovingRouteId(null);
         }
+    };
+
+    const performRouteMutation = async (
+        routeIndex: number,
+        run: (route: RouteData, originalUserVector: Record<string, string>) => Promise<RouteData>,
+        successMessage: string,
+    ) => {
+        const route = routes[routeIndex];
+        const originalUserVector = currentRequest?.userVector;
+
+        if (!route || !originalUserVector) {
+            setSnackbar({
+                open: true,
+                message: 'Route state is incomplete. Please generate the route again.',
+                color: 'danger',
+            });
+            return;
+        }
+
+        setMutatingRouteId(route.routeId);
+        try {
+            const updatedRoute = await run(route, originalUserVector);
+            dispatch(replaceRouteAtIndex({ index: routeIndex, route: updatedRoute }));
+            setActiveRouteIdx(routeIndex);
+            closeInsertPicker();
+            setSnackbar({
+                open: true,
+                message: successMessage,
+                color: 'success',
+            });
+        } catch (mutationError: any) {
+            setSnackbar({
+                open: true,
+                message: mutationError?.response?.data?.error || mutationError?.message || 'Route could not be updated.',
+                color: 'danger',
+            });
+        } finally {
+            setMutatingRouteId(null);
+        }
+    };
+
+    const handleInsertStop = (routeIndex: number, insertIndex: number) => {
+        setActiveInsertTarget({ routeIndex, insertIndex });
+        setInsertSelectedPlace(null);
+        setInsertPlaceOptions([]);
+    };
+
+    const handleRemoveStop = (routeIndex: number, pointIndex: number) => {
+        void performRouteMutation(
+            routeIndex,
+            (route, originalUserVector) => routeService.removePoint({
+                currentRoute: route,
+                index: pointIndex,
+                originalUserVector,
+            }),
+            'Stop removed from the route.',
+        );
+    };
+
+    const handleRerollStop = (routeIndex: number, pointIndex: number) => {
+        void performRouteMutation(
+            routeIndex,
+            (route, originalUserVector) => routeService.rerollPoint({
+                currentRoute: route,
+                index: pointIndex,
+                originalUserVector,
+            }),
+            'Stop rerolled with a new candidate.',
+        );
+    };
+
+    const handleReorderStops = (routeIndex: number, newOrder: number[]) => {
+        void performRouteMutation(
+            routeIndex,
+            (route, originalUserVector) => routeService.reorderPoints({
+                currentRoute: route,
+                newOrder,
+                originalUserVector,
+            }),
+            'Route order updated.',
+        );
+    };
+
+    const handleInsertPlaceSelect = (destination: MapDestination | null) => {
+        if (!destination || !activeInsertTarget) {
+            return;
+        }
+
+        const { routeIndex, insertIndex } = activeInsertTarget;
+        setInsertSelectedPlace(destination);
+        closeInsertPicker();
+        void performRouteMutation(
+            routeIndex,
+            (route, originalUserVector) => routeService.insertPoint({
+                currentRoute: route,
+                index: insertIndex,
+                poiId: destination.id,
+                originalUserVector,
+            }),
+            `Inserted ${destination.name} into the route.`,
+        );
     };
 
     // Handle map click to set center point
@@ -1110,294 +1051,267 @@ const RoutePage = () => {
                             background: 'linear-gradient(135deg, var(--joy-palette-primary-softBg), transparent)',
                         }}
                     >
-                    <Typography level="title-md" sx={{ fontWeight: 600, mb: 1 }}>
-                        Generate Personalized Routes
-                    </Typography>
-                    <Typography level="body-sm" sx={{ color: 'text.secondary', mb: 2 }}>
-                        Create AI-powered route suggestions based on your travel preferences.
-                        Click on the map to set a center point for nearby routes.
-                    </Typography>
-
-                    {/* Center point indicator */}
-                    {centerPoint && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                            <MyLocationIcon sx={{ color: 'primary.500', fontSize: 18 }} />
-                            <Typography level="body-sm" sx={{ color: 'primary.600', fontWeight: 600 }}>
-                                Center: {centerPoint[0].toFixed(4)}, {centerPoint[1].toFixed(4)}
-                            </Typography>
-                            <Button
-                                size="sm"
-                                variant="plain"
-                                color="neutral"
-                                onClick={() => setCenterPoint(null)}
-                                sx={{ ml: 1, minHeight: 'auto', py: 0 }}
-                            >
-                                Clear
-                            </Button>
-                        </Box>
-                    )}
-
-                    <Box sx={{ mb: 2, maxWidth: 400 }}>
-                        <Typography level="body-sm" sx={{ fontWeight: 600, mb: 1 }}>
-                            Number of routes: {routeCount}
+                        <Typography level="title-md" sx={{ fontWeight: 600, mb: 1 }}>
+                            Generate Personalized Routes
                         </Typography>
-                        <Slider
-                            id="route-count-slider"
-                            value={routeCount}
-                            onChange={(_e, val) => setRouteCount(val as number)}
-                            min={1}
-                            max={10}
-                            step={1}
-                            marks={[
-                                { value: 1, label: '1' },
-                                { value: 5, label: '5' },
-                                { value: 10, label: '10' },
-                            ]}
-                            sx={{ py: 1 }}
-                        />
-                    </Box>
+                        <Typography level="body-sm" sx={{ color: 'text.secondary', mb: 2 }}>
+                            Create AI-powered route suggestions based on your travel preferences.
+                            Click on the map to set a center point for nearby routes.
+                        </Typography>
 
-                    {/* ─── Constraint Controls ─────────────────────────── */}
-                    <Divider sx={{ my: 2 }} />
-                    <Typography level="title-sm" sx={{ fontWeight: 700, mb: 1.5 }}>
-                        Route Constraints
-                    </Typography>
+                        {/* Center point indicator */}
+                        {centerPoint && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                                <MyLocationIcon sx={{ color: 'primary.500', fontSize: 18 }} />
+                                <Typography level="body-sm" sx={{ color: 'primary.600', fontWeight: 600 }}>
+                                    Center: {centerPoint[0].toFixed(4)}, {centerPoint[1].toFixed(4)}
+                                </Typography>
+                                <Button
+                                    size="sm"
+                                    variant="plain"
+                                    color="neutral"
+                                    onClick={() => setCenterPoint(null)}
+                                    sx={{ ml: 1, minHeight: 'auto', py: 0 }}
+                                >
+                                    Clear
+                                </Button>
+                            </Box>
+                        )}
 
-                    {/* Meal & Hotel checkboxes */}
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-                        <Checkbox
-                            id="constraint-stay-at-hotel"
-                            label="Stay at Hotel"
-                            checked={stayAtHotel}
-                            onChange={(e) => setStayAtHotel(e.target.checked)}
-                        />
-                        <Checkbox
-                            id="constraint-needs-breakfast"
-                            label="Needs Breakfast"
-                            checked={needsBreakfast}
-                            onChange={(e) => setNeedsBreakfast(e.target.checked)}
-                        />
-                        <Checkbox
-                            id="constraint-needs-lunch"
-                            label="Needs Lunch"
-                            checked={needsLunch}
-                            onChange={(e) => setNeedsLunch(e.target.checked)}
-                        />
-                        <Checkbox
-                            id="constraint-needs-dinner"
-                            label="Needs Dinner"
-                            checked={needsDinner}
-                            onChange={(e) => setNeedsDinner(e.target.checked)}
-                        />
-                    </Box>
+                        <Box sx={{ mb: 2, maxWidth: 400 }}>
+                            <Typography level="body-sm" sx={{ fontWeight: 600, mb: 1 }}>
+                                Number of routes: {routeCount}
+                            </Typography>
+                            <Slider
+                                id="route-count-slider"
+                                value={routeCount}
+                                onChange={(_e, val) => setRouteCount(val as number)}
+                                min={1}
+                                max={10}
+                                step={1}
+                                marks={[
+                                    { value: 1, label: '1' },
+                                    { value: 5, label: '5' },
+                                    { value: 10, label: '10' },
+                                ]}
+                                sx={{ py: 1 }}
+                            />
+                        </Box>
 
-                    {/* ─── Start Anchor ────────────────────────────────── */}
-                    <Typography level="body-sm" sx={{ fontWeight: 600, mb: 1 }}>
-                        Start Anchor
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2, alignItems: 'flex-end' }}>
-                        <FormControl size="sm" sx={{ minWidth: 120 }}>
-                            <FormLabel>Kind</FormLabel>
-                            <Select
-                                id="start-anchor-kind"
-                                placeholder="None"
-                                value={startAnchorKind || null}
-                                onChange={(_e, val) => setStartAnchorKind((val as 'PLACE' | 'TYPE' | '') || '')}
-                            >
-                                <Option value="">None</Option>
-                                <Option value="PLACE">Place</Option>
-                                <Option value="TYPE">Type</Option>
-                            </Select>
-                        </FormControl>
+                        {/* ─── Constraint Controls ─────────────────────────── */}
+                        <Divider sx={{ my: 2 }} />
+                        <Typography level="title-sm" sx={{ fontWeight: 700, mb: 1.5 }}>
+                            Route Constraints
+                        </Typography>
 
-                        {startAnchorKind === 'PLACE' && (
-                            <FormControl size="sm" sx={{ flex: 1, minWidth: 250 }}>
-                                <FormLabel>Search Place</FormLabel>
-                                <Autocomplete
-                                    id="start-place-search"
-                                    placeholder="Type to search places..."
-                                    options={startPlaceOptions}
-                                    getOptionLabel={(opt) => opt.name}
-                                    isOptionEqualToValue={(opt, val) => opt.id === val.id}
-                                    value={startPlaceOption}
-                                    loading={startPlaceLoading}
-                                    onInputChange={(_e, value) => handlePlaceInputChange(value, 'start')}
-                                    onChange={(_e, value) => {
-                                        setStartPlaceOption(value);
-                                        setStartPlaceId(value?.id || '');
-                                    }}
-                                    startDecorator={<SearchIcon sx={{ fontSize: 18 }} />}
-                                    renderOption={(props, option) => (
-                                        <AutocompleteOption {...props} key={option.id}>
-                                            <ListItemContent>
-                                                <Typography level="body-sm" sx={{ fontWeight: 600 }}>
-                                                    {option.name}
-                                                </Typography>
-                                                <Typography level="body-xs" sx={{ color: 'text.secondary' }}>
-                                                    {option.address}
-                                                </Typography>
-                                            </ListItemContent>
-                                        </AutocompleteOption>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+                            <Checkbox
+                                id="constraint-needs-breakfast"
+                                label="Needs Breakfast"
+                                checked={needsBreakfast}
+                                onChange={(e) => setNeedsBreakfast(e.target.checked)}
+                            />
+                            <Checkbox
+                                id="constraint-needs-lunch"
+                                label="Needs Lunch"
+                                checked={needsLunch}
+                                onChange={(e) => setNeedsLunch(e.target.checked)}
+                            />
+                            <Checkbox
+                                id="constraint-needs-dinner"
+                                label="Needs Dinner"
+                                checked={needsDinner}
+                                onChange={(e) => setNeedsDinner(e.target.checked)}
+                            />
+                        </Box>
+
+                        <Box sx={{ display: 'grid', gap: 2, mb: 2 }}>
+                            <Card variant="soft" color="neutral" sx={{ p: 2 }}>
+                                <Typography level="title-sm" sx={{ fontWeight: 700, mb: 1.5 }}>
+                                    Start Anchor
+                                </Typography>
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'flex-end' }}>
+                                    <FormControl size="sm" sx={{ minWidth: 180 }}>
+                                        <FormLabel>Kind</FormLabel>
+                                        <Select
+                                            value={startPointType}
+                                            onChange={(_e, value) => {
+                                                const nextValue = (value as RouteBoundarySelectionType) || 'NONE';
+                                                setStartPointType(nextValue);
+                                                if (nextValue !== 'PLACE') {
+                                                    setStartSelectedPlace(null);
+                                                }
+                                                if (nextValue !== 'TYPE') {
+                                                    setStartPoiType('');
+                                                    setStartMinRating('');
+                                                    setStartMinRatingCount('');
+                                                }
+                                            }}
+                                        >
+                                            <Option value="HOTEL">Hotel</Option>
+                                            <Option value="PLACE">Specific place</Option>
+                                            <Option value="TYPE">Recommended type</Option>
+                                            <Option value="NONE">No fixed start</Option>
+                                        </Select>
+                                    </FormControl>
+
+                                    {startPointType === 'PLACE' && (
+                                        <PlaceSearchAutocomplete
+                                            label="Search Place"
+                                            value={startSelectedPlace}
+                                            options={startPlaceOptions}
+                                            loading={startPlaceLoading}
+                                            onInputChange={(query) => handlePlaceInputChange(query, 'start')}
+                                            onChange={(value) => setStartSelectedPlace(value)}
+                                        />
                                     )}
-                                />
-                            </FormControl>
-                        )}
 
-                        {startAnchorKind === 'TYPE' && (
-                            <>
-                                <FormControl size="sm" sx={{ flex: 1, minWidth: 160 }}>
-                                    <FormLabel>POI Type</FormLabel>
-                                    <Select
-                                        id="start-poi-type"
-                                        placeholder="Select type..."
-                                        value={startPoiType || null}
-                                        onChange={(_e, val) => setStartPoiType(val || '')}
-                                    >
-                                        {POI_TYPE_OPTIONS.map((opt) => (
-                                            <Option key={opt.value} value={opt.value}>
-                                                {opt.label}
-                                            </Option>
-                                        ))}
-                                    </Select>
-                                </FormControl>
-                                <FormControl size="sm" sx={{ minWidth: 100 }}>
-                                    <FormLabel>Min Rating</FormLabel>
-                                    <Input
-                                        id="start-min-rating"
-                                        type="number"
-                                        slotProps={{ input: { step: 0.1, min: 0, max: 5 } }}
-                                        placeholder="4.5"
-                                        value={startMinRating}
-                                        onChange={(e) => setStartMinRating(e.target.value)}
-                                    />
-                                </FormControl>
-                                <FormControl size="sm" sx={{ minWidth: 130 }}>
-                                    <FormLabel>Min Rating Count</FormLabel>
-                                    <Input
-                                        id="start-min-rating-count"
-                                        type="number"
-                                        slotProps={{ input: { step: 100, min: 0 } }}
-                                        placeholder="2000"
-                                        value={startMinRatingCount}
-                                        onChange={(e) => setStartMinRatingCount(e.target.value)}
-                                    />
-                                </FormControl>
-                            </>
-                        )}
-                    </Box>
-
-                    {/* ─── End Anchor ──────────────────────────────────── */}
-                    <Typography level="body-sm" sx={{ fontWeight: 600, mb: 1 }}>
-                        End Anchor
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2, alignItems: 'flex-end' }}>
-                        <FormControl size="sm" sx={{ minWidth: 120 }}>
-                            <FormLabel>Kind</FormLabel>
-                            <Select
-                                id="end-anchor-kind"
-                                placeholder="None"
-                                value={endAnchorKind || null}
-                                onChange={(_e, val) => setEndAnchorKind((val as 'PLACE' | 'TYPE' | '') || '')}
-                            >
-                                <Option value="">None</Option>
-                                <Option value="PLACE">Place</Option>
-                                <Option value="TYPE">Type</Option>
-                            </Select>
-                        </FormControl>
-
-                        {endAnchorKind === 'PLACE' && (
-                            <FormControl size="sm" sx={{ flex: 1, minWidth: 250 }}>
-                                <FormLabel>Search Place</FormLabel>
-                                <Autocomplete
-                                    id="end-place-search"
-                                    placeholder="Type to search places..."
-                                    options={endPlaceOptions}
-                                    getOptionLabel={(opt) => opt.name}
-                                    isOptionEqualToValue={(opt, val) => opt.id === val.id}
-                                    value={endPlaceOption}
-                                    loading={endPlaceLoading}
-                                    onInputChange={(_e, value) => handlePlaceInputChange(value, 'end')}
-                                    onChange={(_e, value) => {
-                                        setEndPlaceOption(value);
-                                        setEndPlaceId(value?.id || '');
-                                    }}
-                                    startDecorator={<SearchIcon sx={{ fontSize: 18 }} />}
-                                    renderOption={(props, option) => (
-                                        <AutocompleteOption {...props} key={option.id}>
-                                            <ListItemContent>
-                                                <Typography level="body-sm" sx={{ fontWeight: 600 }}>
-                                                    {option.name}
-                                                </Typography>
-                                                <Typography level="body-xs" sx={{ color: 'text.secondary' }}>
-                                                    {option.address}
-                                                </Typography>
-                                            </ListItemContent>
-                                        </AutocompleteOption>
+                                    {startPointType === 'TYPE' && (
+                                        <>
+                                            <FormControl size="sm" sx={{ flex: 1, minWidth: 180 }}>
+                                                <FormLabel>POI Type</FormLabel>
+                                                <Select
+                                                    value={startPoiType || null}
+                                                    placeholder="Select type..."
+                                                    onChange={(_e, value) => setStartPoiType(value || '')}
+                                                >
+                                                    {POI_TYPE_OPTIONS.map((opt) => (
+                                                        <Option key={opt.value} value={opt.value}>
+                                                            {opt.label}
+                                                        </Option>
+                                                    ))}
+                                                </Select>
+                                            </FormControl>
+                                            <FormControl size="sm" sx={{ minWidth: 120 }}>
+                                                <FormLabel>Min Rating</FormLabel>
+                                                <Input
+                                                    type="number"
+                                                    slotProps={{ input: { step: 0.1, min: 0, max: 5 } }}
+                                                    placeholder="4.5"
+                                                    value={startMinRating}
+                                                    onChange={(e) => setStartMinRating(e.target.value)}
+                                                />
+                                            </FormControl>
+                                            <FormControl size="sm" sx={{ minWidth: 150 }}>
+                                                <FormLabel>Min Review Count</FormLabel>
+                                                <Input
+                                                    type="number"
+                                                    slotProps={{ input: { step: 100, min: 0 } }}
+                                                    placeholder="2000"
+                                                    value={startMinRatingCount}
+                                                    onChange={(e) => setStartMinRatingCount(e.target.value)}
+                                                />
+                                            </FormControl>
+                                        </>
                                     )}
-                                />
-                            </FormControl>
+                                </Box>
+                            </Card>
+
+                            <Card variant="soft" color="neutral" sx={{ p: 2 }}>
+                                <Typography level="title-sm" sx={{ fontWeight: 700, mb: 1.5 }}>
+                                    End Anchor
+                                </Typography>
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'flex-end' }}>
+                                    <FormControl size="sm" sx={{ minWidth: 180 }}>
+                                        <FormLabel>Kind</FormLabel>
+                                        <Select
+                                            value={endPointType}
+                                            onChange={(_e, value) => {
+                                                const nextValue = (value as RouteBoundarySelectionType) || 'NONE';
+                                                setEndPointType(nextValue);
+                                                if (nextValue !== 'PLACE') {
+                                                    setEndSelectedPlace(null);
+                                                }
+                                                if (nextValue !== 'TYPE') {
+                                                    setEndPoiType('');
+                                                    setEndMinRating('');
+                                                    setEndMinRatingCount('');
+                                                }
+                                            }}
+                                        >
+                                            <Option value="HOTEL">Hotel</Option>
+                                            <Option value="PLACE">Specific place</Option>
+                                            <Option value="TYPE">Recommended type</Option>
+                                            <Option value="NONE">No fixed end</Option>
+                                        </Select>
+                                    </FormControl>
+
+                                    {endPointType === 'PLACE' && (
+                                        <PlaceSearchAutocomplete
+                                            label="Search Place"
+                                            value={endSelectedPlace}
+                                            options={endPlaceOptions}
+                                            loading={endPlaceLoading}
+                                            onInputChange={(query) => handlePlaceInputChange(query, 'end')}
+                                            onChange={(value) => setEndSelectedPlace(value)}
+                                        />
+                                    )}
+
+                                    {endPointType === 'TYPE' && (
+                                        <>
+                                            <FormControl size="sm" sx={{ flex: 1, minWidth: 180 }}>
+                                                <FormLabel>POI Type</FormLabel>
+                                                <Select
+                                                    value={endPoiType || null}
+                                                    placeholder="Select type..."
+                                                    onChange={(_e, value) => setEndPoiType(value || '')}
+                                                >
+                                                    {POI_TYPE_OPTIONS.map((opt) => (
+                                                        <Option key={opt.value} value={opt.value}>
+                                                            {opt.label}
+                                                        </Option>
+                                                    ))}
+                                                </Select>
+                                            </FormControl>
+                                            <FormControl size="sm" sx={{ minWidth: 120 }}>
+                                                <FormLabel>Min Rating</FormLabel>
+                                                <Input
+                                                    type="number"
+                                                    slotProps={{ input: { step: 0.1, min: 0, max: 5 } }}
+                                                    placeholder="4.5"
+                                                    value={endMinRating}
+                                                    onChange={(e) => setEndMinRating(e.target.value)}
+                                                />
+                                            </FormControl>
+                                            <FormControl size="sm" sx={{ minWidth: 150 }}>
+                                                <FormLabel>Min Review Count</FormLabel>
+                                                <Input
+                                                    type="number"
+                                                    slotProps={{ input: { step: 100, min: 0 } }}
+                                                    placeholder="2000"
+                                                    value={endMinRatingCount}
+                                                    onChange={(e) => setEndMinRatingCount(e.target.value)}
+                                                />
+                                            </FormControl>
+                                        </>
+                                    )}
+                                </Box>
+                            </Card>
+                        </Box>
+
+                        {getGenerationValidationError() && (
+                            <Alert color="warning" sx={{ mb: 2 }}>
+                                {getGenerationValidationError()}
+                            </Alert>
                         )}
 
-                        {endAnchorKind === 'TYPE' && (
-                            <>
-                                <FormControl size="sm" sx={{ flex: 1, minWidth: 160 }}>
-                                    <FormLabel>POI Type</FormLabel>
-                                    <Select
-                                        id="end-poi-type"
-                                        placeholder="Select type..."
-                                        value={endPoiType || null}
-                                        onChange={(_e, val) => setEndPoiType(val || '')}
-                                    >
-                                        {POI_TYPE_OPTIONS.map((opt) => (
-                                            <Option key={opt.value} value={opt.value}>
-                                                {opt.label}
-                                            </Option>
-                                        ))}
-                                    </Select>
-                                </FormControl>
-                                <FormControl size="sm" sx={{ minWidth: 100 }}>
-                                    <FormLabel>Min Rating</FormLabel>
-                                    <Input
-                                        id="end-min-rating"
-                                        type="number"
-                                        slotProps={{ input: { step: 0.1, min: 0, max: 5 } }}
-                                        placeholder="4.5"
-                                        value={endMinRating}
-                                        onChange={(e) => setEndMinRating(e.target.value)}
-                                    />
-                                </FormControl>
-                                <FormControl size="sm" sx={{ minWidth: 130 }}>
-                                    <FormLabel>Min Rating Count</FormLabel>
-                                    <Input
-                                        id="end-min-rating-count"
-                                        type="number"
-                                        slotProps={{ input: { step: 100, min: 0 } }}
-                                        placeholder="2000"
-                                        value={endMinRatingCount}
-                                        onChange={(e) => setEndMinRatingCount(e.target.value)}
-                                    />
-                                </FormControl>
-                            </>
-                        )}
-                    </Box>
-
-                    <Button
-                        id="generate-routes-btn"
-                        variant="solid"
-                        color="primary"
-                        size="lg"
-                        startDecorator={isLoading ? <CircularProgress size="sm" /> : <RouteIcon />}
-                        onClick={handleGenerate}
-                        disabled={isLoading}
-                        sx={{
-                            fontWeight: 600,
-                            px: 4,
-                            alignSelf: 'flex-start',
-                            transition: 'all 0.2s',
-                        }}
-                    >
-                        {isLoading ? 'Generating...' : 'Generate Routes'}
-                    </Button>
+                        <Button
+                            id="generate-routes-btn"
+                            variant="solid"
+                            color="primary"
+                            size="lg"
+                            startDecorator={isLoading ? <CircularProgress size="sm" /> : <RouteIcon />}
+                            onClick={handleGenerate}
+                            disabled={isLoading || Boolean(getGenerationValidationError())}
+                            sx={{
+                                fontWeight: 600,
+                                px: 4,
+                                alignSelf: 'flex-start',
+                                transition: 'all 0.2s',
+                            }}
+                        >
+                            {isLoading ? 'Generating...' : 'Generate Routes'}
+                        </Button>
                     </Card>
                 )}
 
@@ -1424,12 +1338,24 @@ const RoutePage = () => {
                                 key={route.routeId || idx}
                                 onMouseEnter={() => setActiveRouteIdx(idx)}
                             >
-                                <RouteCard
+                                <EditableRouteCard
                                     route={route}
                                     index={idx}
                                     onApprove={handleApprove}
                                     isApproving={approvingRouteId === route.routeId}
                                     isApproved={approvedRouteIds.has(route.routeId)}
+                                    isMutating={mutatingRouteId === route.routeId}
+                                    onInsertBetween={(insertIndex) => handleInsertStop(idx, insertIndex)}
+                                    onRemovePoint={(pointIndex) => handleRemoveStop(idx, pointIndex)}
+                                    onRerollPoint={(pointIndex) => handleRerollStop(idx, pointIndex)}
+                                    onReorderPoints={(newOrder) => handleReorderStops(idx, newOrder)}
+                                    activeInsertIndex={activeInsertTarget?.routeIndex === idx ? activeInsertTarget.insertIndex : null}
+                                    insertPlaceOptions={activeInsertTarget?.routeIndex === idx ? insertPlaceOptions : []}
+                                    insertPlaceValue={activeInsertTarget?.routeIndex === idx ? insertSelectedPlace : null}
+                                    insertPlaceLoading={activeInsertTarget?.routeIndex === idx ? insertPlaceLoading : false}
+                                    onInsertPlaceInputChange={(query) => handlePlaceInputChange(query, 'insert')}
+                                    onInsertPlaceSelect={handleInsertPlaceSelect}
+                                    onInsertCancel={closeInsertPicker}
                                 />
                             </Box>
                         ))}

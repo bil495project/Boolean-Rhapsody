@@ -397,7 +397,7 @@ const MapPanel = ({
                         </CardCover>
                         <CardCover
                             sx={{
-                                background: 'linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.4) 100%)',
+                                background: 'linear-gradient(to bottom, rgba(4,10,18,0.12) 0%, rgba(4,10,18,0.22) 35%, rgba(4,10,18,0.62) 100%)',
                             }}
                         />
                         {/* Rating badge */}

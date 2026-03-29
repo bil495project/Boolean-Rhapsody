@@ -52,6 +52,8 @@ public class Message {
         if (this.id == null) {
             this.id = UUID.randomUUID().toString();
         }
-        this.timestamp = System.currentTimeMillis();
+        if (this.timestamp == 0L) {
+            this.timestamp = System.currentTimeMillis();
+        }
     }
 }

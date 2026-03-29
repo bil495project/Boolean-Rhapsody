@@ -11,6 +11,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.roadrunner.route.dto.request.GenerateRoutesRequest;
 import com.roadrunner.route.dto.request.RouteAnchorRequest;
+import com.roadrunner.route.dto.request.RouteBoundarySelectionRequest;
 import com.roadrunner.route.dto.request.RouteConstraintsRequest;
 import com.roadrunner.route.dto.request.RoutePoiSlotRequest;
 import com.roadrunner.route.service.RouteConstraintSpec.BoundaryKind;
@@ -30,6 +31,8 @@ public class RouteConstraintResolver {
                 && constraints.getEndWithPoi() == null
                 && constraints.getStartWithHotel() == null
                 && constraints.getEndWithHotel() == null
+                && constraints.getStartPoint() == null
+                && constraints.getEndPoint() == null
                 && constraints.getStartAnchor() == null
                 && constraints.getEndAnchor() == null
                 && (constraints.getPoiSlots() == null || constraints.getPoiSlots().isEmpty())
@@ -48,17 +51,31 @@ public class RouteConstraintResolver {
 
         validateAnchor(constraints.getStartAnchor(), "startAnchor");
         validateAnchor(constraints.getEndAnchor(), "endAnchor");
+        validateBoundarySelection(constraints.getStartPoint(), "startPoint");
+        validateBoundarySelection(constraints.getEndPoint(), "endPoint");
         validateSlots(constraints.getPoiSlots());
 
-        boolean startWithPoi = Boolean.TRUE.equals(constraints.getStartWithPoi());
-        boolean endWithPoi = Boolean.TRUE.equals(constraints.getEndWithPoi());
-        boolean startWithHotel = Boolean.TRUE.equals(constraints.getStartWithHotel());
-        boolean endWithHotel = Boolean.TRUE.equals(constraints.getEndWithHotel());
+        boolean usesExplicitBoundaryModel = constraints.getStartPoint() != null
+                || constraints.getEndPoint() != null;
 
-        BoundaryRequirement startBoundary = resolveBoundary(
-                startWithPoi, startWithHotel, constraints.getStartAnchor(), "start");
-        BoundaryRequirement endBoundary = resolveBoundary(
-                endWithPoi, endWithHotel, constraints.getEndAnchor(), "end");
+        BoundaryRequirement startBoundary;
+        BoundaryRequirement endBoundary;
+        if (usesExplicitBoundaryModel) {
+            rejectLegacyBoundaryMix(constraints, "start");
+            rejectLegacyBoundaryMix(constraints, "end");
+            startBoundary = resolveExplicitBoundary(constraints.getStartPoint(), "start");
+            endBoundary = resolveExplicitBoundary(constraints.getEndPoint(), "end");
+        } else {
+            boolean startWithPoi = Boolean.TRUE.equals(constraints.getStartWithPoi());
+            boolean endWithPoi = Boolean.TRUE.equals(constraints.getEndWithPoi());
+            boolean startWithHotel = Boolean.TRUE.equals(constraints.getStartWithHotel());
+            boolean endWithHotel = Boolean.TRUE.equals(constraints.getEndWithHotel());
+
+            startBoundary = resolveBoundary(
+                    startWithPoi, startWithHotel, constraints.getStartAnchor(), "start");
+            endBoundary = resolveBoundary(
+                    endWithPoi, endWithHotel, constraints.getEndAnchor(), "end");
+        }
 
         boolean sameHotelLoop = startBoundary.kind() == BoundaryKind.HOTEL
                 && endBoundary.kind() == BoundaryKind.HOTEL;
@@ -126,6 +143,21 @@ public class RouteConstraintResolver {
         return new BoundaryRequirement(BoundaryKind.TYPE, null, anchor.getPoiType(), anchor.getFilters());
     }
 
+    private BoundaryRequirement resolveExplicitBoundary(RouteBoundarySelectionRequest boundary, String side) {
+        if (boundary == null || "NONE".equals(safeUpper(boundary.getType()))) {
+            return new BoundaryRequirement(BoundaryKind.NONE, null, null, null);
+        }
+
+        String type = safeUpper(boundary.getType());
+        return switch (type) {
+            case "HOTEL" -> new BoundaryRequirement(BoundaryKind.HOTEL, null, null, null);
+            case "PLACE" -> new BoundaryRequirement(BoundaryKind.PLACE, boundary.getPlaceId(), null, null);
+            case "TYPE" -> new BoundaryRequirement(BoundaryKind.TYPE, null, boundary.getPoiType(), boundary.getFilters());
+            default -> throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, side + "Point type must be NONE, HOTEL, PLACE, or TYPE");
+        };
+    }
+
     private void validateAnchor(RouteAnchorRequest anchor, String fieldName) {
         if (anchor == null) {
             return;
@@ -155,6 +187,48 @@ public class RouteConstraintResolver {
             return;
         }
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " kind must be PLACE or TYPE");
+    }
+
+    private void validateBoundarySelection(RouteBoundarySelectionRequest boundary, String fieldName) {
+        if (boundary == null) {
+            return;
+        }
+
+        String type = safeUpper(boundary.getType());
+        switch (type) {
+            case "", "NONE" -> {
+                if (hasText(boundary.getPlaceId()) || hasText(boundary.getPoiType()) || boundary.getFilters() != null) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            fieldName + " NONE must not include placeId, poiType, or filters");
+                }
+            }
+            case "HOTEL" -> {
+                if (hasText(boundary.getPlaceId()) || hasText(boundary.getPoiType()) || boundary.getFilters() != null) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            fieldName + " HOTEL must not include placeId, poiType, or filters");
+                }
+            }
+            case "PLACE" -> {
+                if (!hasText(boundary.getPlaceId())) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " PLACE requires placeId");
+                }
+                if (hasText(boundary.getPoiType()) || boundary.getFilters() != null) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            fieldName + " PLACE must not include poiType or filters");
+                }
+            }
+            case "TYPE" -> {
+                if (!hasText(boundary.getPoiType())) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " TYPE requires poiType");
+                }
+                if (hasText(boundary.getPlaceId())) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            fieldName + " TYPE must not include placeId");
+                }
+            }
+            default -> throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, fieldName + " type must be NONE, HOTEL, PLACE, or TYPE");
+        }
     }
 
     private void validateSlots(List<RoutePoiSlotRequest> slots) {
@@ -193,6 +267,26 @@ public class RouteConstraintResolver {
         }
     }
 
+    private void rejectLegacyBoundaryMix(RouteConstraintsRequest constraints, String side) {
+        boolean hasLegacyFields = "start".equals(side)
+                ? Boolean.TRUE.equals(constraints.getStartWithPoi())
+                    || Boolean.TRUE.equals(constraints.getStartWithHotel())
+                    || constraints.getStartAnchor() != null
+                : Boolean.TRUE.equals(constraints.getEndWithPoi())
+                    || Boolean.TRUE.equals(constraints.getEndWithHotel())
+                    || constraints.getEndAnchor() != null;
+
+        RouteBoundarySelectionRequest explicitBoundary = "start".equals(side)
+                ? constraints.getStartPoint()
+                : constraints.getEndPoint();
+
+        if (explicitBoundary != null && hasLegacyFields) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    side + " boundary must use either explicit startPoint/endPoint or legacy startWith*/endWith* fields, not both");
+        }
+    }
+
     private int defaultFreeInteriorCount(Map<String, String> userVector) {
         double density = GeoUtils.safeFloat(userVector.get("weight_toplamPoiYogunlugu"), 0.5);
         return Math.max(1, Math.min(10, (int) Math.round(1 + 9 * density)));
@@ -214,5 +308,9 @@ public class RouteConstraintResolver {
 
     private String safeUpper(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

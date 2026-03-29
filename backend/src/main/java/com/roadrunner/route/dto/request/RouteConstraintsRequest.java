@@ -27,6 +27,12 @@ public class RouteConstraintsRequest {
     private Boolean endWithHotel;
 
     @Valid
+    private RouteBoundarySelectionRequest startPoint;
+
+    @Valid
+    private RouteBoundarySelectionRequest endPoint;
+
+    @Valid
     private RouteAnchorRequest startAnchor;
 
     @Valid

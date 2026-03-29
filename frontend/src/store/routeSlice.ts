@@ -31,6 +31,11 @@ interface HydrateSavedRoutePayload {
     title: string;
 }
 
+interface ReplaceRoutePayload {
+    index: number;
+    route: RouteData;
+}
+
 const initialState: RouteState = {
     routes: [],
     isLoading: false,
@@ -88,10 +93,11 @@ function buildGenerateRoutesPayload(
         userVector: buildUserVector(state, params?.userVectorOverride),
         preferences: buildPreferences(params?.preferencesOverride),
         constraints: params?.constraints ?? {
-            stayAtHotel: true,
             needsBreakfast: false,
             needsLunch: false,
             needsDinner: false,
+            startPoint: { type: 'HOTEL' },
+            endPoint: { type: 'HOTEL' },
             startAnchor: null,
             endAnchor: null,
             poiSlots: null,
@@ -148,6 +154,12 @@ const routeSlice = createSlice({
             state.savedRouteId = action.payload.savedRouteId;
             state.savedRouteTitle = action.payload.title;
         },
+        replaceRouteAtIndex: (state, action: PayloadAction<ReplaceRoutePayload>) => {
+            const { index, route } = action.payload;
+            if (index >= 0 && index < state.routes.length) {
+                state.routes[index] = route;
+            }
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -168,5 +180,5 @@ const routeSlice = createSlice({
     },
 });
 
-export const { clearRoutes, hydrateSavedRoute } = routeSlice.actions;
+export const { clearRoutes, hydrateSavedRoute, replaceRouteAtIndex } = routeSlice.actions;
 export default routeSlice.reducer;

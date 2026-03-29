@@ -60,6 +60,15 @@ export interface AnchorFilter {
     minRatingCount?: number;
 }
 
+export type RouteBoundarySelectionType = 'NONE' | 'HOTEL' | 'PLACE' | 'TYPE';
+
+export interface RouteBoundarySelection {
+    type: RouteBoundarySelectionType;
+    placeId?: string;
+    poiType?: string;
+    filters?: AnchorFilter;
+}
+
 export interface RoutePreferences {
     tempo: number;
     socialPreference: number;
@@ -88,14 +97,16 @@ export interface RoutePoiSlot {
 }
 
 export interface RouteConstraints {
-    stayAtHotel: boolean;
-    needsBreakfast: boolean;
-    needsLunch: boolean;
-    needsDinner: boolean;
+    stayAtHotel?: boolean;
+    needsBreakfast?: boolean;
+    needsLunch?: boolean;
+    needsDinner?: boolean;
     startWithPoi?: boolean;
     endWithPoi?: boolean;
     startWithHotel?: boolean;
     endWithHotel?: boolean;
+    startPoint?: RouteBoundarySelection | null;
+    endPoint?: RouteBoundarySelection | null;
     startAnchor: RouteAnchor | null;
     endAnchor: RouteAnchor | null;
     poiSlots: RoutePoiSlot[] | null;
@@ -111,11 +122,57 @@ export interface GenerateRoutesPayload {
     k: number;
 }
 
+export interface RouteMutationPayload {
+    currentRoute: RouteData;
+    originalUserVector: Record<string, string>;
+}
+
+export interface InsertRoutePointPayload extends RouteMutationPayload {
+    index: number;
+    poiId: string;
+}
+
+export interface RemoveRoutePointPayload extends RouteMutationPayload {
+    index: number;
+}
+
+export interface RerollRoutePointPayload extends RouteMutationPayload {
+    index: number;
+    indexParams?: Record<string, string>;
+}
+
+export interface ReorderRoutePointsPayload extends RouteMutationPayload {
+    newOrder: number[];
+}
+
 // ─── Route API ───────────────────────────────────────────────────────────────
 
 export const routeService = {
     generateRoutes: async (payload: GenerateRoutesPayload): Promise<RouteData[]> => {
         const response = await api.post<RouteData[]>('/routes/generate', payload);
+        return response.data;
+    },
+
+    insertPoint: async (payload: InsertRoutePointPayload): Promise<RouteData> => {
+        const response = await api.post<RouteData>('/routes/insert', payload);
+        return response.data;
+    },
+
+    removePoint: async (payload: RemoveRoutePointPayload): Promise<RouteData> => {
+        const response = await api.post<RouteData>('/routes/remove', payload);
+        return response.data;
+    },
+
+    rerollPoint: async (payload: RerollRoutePointPayload): Promise<RouteData> => {
+        const response = await api.post<RouteData>('/routes/reroll', {
+            ...payload,
+            indexParams: payload.indexParams ?? {},
+        });
+        return response.data;
+    },
+
+    reorderPoints: async (payload: ReorderRoutePointsPayload): Promise<RouteData> => {
+        const response = await api.post<RouteData>('/routes/reorder', payload);
         return response.data;
     },
 };

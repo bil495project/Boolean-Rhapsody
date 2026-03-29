@@ -132,13 +132,11 @@ public class RouteController {
         }
 
         List<RoutePoint> points = route.getPoints();
-        int startIdx = hasFixedStart(route) ? 1 : 0;
-        int endExclusive = hasFixedEnd(route) ? points.size() - 1 : points.size();
         Map<Integer, Integer> routeIndexToMutableIndex = new HashMap<>();
 
         int mutableCursor = 0;
-        for (int routeIndex = startIdx; routeIndex < endExclusive; routeIndex++) {
-            if (!points.get(routeIndex).isProtectedPoint()) {
+        for (int routeIndex = 0; routeIndex < points.size(); routeIndex++) {
+            if (points.get(routeIndex).getPoi() != null) {
                 routeIndexToMutableIndex.put(routeIndex, mutableCursor++);
             }
         }
@@ -155,17 +153,5 @@ public class RouteController {
             return translated;
         }
         return new ArrayList<>(newOrder);
-    }
-
-    private boolean hasFixedStart(Route route) {
-        return route.getPoints() != null
-                && !route.getPoints().isEmpty()
-                && route.getPoints().get(0).isFixedAnchor();
-    }
-
-    private boolean hasFixedEnd(Route route) {
-        return route.getPoints() != null
-                && !route.getPoints().isEmpty()
-                && route.getPoints().get(route.getPoints().size() - 1).isFixedAnchor();
     }
 }
