@@ -9,7 +9,7 @@ from chatbot.nematron_chatbot import ask_question
 # Import the agents from the sibling file
 from chatbot.ai_agents import (
     calculatorAgent, weatherAgent, UserProfileAgent_SetInfo,
-    UserFeedbackAgent, XAIJustificationAgent, Route_search_agent,
+    UserFeedbackAgent, XAIJustificationAgent,
     POI_suggest_agent, ItineraryModificationAgent, ChatTitleAgent,
     POI_data_agent, POI_search_agent, UserPersonaListAgent,
     RouteGenerationFormatAgent
@@ -25,7 +25,6 @@ TOOL_REGISTRY = {
     "user_profile_agent":  UserProfileAgent_SetInfo(),     # Matches TC-LLM-U-008
     "submit_user_feedback":UserFeedbackAgent(),            # Matches TC-LLM-U-005
     "get_xai_justification":XAIJustificationAgent(),       # Matches TC-LLM-U-006
-    "search_route":        Route_search_agent(),           # Matches TC-LLM-U-002
     "suggest_poi":         POI_suggest_agent(),            # Matches TC-LLM-U-003
     "modify_itinerary":    ItineraryModificationAgent(),   # Matches TC-LLM-U-007
     "generate_chat_title": ChatTitleAgent(),               # Matches TC-LLM-U-015
@@ -34,10 +33,10 @@ TOOL_REGISTRY = {
     "get_user_personas":        UserPersonaListAgent(),  # Lists user's travel personas
     "generate_route_format":    RouteGenerationFormatAgent(),  # Formats payload for Route Generation Algorithm
 }
-USER_ID_AWARE_TOOLS = {"get_user_personas", "search_route", "generate_route_format"}
+USER_ID_AWARE_TOOLS = {"get_user_personas", "generate_route_format"}
 
 # Tools whose output is returned verbatim to the frontend — NO second LLM call.
-RAW_OUTPUT_TOOLS = {"generate_route_format"}
+RAW_OUTPUT_TOOLS = set()
 
 MAX_HISTORY = 10
 
@@ -74,9 +73,9 @@ def handle_chat():
 
                     "1. ROUTE PLANNING — generate_route_format\n"
                     "   Trigger: user mentions ANY of: a starting point, a specific named place to visit, "
-                    "   meal needs (breakfast/lunch/dinner), hotel stay, or a number of stops.\n"
+                    "   meal needs (breakfast/lunch/dinner), hotel stay, a number of stops, or even just a plain list of POIs.\n"
                     "   Examples: 'plan a route', 'I want to start at X', 'visit Y for lunch', "
-                    "   'end at a hotel', 'I need breakfast', '6 stops total'.\n"
+                    "   'end at a hotel', 'I need breakfast', '6 stops total', 'optimise a route through A, B, C'.\n"
                     "   Action: ALWAYS call generate_route_format. Follow these extraction rules STRICTLY:\n"
                     "   a) named_locations: include EVERY specific named place the user mentions, "
                     "      using their EXACT verbatim name (e.g. 'Şimşek Aspava', 'Anıtkabir'). "
@@ -92,26 +91,23 @@ def handle_chat():
                     "      → meal_preferences: {needsLunch:true}\n"
                     "   Do NOT answer with text — call the tool.\n\n"
 
-                    "2. SIMPLE POI-LIST ROUTE — search_route\n"
-                    "   Trigger: user gives only a plain list of POIs with no start/end/meals/hotel constraints.\n"
-                    "   Example: 'optimise a route through Anıtkabir, Kocatepe, Kuğulu Park'.\n"
-                    "   Do NOT use search_route when the user mentions meals, a starting point, or hotel needs "
-                    "   — use generate_route_format instead.\n\n"
-
-                    "3. PLACE LOOKUP — get_poi_details\n"
+                    "2. PLACE LOOKUP — get_poi_details\n"
                     "   Trigger: user asks about a specific named place (details, address, rating, etc.).\n"
                     "   Never guess or make up place information.\n\n"
 
-                    "4. CATEGORY BROWSE — search_poi_by_category\n"
+                    "3. CATEGORY BROWSE — search_poi_by_category\n"
                     "   Trigger: user wants recommendations for a type of place "
                     "   (cafes, restaurants, parks, hotels, museums, bars, landmarks).\n\n"
 
-                    "5. TRAVEL PERSONA — get_user_personas\n"
+                    "4. TRAVEL PERSONA — get_user_personas\n"
                     "   Trigger: user asks about their travel personality or saved profiles.\n\n"
 
                     "## Output Rules\n"
-                    "- For generate_route_format: return the raw tool result JSON exactly as-is. "
-                    "  Do NOT narrate, summarise, or wrap it in prose.\n"
+                    "- For generate_route_format: Present the generated route alternatives naturally to the user. "
+                    "  Describe the overall journey, travel mode, duration, and list the stops in a friendly and engaging way. "
+                    "  CRUCIAL: You MUST include the full location details (address) and rating (⭐) of every stop exactly as provided by the tool. Do NOT omit or summarise any address or rating information.\n"
+                    "  IMPORTANT: If the generated routes contradict the user's stated preferences, do NOT try to correct the routes. "
+                    "  Simply describe the journey as it was generated.\n"
                     "- For all other tools: present results exactly as returned — do not omit details."
                 )
 

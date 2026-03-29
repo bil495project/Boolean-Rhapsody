@@ -235,75 +235,6 @@ class UserPersonaListAgent(BaseAgent):
         body = "\n\n".join(_describe_persona(p) for p in personas)
         return header + body
 
-
-# ---------------------------------------------------------------------------
-# Agent: Route_search_agent  (UPDATED)
-# ---------------------------------------------------------------------------
-class Route_search_agent(BaseAgent):
-    tool_template = {
-        "name": "search_route",
-        "description": (
-            "Calculates and returns an optimised travel route through a list of Points of Interest (POIs). "
-            "When the user talks about their travel style or preferences, this agent automatically loads "
-            "their saved persona weights from the backend to personalise the route. "
-            "Use persona_id to select a specific saved persona, or omit it to use the user's default one."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "POI_data": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Ordered list of POI names to visit."
-                },
-                "persona_id": {
-                    "type": "string",
-                    "description": (
-                        "Optional. ID of a specific saved travel persona to use for weighting this route. "
-                        "If omitted, the user's default persona is used automatically."
-                    )
-                }
-            },
-            "required": ["POI_data"]
-        }
-    }
-
-    def __call__(self, POI_data: list, persona_id: str = None, user_id: str = None):
-        """
-        Generates a personalised route using the user's saved persona weights.
-        user_id is NOT in the tool schema — it is injected at runtime by server.py.
-        """
-        print(f"[SYSTEM] Route_search_agent: user_id={user_id} | persona_id={persona_id}")
-
-        persona_summary = None
-
-        if user_id:
-            personas = _fetch_personas(user_id)
-            if personas:
-                selected = None
-                if persona_id:
-                    selected = next((p for p in personas if p.get("id") == persona_id), None)
-                if selected is None:
-                    selected = next((p for p in personas if p.get("isDefault")), None)
-                if selected is None:
-                    selected = personas[0]  # any available persona
-                if selected:
-                    persona_summary = _describe_persona(selected)
-                    print(f"[SYSTEM] Route using persona: {selected.get('name')}")
-
-        poi_list = ", ".join(POI_data)
-
-        if persona_summary:
-            return (
-                f"Optimised route generated through: {poi_list}.\n\n"
-                f"Route personalised based on your travel persona:\n{persona_summary}"
-            )
-        return (
-            f"Optimised route generated through: {poi_list}. "
-            "(No saved persona found — using balanced default weights.)"
-        )
-
-
 class POI_suggest_agent(BaseAgent):
     tool_template = {
         "name": "suggest_poi",
@@ -659,7 +590,11 @@ class RouteGenerationFormatAgent(BaseAgent):
             "to a real place ID from the local database, and returns a strict JSON payload "
             "formatted for the Route Generation Algorithm. Use this when the user wants to plan "
             "a route or trip and provides details such as start/end points, desired stops, "
-            "meal preferences, or lodging needs.\n\n"
+            "meal preferences, or lodging needs.\n"
+            "IMPORTANT: After receiving the result from this tool, you MUST narrate the generated itinerary "
+            "back to the user in a rich, descriptive, and engaging way. Fully utilize the detailed location "
+            "metadata (place types, ratings, review counts, price levels, and explicit addresses) provided "
+            "in the tool's output to make the summary informative and appealing.\n\n"
             "CRITICAL RULES:\n"
             "1. named_locations: List EVERY specific place name the user mentions by full exact name "
             "   (e.g. 'Şimşek Aspava', 'Anıtkabir'). Never omit a named place from this list.\n"
@@ -669,7 +604,11 @@ class RouteGenerationFormatAgent(BaseAgent):
             "3. poi_slots: For each named place (type=PLACE), use the exact full name as given by the user. "
             "   Do NOT shorten or genericise the name (e.g. use 'Şimşek Aspava', NOT just 'Aspava').\n"
             "4. If the user starts at a specific named place, include it as the FIRST poi_slot with type=PLACE "
-            "   AND also set it as start_location."
+            "   AND also set it as start_location.\n"
+            "5. HOTEL restriction: NEVER include 'HOTEL' as a poi_slot (with type=TYPE or PLACE), as hotels "
+            "   cannot be used as interior route points. To include a hotel in the itinerary, you MUST either "
+            "   set 'stay_at_hotel' to true, or use 'start_location' / 'end_location' with 'HOTEL' if the user "
+            "   explicitly starts or ends at a hotel."
         ),
         "parameters": {
             "type": "object",
@@ -715,8 +654,8 @@ class RouteGenerationFormatAgent(BaseAgent):
                             },
                             "poiType": {
                                 "type": "string",
-                                "enum": ["KAFE", "RESTAURANT", "HOTEL", "PARK", "HISTORIC_PLACE", "LANDMARK", "BAR"],
-                                "description": "POI category (required when type == 'TYPE')."
+                                "enum": ["KAFE", "RESTAURANT", "PARK", "HISTORIC_PLACE", "LANDMARK", "BAR"],
+                                "description": "POI category (required when type == 'TYPE'). DO NOT use 'HOTEL' here; set stay_at_hotel = true or use start/end_location."
                             },
                             "filters": {
                                 "type": "object",
@@ -1079,5 +1018,121 @@ class RouteGenerationFormatAgent(BaseAgent):
         if warnings:
             payload["warnings"] = warnings
 
-        return json.dumps(payload, ensure_ascii=False, indent=2)
+        #return json.dumps(payload, ensure_ascii=False, indent=2)
+        print(f"[SYSTEM] RouteGenerationFormatAgent: POSTing payload to {BACKEND_URL}/api/routes/generate")
+        print(f"[SYSTEM] Payload: {json.dumps(payload, ensure_ascii=False)}")
 
+        # ── 8. POST to backend ────────────────────────────────────────────────
+        try:
+            resp = requests.post(
+                f"{BACKEND_URL}/api/routes/generate",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=30,
+            )
+        except requests.exceptions.ConnectionError:
+            err = (
+                "I'm currently unable to reach the route generation backend. "
+                "Please ensure the backend server is running and try again."
+            )
+            print(f"[ERROR] RouteGenerationFormatAgent: connection error — {err}")
+            return err
+        except Exception as e:
+            err = f"An unexpected error occurred while calling the route generation service: {str(e)}"
+            print(f"[ERROR] RouteGenerationFormatAgent: {err}")
+            return err
+
+        if resp.status_code != 200:
+            err = (
+                f"The route generation backend returned an error "
+                f"(HTTP {resp.status_code}): {resp.text[:300]}"
+            )
+            print(f"[WARN] RouteGenerationFormatAgent: {err}")
+            return err
+
+        try:
+            routes: list = resp.json()
+        except Exception as e:
+            err = f"Could not parse route generation response as JSON: {str(e)}"
+            print(f"[ERROR] RouteGenerationFormatAgent: {err}")
+            return err
+
+        if not routes:
+            return (
+                "The route generation service returned no routes. "
+                "This may be due to insufficient places in the database for the given constraints."
+            )
+
+        # ── 9. Format human-readable summary for the LLM ─────────────────────
+        def _fmt_duration(total_sec: int) -> str:
+            h, m = divmod(int(total_sec) // 60, 60)
+            if h and m:
+                return f"{h}h {m}min"
+            if h:
+                return f"{h}h"
+            return f"{m}min"
+
+        def _fmt_distance(metres: float) -> str:
+            km = metres / 1000.0
+            return f"{km:.1f} km"
+
+        lines = [f"Generated {len(routes)} route alternative{'s' if len(routes) != 1 else ''}:\n"]
+
+        for i, route in enumerate(routes, start=1):
+            route_id     = route.get("routeId", "N/A")
+            travel_mode  = route.get("travelMode", "N/A")
+            duration_str = _fmt_duration(route.get("totalDurationSec", 0))
+            distance_str = _fmt_distance(route.get("totalDistanceM", 0))
+            feasible     = "Yes" if route.get("feasible", False) else "No"
+
+            lines.append(
+                f"Route {i} (ID: {route_id}) — {travel_mode}, "
+                f"{duration_str}, {distance_str}, Feasible: {feasible}"
+            )
+
+            points = route.get("points") or []
+            for pt in points:
+                # Basic point info
+                stop_idx   = pt.get("index", 0)
+                visit_min  = pt.get("plannedVisitMin", 0)
+                is_anchor  = pt.get("fixedAnchor", False)
+                anchor_tag = " [anchor]" if is_anchor else ""
+
+                # Full location details
+                poi_name   = pt.get("poiName") or "Unknown"
+                types      = pt.get("types") or "N/A"
+                address    = pt.get("formattedAddress") or "N/A"
+                lat        = pt.get("latitude")
+                lng        = pt.get("longitude")
+                rating     = pt.get("ratingScore")
+                r_count    = pt.get("ratingCount")
+                price      = pt.get("priceLevel")
+
+                coords = f"({lat:.4f}°N, {lng:.4f}°E)" if lat is not None and lng is not None else "N/A"
+
+                if rating is not None and r_count is not None:
+                    rating_str = f"{rating} ⭐ ({r_count:,} reviews)"
+                elif rating is not None:
+                    rating_str = f"{rating} ⭐"
+                else:
+                    rating_str = "N/A"
+
+                price_str  = _PRICE_LEVEL_LABELS.get(price, price) if price else "N/A"
+
+                lines.append(
+                    f"  Stop {stop_idx + 1}: {poi_name}{anchor_tag} ({visit_min} min planned visit)\n"
+                    f"    - Type: {types}\n"
+                    f"    - Address: {address}\n"
+                    f"    - Coordinates: {coords}\n"
+                    f"    - Rating: {rating_str}\n"
+                    f"    - Price level: {price_str}"
+                )
+
+            lines.append("")  # blank line between routes
+
+        if warnings:
+            lines.append("⚠️  Resolution warnings:")
+            for w in warnings:
+                lines.append(f"  • {w}")
+
+        return "\n".join(lines)

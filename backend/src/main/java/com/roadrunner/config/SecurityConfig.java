@@ -46,6 +46,10 @@ public class SecurityConfig {
                                                                                                                        // Flask
                                                                                                                        // LLM
                                                                                                                        // agent
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/routes/generate").permitAll() // Internal:
+                                                                                                                       // Flask
+                                                                                                                       // LLM
+                                                                                                                       // agent
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) -> response
