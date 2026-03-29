@@ -21,7 +21,6 @@ import { useMediaQuery } from '@mui/system';
 import MenuIcon from '@mui/icons-material/Menu';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import StraightenIcon from '@mui/icons-material/Straighten';
-import RouteIcon from '@mui/icons-material/Route';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -143,7 +142,6 @@ const SavedRoutesPage = () => {
                         <MenuIcon />
                     </IconButton>
                 )}
-                <RouteIcon sx={{ color: 'primary.500', fontSize: 28 }} />
                 <Box sx={{ flex: 1 }}>
                     <Typography level="h4" sx={{ fontWeight: 700 }}>
                         Saved Routes

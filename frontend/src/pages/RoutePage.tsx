@@ -108,72 +108,44 @@ function mapTypesToCategory(types: string[] | undefined): string {
     return 'Landmarks';
 }
 
-function getCategoryBadge(types: string[] | undefined): { label: string; sx: Record<string, string> } {
+function getCategoryBadge(types: string[] | undefined): { label: string; color: 'primary' | 'danger' | 'success' | 'warning' | 'neutral' } {
     const category = mapTypesToCategory(types);
 
     switch (category) {
         case 'Cafes & Desserts':
             return {
                 label: 'Cafe',
-                sx: {
-                    bgcolor: 'rgba(245, 158, 11, 0.14)',
-                    color: '#FCD34D',
-                    borderColor: 'rgba(245, 158, 11, 0.28)',
-                },
+                color: 'warning',
             };
         case 'Restaurants':
             return {
                 label: 'Restaurant',
-                sx: {
-                    bgcolor: 'rgba(34, 197, 94, 0.14)',
-                    color: '#86EFAC',
-                    borderColor: 'rgba(34, 197, 94, 0.28)',
-                },
+                color: 'danger',
             };
         case 'Parks':
             return {
                 label: 'Park',
-                sx: {
-                    bgcolor: 'rgba(16, 185, 129, 0.14)',
-                    color: '#6EE7B7',
-                    borderColor: 'rgba(16, 185, 129, 0.28)',
-                },
+                color: 'success',
             };
         case 'Historic Places':
             return {
                 label: 'Historic',
-                sx: {
-                    bgcolor: 'rgba(251, 113, 133, 0.14)',
-                    color: '#FDA4AF',
-                    borderColor: 'rgba(251, 113, 133, 0.28)',
-                },
+                color: 'neutral',
             };
         case 'Bars & Nightclubs':
             return {
                 label: 'Nightlife',
-                sx: {
-                    bgcolor: 'rgba(192, 132, 252, 0.16)',
-                    color: '#E9D5FF',
-                    borderColor: 'rgba(192, 132, 252, 0.3)',
-                },
+                color: 'neutral',
             };
         case 'Hotels':
             return {
                 label: 'Hotel',
-                sx: {
-                    bgcolor: 'rgba(148, 163, 184, 0.16)',
-                    color: '#E2E8F0',
-                    borderColor: 'rgba(148, 163, 184, 0.3)',
-                },
+                color: 'neutral',
             };
         default:
             return {
                 label: 'Landmark',
-                sx: {
-                    bgcolor: 'rgba(96, 165, 250, 0.14)',
-                    color: '#BFDBFE',
-                    borderColor: 'rgba(96, 165, 250, 0.28)',
-                },
+                color: 'primary',
             };
     }
 }
@@ -350,12 +322,12 @@ const RouteCard = ({ route, index, onApprove, isApproving, isApproved }: RouteCa
                                 <Chip
                                     size="sm"
                                     variant="soft"
+                                    color={categoryBadge.color}
                                     sx={{
                                         mt: 0.75,
                                         mb: point.formattedAddress ? 0.75 : 0,
                                         fontWeight: 700,
                                         lineHeight: 1.1,
-                                        ...categoryBadge.sx,
                                     }}
                                 >
                                     {categoryBadge.label}
@@ -937,7 +909,6 @@ const RoutePage = () => {
                     </IconButton>
                 )}
 
-                <RouteIcon sx={{ color: 'primary.500', fontSize: 28 }} />
                 <Typography level="h4" sx={{ fontWeight: 700, flex: 1 }}>
                     Route Generation
                 </Typography>

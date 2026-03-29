@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { CssVarsProvider } from '@mui/joy/styles';
 import CssBaseline from '@mui/joy/CssBaseline';
+import { Box, CircularProgress } from '@mui/joy';
 import { GoogleReCaptchaProvider } from 'react-google-recaptcha-v3';
 import { Provider } from 'react-redux';
 import { store } from './store';
@@ -34,9 +35,12 @@ const ChatRedirect = () => {
 function AppInner() {
   const dispatch = useAppDispatch();
   const { isAuthenticated } = useAppSelector((state) => state.auth);
+  const [isRestoring, setIsRestoring] = useState(true);
 
   useEffect(() => {
-    dispatch(restoreSession());
+    dispatch(restoreSession()).finally(() => {
+      setIsRestoring(false);
+    });
   }, [dispatch]);
 
   // Fetch data when authenticated (after login or session restore)
@@ -46,6 +50,17 @@ function AppInner() {
       dispatch(fetchSavedFromBackend());
     }
   }, [isAuthenticated, dispatch]);
+
+  if (isRestoring) {
+    return (
+      <CssVarsProvider theme={theme} defaultMode="system">
+        <CssBaseline />
+        <Box sx={{ display: 'flex', height: '100vh', width: '100vw', justifyContent: 'center', alignItems: 'center' }}>
+          <CircularProgress />
+        </Box>
+      </CssVarsProvider>
+    );
+  }
 
   return (
     <CssVarsProvider theme={theme} defaultMode="system">

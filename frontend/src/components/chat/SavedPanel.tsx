@@ -5,6 +5,7 @@ import {
     CardContent,
     CardCover,
     IconButton,
+    Button,
 } from '@mui/joy';
 import StarIcon from '@mui/icons-material/Star';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
@@ -12,7 +13,7 @@ import PlaceIcon from '@mui/icons-material/Place';
 import MenuIcon from '@mui/icons-material/Menu';
 import BookmarkRemoveIcon from '@mui/icons-material/BookmarkRemove';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { toggleSaveDestination, syncToggleToBackend } from '../../store/savedSlice';
+import { toggleSaveDestination, syncToggleToBackend, clearSaved } from '../../store/savedSlice';
 import { toggleSidebar } from '../../store/chatSlice';
 import type { MapDestination } from '../../data/destinations';
 
@@ -38,6 +39,13 @@ const SavedPanel = ({
         dispatch(syncToggleToBackend(destination));
     };
 
+    const handleClearAll = () => {
+        if (window.confirm('Are you sure you want to clear all saved places?')) {
+            dispatch(clearSaved());
+            dispatch(syncToggleToBackend(null as any));
+        }
+    };
+
     const handleMenuClick = () => {
         if (onMenuClick) {
             onMenuClick();
@@ -58,15 +66,27 @@ const SavedPanel = ({
         >
             {/* Header */}
             <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                    {showMenuButton && (
-                        <IconButton variant="plain" size="sm" onClick={handleMenuClick}>
-                            <MenuIcon />
-                        </IconButton>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        {showMenuButton && (
+                            <IconButton variant="plain" size="sm" onClick={handleMenuClick}>
+                                <MenuIcon />
+                            </IconButton>
+                        )}
+                        <Typography level="h4" sx={{ fontWeight: 600 }}>
+                            Saved Places
+                        </Typography>
+                    </Box>
+                    {savedDestinations.length > 0 && (
+                        <Button
+                            variant="plain"
+                            color="danger"
+                            size="sm"
+                            onClick={handleClearAll}
+                        >
+                            Clear All
+                        </Button>
                     )}
-                    <Typography level="h4" sx={{ fontWeight: 600 }}>
-                        Saved Places
-                    </Typography>
                 </Box>
                 <Typography level="body-sm" sx={{ color: 'text.secondary' }}>
                     {savedDestinations.length} {savedDestinations.length === 1 ? 'place' : 'places'} saved
@@ -132,6 +152,9 @@ const SavedPanel = ({
                                         alt={destination.name}
                                         loading="lazy"
                                         style={{ objectFit: 'cover' }}
+                                        onError={(e) => {
+                                            e.currentTarget.style.display = 'none';
+                                        }}
                                     />
                                 </CardCover>
                                 {/* Darker gradient overlay for better text readability */}

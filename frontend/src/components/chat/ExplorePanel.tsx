@@ -20,6 +20,7 @@ import { categories, type MapDestination } from '../../data/destinations';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { toggleSaveDestination, syncToggleToBackend } from '../../store/savedSlice';
 import { toggleSidebar } from '../../store/chatSlice';
+import { normalizeForSearch } from '../../utils/stringUtils';
 
 interface ExplorePanelProps {
     onDestinationSelect?: (destination: MapDestination) => void;
@@ -45,9 +46,10 @@ const ExplorePanel = ({
     const itemsPerPage = 20;
 
     const filteredDestinations = useMemo(() => {
+        const normalizedQuery = normalizeForSearch(searchQuery);
         return destinations.filter((dest) => {
-            const nameMatch = (dest.name || '').toLowerCase().includes(searchQuery.toLowerCase());
-            const locMatch = (dest.location || '').toLowerCase().includes(searchQuery.toLowerCase());
+            const nameMatch = normalizeForSearch(dest.name || '').includes(normalizedQuery);
+            const locMatch = normalizeForSearch(dest.location || '').includes(normalizedQuery);
             const matchesSearch = nameMatch || locMatch;
             const matchesCategory = selectedCategory === 'All' || dest.category === selectedCategory;
             return matchesSearch && matchesCategory;
@@ -169,6 +171,9 @@ const ExplorePanel = ({
                                         alt={destination.name}
                                         loading="lazy"
                                         style={{ objectFit: 'cover' }}
+                                        onError={(e) => {
+                                            e.currentTarget.style.display = 'none';
+                                        }}
                                     />
                                 </CardCover>
                                 {/* Darker gradient overlay for better text readability */}

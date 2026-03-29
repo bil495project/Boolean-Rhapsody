@@ -237,7 +237,7 @@ public class SeparatedPlaceDataLoader implements ApplicationRunner {
     private Integer parseInt(String s) {
         if (s == null || s.isBlank()) return null;
         try {
-            return Integer.parseInt(s.strip());
+            return (int) Double.parseDouble(s.strip());
         } catch (NumberFormatException e) {
             return null;
         }

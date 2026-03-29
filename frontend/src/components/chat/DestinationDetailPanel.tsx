@@ -136,6 +136,9 @@ const DestinationDetailPanel = ({ destination, onClose }: DestinationDetailPanel
                         alt={destination.name}
                         loading="lazy"
                         style={{ objectFit: 'cover' }}
+                        onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                        }}
                     />
                 </AspectRatio>
 
