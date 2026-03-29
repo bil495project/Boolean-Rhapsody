@@ -36,7 +36,7 @@ TOOL_REGISTRY = {
 USER_ID_AWARE_TOOLS = {"get_user_personas", "generate_route_format"}
 
 # Tools whose output is returned verbatim to the frontend — NO second LLM call.
-RAW_OUTPUT_TOOLS = set()
+RAW_OUTPUT_TOOLS = {"generate_route_format"} #set()
 
 MAX_HISTORY = 10
 

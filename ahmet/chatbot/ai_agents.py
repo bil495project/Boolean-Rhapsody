@@ -1076,7 +1076,7 @@ class RouteGenerationFormatAgent(BaseAgent):
             km = metres / 1000.0
             return f"{km:.1f} km"
 
-        lines = [f"Generated {len(routes)} route alternative{'s' if len(routes) != 1 else ''}:\n"]
+        lines = [f"### Generated {len(routes)} Route Alternative{'s' if len(routes) != 1 else ''}\n"]
 
         for i, route in enumerate(routes, start=1):
             route_id     = route.get("routeId", "N/A")
@@ -1085,10 +1085,11 @@ class RouteGenerationFormatAgent(BaseAgent):
             distance_str = _fmt_distance(route.get("totalDistanceM", 0))
             feasible     = "Yes" if route.get("feasible", False) else "No"
 
-            lines.append(
-                f"Route {i} (ID: {route_id}) — {travel_mode}, "
-                f"{duration_str}, {distance_str}, Feasible: {feasible}"
-            )
+            lines.append(f"#### Route {i} (ID: {route_id})")
+            lines.append(f"**Travel Mode:** {travel_mode} | **Duration:** {duration_str} | **Distance:** {distance_str} | **Feasible:** {feasible}\n")
+
+            lines.append("| Stop | POI Name | Visit Time | Type | Rating | Price Level | Address | Coordinates |")
+            lines.append("|---|---|---|---|---|---|---|---|")
 
             points = route.get("points") or []
             for pt in points:
@@ -1096,12 +1097,12 @@ class RouteGenerationFormatAgent(BaseAgent):
                 stop_idx   = pt.get("index", 0)
                 visit_min  = pt.get("plannedVisitMin", 0)
                 is_anchor  = pt.get("fixedAnchor", False)
-                anchor_tag = " [anchor]" if is_anchor else ""
+                anchor_tag = " *(anchor)*" if is_anchor else ""
 
                 # Full location details
-                poi_name   = pt.get("poiName") or "Unknown"
-                types      = pt.get("types") or "N/A"
-                address    = pt.get("formattedAddress") or "N/A"
+                poi_name   = str(pt.get("poiName") or "Unknown").replace("|", "-")
+                types      = str(pt.get("types") or "N/A").replace("|", "-")
+                address    = str(pt.get("formattedAddress") or "N/A").replace("|", "-")
                 lat        = pt.get("latitude")
                 lng        = pt.get("longitude")
                 rating     = pt.get("ratingScore")
@@ -1117,15 +1118,10 @@ class RouteGenerationFormatAgent(BaseAgent):
                 else:
                     rating_str = "N/A"
 
-                price_str  = _PRICE_LEVEL_LABELS.get(price, price) if price else "N/A"
+                price_str  = str(_PRICE_LEVEL_LABELS.get(price, price) if price else "N/A").replace("|", "-")
 
                 lines.append(
-                    f"  Stop {stop_idx + 1}: {poi_name}{anchor_tag} ({visit_min} min planned visit)\n"
-                    f"    - Type: {types}\n"
-                    f"    - Address: {address}\n"
-                    f"    - Coordinates: {coords}\n"
-                    f"    - Rating: {rating_str}\n"
-                    f"    - Price level: {price_str}"
+                    f"| {stop_idx + 1} | **{poi_name}**{anchor_tag} | {visit_min} min | {types} | {rating_str} | {price_str} | {address} | {coords} |"
                 )
 
             lines.append("")  # blank line between routes
