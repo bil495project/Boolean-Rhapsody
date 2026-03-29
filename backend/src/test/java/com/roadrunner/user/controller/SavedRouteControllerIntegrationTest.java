@@ -289,6 +289,7 @@ class SavedRouteControllerIntegrationTest {
         generateRequest.setConstraints(new RouteConstraintsRequest(
                 true, true, false, true,
                 null, null, null, null,
+                null, null,
                 new RouteAnchorRequest("PLACE", "poi-anchor", null, null),
                 new RouteAnchorRequest("TYPE", null, "HOTEL", null),
                 List.of(),

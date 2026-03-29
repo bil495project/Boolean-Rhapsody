@@ -184,6 +184,42 @@ class ChatServiceTest {
     }
 
     @Test
+    @DisplayName("TC-US-022b: Chat mesajları timestamp'e göre artan sırada dönüyor mu")
+    void shouldReturnMessagesOrderedByTimestampAsc_whenChatMessagesAreUnordered() {
+        // given
+        User user = buildTestUser();
+        Chat chat = buildTestChat(user);
+
+        Message newerMessage = Message.builder()
+                .id("msg-2")
+                .role("assistant")
+                .content("Second")
+                .timestamp(2000L)
+                .chat(chat)
+                .build();
+
+        Message olderMessage = Message.builder()
+                .id("msg-1")
+                .role("user")
+                .content("First")
+                .timestamp(1000L)
+                .chat(chat)
+                .build();
+
+        chat.setMessages(List.of(newerMessage, olderMessage));
+
+        when(chatRepository.findById(TEST_CHAT_ID)).thenReturn(Optional.of(chat));
+
+        // when
+        ChatResponse response = chatService.getChatById(TEST_USER_ID, TEST_CHAT_ID);
+
+        // then
+        assertThat(response.getMessages()).hasSize(2);
+        assertThat(response.getMessages().get(0).getContent()).isEqualTo("First");
+        assertThat(response.getMessages().get(1).getContent()).isEqualTo("Second");
+    }
+
+    @Test
     @DisplayName("TC-US-ChatGet: Başkasına ait chat istenince 403 Forbidden döner")
     void shouldThrowForbidden_whenChatBelongsToDifferentUser() {
         // given

@@ -161,19 +161,26 @@ const SavedPanel = ({
                                 <CardCover
                                     sx={{
                                         background:
-                                            'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)',
+                                            'linear-gradient(to top, rgba(3,10,18,0.98) 0%, rgba(6,16,28,0.88) 36%, rgba(7,18,31,0.58) 62%, rgba(7,18,31,0.22) 82%, rgba(7,18,31,0.08) 100%)',
                                     }}
                                 />
-                                <CardContent sx={{ justifyContent: 'flex-end', minHeight: 160, p: 1.5 }}>
+                                <CardContent
+                                    sx={{
+                                        justifyContent: 'flex-end',
+                                        minHeight: 160,
+                                        p: 1.5,
+                                        background: 'linear-gradient(to top, rgba(5,12,22,0.32) 0%, rgba(5,12,22,0.12) 55%, transparent 100%)',
+                                    }}
+                                >
                                     <Typography
                                         level="title-md"
-                                        sx={{ color: '#fff', fontWeight: 600, mb: 0.25, textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}
+                                        sx={{ color: '#fff', fontWeight: 700, mb: 0.25, textShadow: '0 2px 6px rgba(0,0,0,0.85)' }}
                                     >
                                         {destination.name}
                                     </Typography>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                                        <PlaceIcon sx={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }} />
-                                        <Typography level="body-xs" sx={{ color: 'rgba(255,255,255,0.85)' }}>
+                                        <PlaceIcon sx={{ fontSize: 12, color: 'rgba(255,255,255,0.92)' }} />
+                                        <Typography level="body-xs" sx={{ color: 'rgba(255,255,255,0.92)', textShadow: '0 1px 4px rgba(0,0,0,0.75)' }}>
                                             {destination.location}
                                         </Typography>
                                     </Box>
@@ -181,11 +188,11 @@ const SavedPanel = ({
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
                                                 <StarIcon sx={{ fontSize: 14, color: '#FFD700' }} />
-                                                <Typography level="body-xs" sx={{ color: '#fff', fontWeight: 500 }}>
+                                                <Typography level="body-xs" sx={{ color: '#fff', fontWeight: 600, textShadow: '0 1px 4px rgba(0,0,0,0.75)' }}>
                                                     {destination.rating}
                                                 </Typography>
                                             </Box>
-                                            <Typography level="body-xs" sx={{ color: 'rgba(255,255,255,0.85)' }}>
+                                            <Typography level="body-xs" sx={{ color: 'rgba(255,255,255,0.92)', textShadow: '0 1px 4px rgba(0,0,0,0.75)' }}>
                                                 {'$'.repeat(destination.priceLevel)}
                                             </Typography>
                                         </Box>

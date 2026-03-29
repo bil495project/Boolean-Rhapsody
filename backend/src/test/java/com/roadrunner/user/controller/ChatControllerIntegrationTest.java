@@ -221,6 +221,21 @@ class ChatControllerIntegrationTest {
         }
 
         @Test
+        @DisplayName("TC-USI-032b: Chat mesajları timestamp'e göre artan sırada dönüyor mu")
+        void shouldReturnMessagesOrderedByTimestampAsc_whenMessagesExistOutOfOrder() throws Exception {
+                // given
+                Chat chat = createChatForUser(testUser, "Trip");
+                addMessageToChat(chat, "assistant", "Second", 2000L);
+                addMessageToChat(chat, "user", "First", 1000L);
+
+                // when / then
+                mockMvc.perform(withAuth(get("/api/chats/" + chat.getId()), testToken))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.messages[0].content").value("First"))
+                                .andExpect(jsonPath("$.messages[1].content").value("Second"));
+        }
+
+        @Test
         @DisplayName("TC-USI-031b: Başkasının chatine erişim 403 dönüyor mu")
         void shouldReturn403_whenChatBelongsToAnotherUser() throws Exception {
                 // given
@@ -454,6 +469,17 @@ class ChatControllerIntegrationTest {
                 Message message = Message.builder()
                                 .role(role)
                                 .content(content)
+                                .chat(chat)
+                                .build();
+                message = messageRepository.save(message);
+                chat.getMessages().add(message);
+        }
+
+        private void addMessageToChat(Chat chat, String role, String content, long timestamp) {
+                Message message = Message.builder()
+                                .role(role)
+                                .content(content)
+                                .timestamp(timestamp)
                                 .chat(chat)
                                 .build();
                 message = messageRepository.save(message);

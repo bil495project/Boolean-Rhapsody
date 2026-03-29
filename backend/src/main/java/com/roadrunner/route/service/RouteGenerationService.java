@@ -224,31 +224,39 @@ public class RouteGenerationService {
         if (index < 0 || index >= points.size()) {
             return route;
         }
-        if (!isMutableInteriorPoint(route, index)) {
+        if (!isMutablePoint(route, index)) {
             return route;
         }
 
         ParsedWeightRequest req = parseUserVector(originalUserVector);
         Place currentPoi = points.get(index).getPoi();
         RouteLabel slotLabel = currentPoi != null ? labelService.label(currentPoi) : RouteLabel.UNKNOWN;
+        String currentPoiId = currentPoi != null ? currentPoi.getId() : null;
 
         Set<String> usedIds = collectUsedIds(route);
-        if (currentPoi != null && currentPoi.getId() != null) {
-            usedIds.remove(currentPoi.getId());
+        if (currentPoiId != null) {
+            usedIds.remove(currentPoiId);
         }
 
-        Optional<Place> replacement = pickBestCandidate(
-                scoring.buildCandidatePool(placeRepository.findAll(), MIN_RATING_COUNT),
-                slotLabel,
-                usedIds,
-                req,
-                effectiveReferenceLat(route),
-                effectiveReferenceLng(route),
-                new Random(Objects.hash(route.getRouteId(), index, req.requestId(), "reroll")),
-                variantFor(1),
-                List.of(),
-                null,
-                Set.of());
+        List<Place> pool = scoring.buildCandidatePool(placeRepository.findAll(), MIN_RATING_COUNT);
+        Random rerollRandom = new Random(Objects.hash(route.getRouteId(), index, req.requestId(), "reroll"));
+        RouteVariantProfile rerollVariant = variantFor(1);
+        Set<String> extraExcluded = currentPoiId != null ? Set.of(currentPoiId) : Set.of();
+
+        Optional<Place> replacement = slotLabel == RouteLabel.HOTEL
+                ? pickAlternativeHotel(pool, usedIds, req, rerollRandom, rerollVariant, extraExcluded)
+                : pickBestCandidate(
+                        pool,
+                        slotLabel,
+                        usedIds,
+                        req,
+                        effectiveReferenceLat(route),
+                        effectiveReferenceLng(route),
+                        rerollRandom,
+                        rerollVariant,
+                        List.of(),
+                        null,
+                        extraExcluded);
 
         if (replacement.isEmpty()) {
             return route;
@@ -259,6 +267,43 @@ public class RouteGenerationService {
         point.setPlannedVisitMin(scoring.estimateVisitMinutes(replacement.get()));
         finalizeRoute(route);
         return route;
+    }
+
+    private Optional<Place> pickAlternativeHotel(List<Place> pool,
+                                                 Set<String> usedIds,
+                                                 ParsedWeightRequest req,
+                                                 Random rnd,
+                                                 RouteVariantProfile variant,
+                                                 Set<String> extraExcluded) {
+        List<Place> hotels = new ArrayList<>();
+        for (Place place : pool) {
+            if (usedIds.contains(place.getId()) || extraExcluded.contains(place.getId())) {
+                continue;
+            }
+            if (labelService.label(place) == RouteLabel.HOTEL) {
+                hotels.add(place);
+            }
+        }
+
+        if (hotels.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Map<String, Double> scores = new HashMap<>();
+        for (Place hotel : hotels) {
+            double baseScore = scoring.scoreHotelCandidate(
+                    hotel, req.hotelCenterBias(), KIZILAY_LAT, KIZILAY_LNG);
+            double noise = deterministicNoise(hotel.getId(), req.requestId(), variant.routeIndex()) * 0.05;
+            scores.put(hotel.getId(), baseScore + noise);
+        }
+
+        List<Place> ranked = new ArrayList<>(hotels);
+        ranked.sort(Comparator.comparingDouble((Place hotel) -> scores.getOrDefault(hotel.getId(), 0.0))
+                .reversed());
+
+        int bandSize = hotelCandidateBandSize(ranked.size(), variant);
+        int selectedIndex = deterministicIndex(bandSize, req.requestId(), variant.routeIndex(), 73, rnd);
+        return Optional.of(ranked.get(selectedIndex));
     }
 
     public Route insertManualPOI(Route route, int index, String poiId,
@@ -272,15 +317,11 @@ public class RouteGenerationService {
         if (labelService.label(place) == RouteLabel.HOTEL) {
             return route;
         }
-        if (collectAllNonBoundaryIds(route).contains(place.getId())) {
+        if (collectUsedIds(route).contains(place.getId())) {
             return route;
         }
 
-        int lowerBound = hasFixedStart(route) ? 1 : 0;
-        int upperBound = hasFixedEnd(route)
-                ? route.getPoints().size() - 1
-                : route.getPoints().size();
-        int idx = Math.max(lowerBound, Math.min(index, upperBound));
+        int idx = Math.max(0, Math.min(index, route.getPoints().size()));
 
         route.getPoints().add(idx, freePoint(place));
         reindexPoints(route);
@@ -290,7 +331,7 @@ public class RouteGenerationService {
 
     public Route removePoint(Route route, int index,
                              Map<String, String> originalUserVector) {
-        if (!isMutableInteriorPoint(route, index)) {
+        if (!isMutablePoint(route, index)) {
             return route;
         }
         route.getPoints().remove(index);
@@ -306,54 +347,39 @@ public class RouteGenerationService {
             return route;
         }
 
-        int startIdx = hasFixedStart(route) ? 1 : 0;
-        int endExclusive = hasFixedEnd(route) ? points.size() - 1 : points.size();
-        if (startIdx >= endExclusive) {
-            return route;
-        }
-
-        List<RoutePoint> interior = new ArrayList<>(points.subList(startIdx, endExclusive));
-        List<Integer> mutableInteriorIndices = new ArrayList<>();
-        for (int i = 0; i < interior.size(); i++) {
-            if (!interior.get(i).isProtectedPoint()) {
-                mutableInteriorIndices.add(i);
+        List<Integer> movablePointIndices = new ArrayList<>();
+        for (int i = 0; i < points.size(); i++) {
+            if (points.get(i).getPoi() != null) {
+                movablePointIndices.add(i);
             }
         }
-        if (mutableInteriorIndices.size() <= 1) {
+
+        if (movablePointIndices.size() <= 1) {
             return route;
         }
 
-        List<Integer> normalizedOrder = normalizeInteriorOrder(newInteriorOrder, mutableInteriorIndices.size());
-        if (normalizedOrder.size() != mutableInteriorIndices.size()) {
+        List<Integer> normalizedOrder = normalizeInteriorOrder(newInteriorOrder, movablePointIndices.size());
+        if (normalizedOrder.size() != movablePointIndices.size()) {
             return route;
         }
 
-        List<RoutePoint> mutablePoints = new ArrayList<>();
-        for (int idx : mutableInteriorIndices) {
-            mutablePoints.add(interior.get(idx));
+        List<RoutePoint> movablePoints = new ArrayList<>();
+        for (int idx : movablePointIndices) {
+            movablePoints.add(points.get(idx));
         }
 
-        List<RoutePoint> reorderedMutable = new ArrayList<>();
+        List<RoutePoint> reorderedMovable = new ArrayList<>();
         Set<Integer> seen = new HashSet<>();
         for (int idx : normalizedOrder) {
-            if (idx < 0 || idx >= mutablePoints.size() || !seen.add(idx)) {
+            if (idx < 0 || idx >= movablePoints.size() || !seen.add(idx)) {
                 return route;
             }
-            reorderedMutable.add(mutablePoints.get(idx));
+            reorderedMovable.add(movablePoints.get(idx));
         }
 
-        List<RoutePoint> reorderedInterior = new ArrayList<>(interior);
-        for (int i = 0; i < mutableInteriorIndices.size(); i++) {
-            reorderedInterior.set(mutableInteriorIndices.get(i), reorderedMutable.get(i));
-        }
-
-        List<RoutePoint> rebuilt = new ArrayList<>();
-        if (hasFixedStart(route)) {
-            rebuilt.add(points.get(0));
-        }
-        rebuilt.addAll(reorderedInterior);
-        if (hasFixedEnd(route)) {
-            rebuilt.add(points.get(points.size() - 1));
+        List<RoutePoint> rebuilt = new ArrayList<>(points);
+        for (int i = 0; i < movablePointIndices.size(); i++) {
+            rebuilt.set(movablePointIndices.get(i), reorderedMovable.get(i));
         }
 
         route.setPoints(rebuilt);
@@ -1185,17 +1211,11 @@ public class RouteGenerationService {
                 && route.getPoints().get(route.getPoints().size() - 1).isFixedAnchor();
     }
 
-    private boolean isMutableInteriorPoint(Route route, int index) {
+    private boolean isMutablePoint(Route route, int index) {
         if (index < 0 || index >= route.getPoints().size()) {
             return false;
         }
-        if (hasFixedStart(route) && index == 0) {
-            return false;
-        }
-        if (hasFixedEnd(route) && index == route.getPoints().size() - 1) {
-            return false;
-        }
-        return !route.getPoints().get(index).isProtectedPoint();
+        return route.getPoints().get(index).getPoi() != null;
     }
 
     private Set<String> collectUsedIds(Route route) {
