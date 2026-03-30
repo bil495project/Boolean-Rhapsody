@@ -18,4 +18,22 @@ public class RoutePoiSlotRequest {
     private String placeId;
     private String poiType;
     private RouteCandidateFiltersRequest filters;
+
+    public boolean isGeneratedSlotPlaceholder() {
+        return isBlank(kind)
+                && isBlank(placeId)
+                && isBlank(poiType)
+                && filters == null;
+    }
+
+    public boolean hasAnyConfiguration() {
+        return !isBlank(kind)
+                || !isBlank(placeId)
+                || !isBlank(poiType)
+                || filters != null;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
 }

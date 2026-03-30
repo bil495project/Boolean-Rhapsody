@@ -292,8 +292,7 @@ class SavedRouteControllerIntegrationTest {
                 null, null,
                 new RouteAnchorRequest("PLACE", "poi-anchor", null, null),
                 new RouteAnchorRequest("TYPE", null, "HOTEL", null),
-                List.of(),
-                3));
+                List.of()));
         generateRequest.setCenterLat(39.93);
         generateRequest.setCenterLng(32.85);
         generateRequest.setK(3);

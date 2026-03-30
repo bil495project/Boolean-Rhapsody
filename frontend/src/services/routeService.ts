@@ -90,7 +90,7 @@ export interface RouteAnchor {
 }
 
 export interface RoutePoiSlot {
-    kind: 'PLACE' | 'TYPE';
+    kind?: 'PLACE' | 'TYPE';
     placeId?: string;
     poiType?: string;
     filters?: AnchorFilter;
@@ -109,14 +109,13 @@ export interface RouteConstraints {
     endPoint?: RouteBoundarySelection | null;
     startAnchor: RouteAnchor | null;
     endAnchor: RouteAnchor | null;
-    poiSlots: RoutePoiSlot[] | null;
-    requestedVisitCount: number | null;
+    poiSlots: (RoutePoiSlot | null)[] | null;
 }
 
 export interface GenerateRoutesPayload {
-    userVector: Record<string, string>;
-    preferences: RoutePreferences;
-    constraints: RouteConstraints;
+    userVector?: Record<string, string> | null;
+    preferences?: RoutePreferences | null;
+    constraints?: RouteConstraints | null;
     centerLat?: number;
     centerLng?: number;
     k: number;

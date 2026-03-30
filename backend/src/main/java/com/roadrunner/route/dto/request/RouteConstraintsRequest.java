@@ -40,6 +40,4 @@ public class RouteConstraintsRequest {
 
     @Valid
     private List<RoutePoiSlotRequest> poiSlots;
-
-    private Integer requestedVisitCount;
 }

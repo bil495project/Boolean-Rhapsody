@@ -6,7 +6,6 @@ import {
     type RouteData,
     type RoutePreferences,
 } from '../services/routeService';
-import type { RootState } from './index';
 import {
     buildRouteUserVector,
     clamp01,
@@ -46,18 +45,11 @@ const initialState: RouteState = {
 };
 
 function buildUserVector(
-    state: RootState,
     override?: Record<string, string | number | boolean>,
 ): Record<string, string> {
-    const baseVector = override
+    return override
         ? normalizeUserVector(override)
         : buildRouteUserVector(defaultTravelProfileAnswers());
-
-    if (!baseVector.requestId) {
-        baseVector.requestId = `${state.auth.user?.id ?? 'guest'}-${Date.now()}`;
-    }
-
-    return baseVector;
 }
 
 function buildPreferences(
@@ -79,7 +71,6 @@ function buildPreferences(
 }
 
 function buildGenerateRoutesPayload(
-    state: RootState,
     params: {
         k?: number;
         centerLat?: number;
@@ -90,7 +81,7 @@ function buildGenerateRoutesPayload(
     } | undefined,
 ): GenerateRoutesPayload {
     return {
-        userVector: buildUserVector(state, params?.userVectorOverride),
+        userVector: buildUserVector(params?.userVectorOverride),
         preferences: buildPreferences(params?.preferencesOverride),
         constraints: params?.constraints ?? {
             needsBreakfast: false,
@@ -101,7 +92,6 @@ function buildGenerateRoutesPayload(
             startAnchor: null,
             endAnchor: null,
             poiSlots: null,
-            requestedVisitCount: null,
         },
         centerLat: params?.centerLat,
         centerLng: params?.centerLng,
@@ -120,11 +110,10 @@ export const generateRoutesThunk = createAsyncThunk(
             userVectorOverride?: Record<string, string | number | boolean>;
             preferencesOverride?: Partial<TravelProfileAnswers>;
         } | undefined,
-        { getState, rejectWithValue },
+        { rejectWithValue },
     ) => {
         try {
-            const state = getState() as RootState;
-            const payload = buildGenerateRoutesPayload(state, params);
+            const payload = buildGenerateRoutesPayload(params);
             const routes = await routeService.generateRoutes(payload);
             return { routes, payload };
         } catch (error: any) {

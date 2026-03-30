@@ -16,8 +16,10 @@ import com.roadrunner.route.dto.request.GenerateRoutesRequest;
 import com.roadrunner.route.dto.request.RouteAnchorRequest;
 import com.roadrunner.route.dto.request.RouteCandidateFiltersRequest;
 import com.roadrunner.route.dto.request.RouteConstraintsRequest;
+import com.roadrunner.route.dto.request.RoutePreferencesRequest;
 import com.roadrunner.route.dto.request.RoutePoiSlotRequest;
 import com.roadrunner.route.entity.Route;
+import com.roadrunner.route.entity.RoutePoint;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -160,7 +162,9 @@ class RouteGenerationServiceTest {
 
     private GenerateRoutesRequest buildConstrainedRequest() {
         GenerateRoutesRequest req = new GenerateRoutesRequest();
-        req.setUserVector(buildWeightUserVector());
+        req.setPreferences(new RoutePreferencesRequest(
+                0.6, 0.5, 0.4, 0.7, 0.8,
+                0.3, 0.4, 0.5, 0.6, 0.5));
         req.setK(1);
         req.setConstraints(new RouteConstraintsRequest());
         return req;
@@ -329,20 +333,24 @@ class RouteGenerationServiceTest {
     }
 
     @Test
-    @DisplayName("Reroll hotel anchorlari degistirmez")
-    void shouldNotChangeHotelAnchorsWhenRerolling() {
+    @DisplayName("Reroll hotel anchorlarini degistirebilir")
+    void shouldAllowRerollingHotelAnchors() {
         List<Place> places = buildTestPlaces();
         when(placeRepository.findAll()).thenReturn(places);
 
-        Route route = buildRouteFromService(places);
-        String hotelStartId = route.getPoints().get(0).getPoi().getId();
-        String hotelEndId = route.getPoints().get(route.getPoints().size() - 1).getPoi().getId();
+        Route startRoute = buildRouteFromService(places);
+        String hotelStartId = startRoute.getPoints().get(0).getPoi().getId();
+        Route afterStartReroll = routeService.rerollRoutePoint(startRoute, 0, new HashMap<>(), buildWeightUserVector());
 
-        Route afterStartReroll = routeService.rerollRoutePoint(route, 0, new HashMap<>(), buildWeightUserVector());
-        Route afterEndReroll = routeService.rerollRoutePoint(route, route.getPoints().size() - 1, new HashMap<>(), buildWeightUserVector());
+        when(placeRepository.findAll()).thenReturn(places);
+        Route endRoute = buildRouteFromService(places);
+        String hotelEndId = endRoute.getPoints().get(endRoute.getPoints().size() - 1).getPoi().getId();
+        Route afterEndReroll = routeService.rerollRoutePoint(
+                endRoute, endRoute.getPoints().size() - 1, new HashMap<>(), buildWeightUserVector());
 
-        assertThat(afterStartReroll.getPoints().get(0).getPoi().getId()).isEqualTo(hotelStartId);
-        assertThat(afterEndReroll.getPoints().get(afterEndReroll.getPoints().size() - 1).getPoi().getId()).isEqualTo(hotelEndId);
+        assertThat(afterStartReroll.getPoints().get(0).getPoi().getId()).isNotEqualTo(hotelStartId);
+        assertThat(afterEndReroll.getPoints().get(afterEndReroll.getPoints().size() - 1).getPoi().getId())
+                .isNotEqualTo(hotelEndId);
     }
 
     @Test
@@ -501,8 +509,8 @@ class RouteGenerationServiceTest {
     }
 
     @Test
-    @DisplayName("Constrained hotel loop requestedVisitCount ustune slot ve meal ekler")
-    void shouldAddHardSlotsAndMealsOnTopOfRequestedVisitCount() {
+    @DisplayName("Constrained hotel loop meal duraklarini mevcut poi slotlarina sigdirir")
+    void shouldFitMealsWithinConfiguredPoiSlots() {
         when(placeRepository.findAll()).thenReturn(buildTestPlaces());
         when(placeRepository.findById("c1")).thenReturn(
                 java.util.Optional.of(buildTestPlaces().stream()
@@ -514,26 +522,53 @@ class RouteGenerationServiceTest {
         RouteConstraintsRequest constraints = req.getConstraints();
         constraints.setStartWithHotel(true);
         constraints.setEndWithHotel(true);
-        constraints.setRequestedVisitCount(2);
         constraints.setNeedsBreakfast(true);
         constraints.setNeedsLunch(true);
         constraints.setNeedsDinner(true);
-        constraints.setPoiSlots(List.of(
-                new RoutePoiSlotRequest("PLACE", "c1", null, null),
-                new RoutePoiSlotRequest("TYPE", null, "RESTAURANT", null)));
+        List<RoutePoiSlotRequest> slots = new ArrayList<>();
+        slots.add(null);
+        slots.add(null);
+        slots.add(new RoutePoiSlotRequest("PLACE", "c1", null, null));
+        slots.add(new RoutePoiSlotRequest("TYPE", null, "RESTAURANT", null));
+        constraints.setPoiSlots(slots);
 
         ResolvedRouteGenerationRequest resolved = requestInterpreter.interpret(req);
         Route route = routeService.generateRoutes(resolved, 1).get(0);
 
         assertThat(route.getPoints().get(0).getPoi().getId())
                 .isEqualTo(route.getPoints().get(route.getPoints().size() - 1).getPoi().getId());
-        assertThat(route.getPoints()).hasSize(7);
+        assertThat(route.getPoints()).hasSize(6);
+        assertThat(route.getPoints().subList(1, route.getPoints().size() - 1)).hasSize(4);
         assertThat(route.getPoints().stream()
                 .filter(point -> point.getProtectionReason() != null && point.getProtectionReason().contains("meal:dinner"))
                 .count()).isEqualTo(1);
         assertThat(route.getPoints().stream()
                 .filter(point -> point.getProtectionReason() != null && point.getProtectionReason().contains("slot"))
                 .count()).isGreaterThanOrEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("Meal talepleri poi slot kapasitesini asarsa hata verir")
+    void shouldFailWhenMealsExceedPoiSlotCapacity() {
+        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
+
+        GenerateRoutesRequest req = buildConstrainedRequest();
+        RouteConstraintsRequest constraints = req.getConstraints();
+        constraints.setStartWithHotel(true);
+        constraints.setEndWithHotel(true);
+        constraints.setNeedsBreakfast(true);
+        constraints.setNeedsLunch(true);
+        constraints.setNeedsDinner(true);
+        List<RoutePoiSlotRequest> slots = new ArrayList<>();
+        slots.add(null);
+        slots.add(null);
+        constraints.setPoiSlots(slots);
+
+        ResolvedRouteGenerationRequest resolved = requestInterpreter.interpret(req);
+
+        assertThatThrownBy(() -> routeService.generateRoutes(resolved, 1))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("insufficient");
     }
 
     @Test
@@ -554,8 +589,8 @@ class RouteGenerationServiceTest {
     }
 
     @Test
-    @DisplayName("RequestedVisitCount hard slotlarin icinden dusulmez")
-    void shouldKeepRequestedVisitCountSeparateFromHardSlots() {
+    @DisplayName("Null poi slot sayisi generated stop sayisini belirler")
+    void shouldDeriveGeneratedStopsFromNullPoiSlots() {
         List<Place> places = buildTestPlaces();
         when(placeRepository.findAll()).thenReturn(places);
         when(placeRepository.findById("l1")).thenReturn(
@@ -568,17 +603,56 @@ class RouteGenerationServiceTest {
         RouteConstraintsRequest constraints = req.getConstraints();
         constraints.setStartWithHotel(true);
         constraints.setEndWithHotel(true);
-        constraints.setRequestedVisitCount(3);
-        constraints.setPoiSlots(List.of(
-                new RoutePoiSlotRequest("TYPE", null, "KAFE", null),
-                new RoutePoiSlotRequest("TYPE", null, "RESTAURANT", new RouteCandidateFiltersRequest(4.5, 1000)),
-                new RoutePoiSlotRequest("PLACE", "l1", null, null)));
+        List<RoutePoiSlotRequest> slots = new ArrayList<>();
+        slots.add(null);
+        slots.add(null);
+        slots.add(null);
+        slots.add(new RoutePoiSlotRequest("TYPE", null, "KAFE", null));
+        slots.add(new RoutePoiSlotRequest("TYPE", null, "RESTAURANT", new RouteCandidateFiltersRequest(4.5, 1000)));
+        slots.add(new RoutePoiSlotRequest("PLACE", "l1", null, null));
+        constraints.setPoiSlots(slots);
 
         ResolvedRouteGenerationRequest resolved = requestInterpreter.interpret(req);
         Route route = routeService.generateRoutes(resolved, 1).get(0);
 
         assertThat(route.getPoints()).hasSize(8);
         assertThat(route.getPoints().subList(1, route.getPoints().size() - 1)).hasSize(6);
+    }
+
+    @Test
+    @DisplayName("Poi slot sirasi verildigi gibi korunur")
+    void shouldPreservePoiSlotOrder() {
+        List<Place> places = buildTestPlaces();
+        when(placeRepository.findAll()).thenReturn(places);
+        when(placeRepository.findById("l1")).thenReturn(
+                java.util.Optional.of(places.stream()
+                        .filter(place -> "l1".equals(place.getId()))
+                        .findFirst()
+                        .orElseThrow()));
+        when(placeRepository.findById("c1")).thenReturn(
+                java.util.Optional.of(places.stream()
+                        .filter(place -> "c1".equals(place.getId()))
+                        .findFirst()
+                        .orElseThrow()));
+
+        GenerateRoutesRequest req = buildConstrainedRequest();
+        RouteConstraintsRequest constraints = req.getConstraints();
+        constraints.setStartWithHotel(true);
+        constraints.setEndWithHotel(true);
+        List<RoutePoiSlotRequest> slots = new ArrayList<>();
+        slots.add(new RoutePoiSlotRequest("PLACE", "l1", null, null));
+        slots.add(new RoutePoiSlotRequest("PLACE", "c1", null, null));
+        slots.add(new RoutePoiSlotRequest("TYPE", null, "PARK", null));
+        slots.add(null);
+        constraints.setPoiSlots(slots);
+
+        ResolvedRouteGenerationRequest resolved = requestInterpreter.interpret(req);
+        Route route = routeService.generateRoutes(resolved, 1).get(0);
+
+        List<RoutePoint> interior = route.getPoints().subList(1, route.getPoints().size() - 1);
+        assertThat(interior.get(0).getPoi().getId()).isEqualTo("l1");
+        assertThat(interior.get(1).getPoi().getId()).isEqualTo("c1");
+        assertThat(labelService.label(interior.get(2).getPoi())).isEqualTo(RouteLabel.PARK_VE_SEYIR_NOKTALARI);
     }
 
     @Test
@@ -590,7 +664,6 @@ class RouteGenerationServiceTest {
         RouteConstraintsRequest constraints = req.getConstraints();
         constraints.setStartWithHotel(true);
         constraints.setEndWithHotel(true);
-        constraints.setRequestedVisitCount(1);
         constraints.setPoiSlots(List.of(
                 new RoutePoiSlotRequest("TYPE", null, "RESTAURANT", new RouteCandidateFiltersRequest(5.0, 10000))));
 
@@ -599,5 +672,80 @@ class RouteGenerationServiceTest {
         assertThatThrownBy(() -> routeService.generateRoutes(resolved, 1))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("TYPE slot");
+    }
+
+    @Test
+    @DisplayName("Bos poi slot objesi generated stop placeholderi olarak kabul edilir")
+    void shouldTreatEmptyPoiSlotObjectAsGeneratedStop() {
+        List<Place> places = buildTestPlaces();
+        when(placeRepository.findAll()).thenReturn(places);
+        when(placeRepository.findById("l1")).thenReturn(
+                java.util.Optional.of(places.stream()
+                        .filter(place -> "l1".equals(place.getId()))
+                        .findFirst()
+                        .orElseThrow()));
+
+        GenerateRoutesRequest req = buildConstrainedRequest();
+        RouteConstraintsRequest constraints = req.getConstraints();
+        constraints.setStartWithHotel(true);
+        constraints.setEndWithHotel(true);
+        constraints.setPoiSlots(List.of(
+                new RoutePoiSlotRequest(),
+                new RoutePoiSlotRequest("PLACE", "l1", null, null)));
+
+        ResolvedRouteGenerationRequest resolved = requestInterpreter.interpret(req);
+        Route route = routeService.generateRoutes(resolved, 1).get(0);
+
+        assertThat(route.getPoints()).hasSize(4);
+        assertThat(route.getPoints().subList(1, route.getPoints().size() - 1)).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("Legacy hotel anchor placeId ile belirli hoteli sabitler")
+    void shouldPinSpecificHotelWithLegacyHotelAnchor() {
+        List<Place> places = buildTestPlaces();
+        when(placeRepository.findAll()).thenReturn(places);
+        when(placeRepository.findById("h2")).thenReturn(
+                java.util.Optional.of(places.stream()
+                        .filter(place -> "h2".equals(place.getId()))
+                        .findFirst()
+                        .orElseThrow()));
+
+        GenerateRoutesRequest req = buildConstrainedRequest();
+        RouteConstraintsRequest constraints = req.getConstraints();
+        constraints.setStartWithHotel(true);
+        constraints.setEndWithHotel(true);
+        constraints.setStartAnchor(new RouteAnchorRequest("PLACE", "h2", null, null));
+
+        ResolvedRouteGenerationRequest resolved = requestInterpreter.interpret(req);
+        Route route = routeService.generateRoutes(resolved, 1).get(0);
+
+        assertThat(route.getPoints().get(0).getPoi().getId()).isEqualTo("h2");
+        assertThat(route.getPoints().get(route.getPoints().size() - 1).getPoi().getId()).isEqualTo("h2");
+    }
+
+    @Test
+    @DisplayName("Legacy start anchor place ile rota belirli POI'dan baslar")
+    void shouldStartRouteFromLegacyPlaceAnchor() {
+        List<Place> places = buildTestPlaces();
+        when(placeRepository.findAll()).thenReturn(places);
+        when(placeRepository.findById("l1")).thenReturn(
+                java.util.Optional.of(places.stream()
+                        .filter(place -> "l1".equals(place.getId()))
+                        .findFirst()
+                        .orElseThrow()));
+
+        GenerateRoutesRequest req = buildConstrainedRequest();
+        RouteConstraintsRequest constraints = req.getConstraints();
+        constraints.setStartWithPoi(true);
+        constraints.setEndWithHotel(true);
+        constraints.setStartAnchor(new RouteAnchorRequest("PLACE", "l1", null, null));
+
+        ResolvedRouteGenerationRequest resolved = requestInterpreter.interpret(req);
+        Route route = routeService.generateRoutes(resolved, 1).get(0);
+
+        assertThat(route.getPoints().get(0).getPoi().getId()).isEqualTo("l1");
+        assertThat(labelService.label(route.getPoints().get(route.getPoints().size() - 1).getPoi()))
+                .isEqualTo(RouteLabel.HOTEL);
     }
 }
