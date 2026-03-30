@@ -5,10 +5,10 @@ import re
 import sys
 import time
 from chatbot.ai_agents import (
-    calculatorAgent, weatherAgent, UserProfileAgent_SetInfo,
-    UserFeedbackAgent, XAIJustificationAgent, Route_search_agent,
-    POI_suggest_agent, ItineraryModificationAgent, ChatTitleAgent,
-    POI_data_agent, POI_search_agent, UserPersonaListAgent
+    CalculatorAgent, WeatherAgent, UserProfileUpdateAgent,
+    TripFeedbackAgent, RecommendationExplainerAgent, RouteGenerationAgent,
+    POISuggestionAgent, ItineraryModificationAgent, ChatTitleAgent,
+    POIDataAgent, POISearchAgent, UserPersonaListAgent
 )
 
 # --- Configuration ---
@@ -38,17 +38,17 @@ def load_model():
 # --- Tool Definitions (Standard JSON Schema) ---
 # Dynamically build the TOOLS list for the LLM
 TOOLS = [
-    {"type": "function", "function": calculatorAgent.tool_template},
-    {"type": "function", "function": weatherAgent.tool_template},
-    {"type": "function", "function": UserProfileAgent_SetInfo.tool_template},
-    {"type": "function", "function": UserFeedbackAgent.tool_template},
-    {"type": "function", "function": XAIJustificationAgent.tool_template},
-    {"type": "function", "function": Route_search_agent.tool_template},
-    {"type": "function", "function": POI_suggest_agent.tool_template},
+    {"type": "function", "function": CalculatorAgent.tool_template},
+    {"type": "function", "function": WeatherAgent.tool_template},
+    {"type": "function", "function": UserProfileUpdateAgent.tool_template},
+    {"type": "function", "function": TripFeedbackAgent.tool_template},
+    {"type": "function", "function": RecommendationExplainerAgent.tool_template},
+    {"type": "function", "function": RouteGenerationAgent.tool_template},
+    {"type": "function", "function": POISuggestionAgent.tool_template},
     {"type": "function", "function": ItineraryModificationAgent.tool_template},
     {"type": "function", "function": ChatTitleAgent.tool_template},
-    {"type": "function", "function": POI_data_agent.tool_template},
-    {"type": "function", "function": POI_search_agent.tool_template},
+    {"type": "function", "function": POIDataAgent.tool_template},
+    {"type": "function", "function": POISearchAgent.tool_template},
     {"type": "function", "function": UserPersonaListAgent.tool_template},
 ]
 

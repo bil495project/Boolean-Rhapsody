@@ -135,6 +135,14 @@ public class UserController {
         return ResponseEntity.ok(userService.getAllPersonas(userId));
     }
 
+    @PutMapping("/{userId}/personas/{personaId}")
+    public ResponseEntity<TravelPersonaResponse> internalUpdateTravelPersona(
+            @PathVariable String userId,
+            @PathVariable String personaId,
+            @Valid @RequestBody TravelPersonaRequest request) {
+        return ResponseEntity.ok(userService.updateTravelPersona(userId, personaId, request));
+    }
+
     private String getCurrentUserId() {
         return SecurityContextHolder.getContext().getAuthentication().getName();
     }

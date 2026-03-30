@@ -7,33 +7,34 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from chatbot.chatbot import ask_question, load_model
 # Import the agents from the sibling file
 from chatbot.ai_agents import (
-    calculatorAgent, weatherAgent, UserProfileAgent_SetInfo,
-    UserFeedbackAgent, XAIJustificationAgent, Route_search_agent,
-    POI_suggest_agent, ItineraryModificationAgent, ChatTitleAgent,
-    POI_data_agent, POI_search_agent, UserPersonaListAgent
+    CalculatorAgent, WeatherAgent, UserProfileUpdateAgent,
+    TripFeedbackAgent, RecommendationExplainerAgent, RouteGenerationAgent,
+    POISuggestionAgent, ItineraryModificationAgent, ChatTitleAgent,
+    POIDataAgent, POISearchAgent, UserPersonaListAgent
 )
 
 app = Flask(__name__)
 
+# ✅ Fixed — keys must exactly match tool_template["name"]
 TOOL_REGISTRY = {
-    "calculator_agent":    calculatorAgent(),
-    "weather_agent":       weatherAgent(),
-    "user_profile_agent":  UserProfileAgent_SetInfo(),     # Matches TC-LLM-U-008
-    "submit_user_feedback":UserFeedbackAgent(),            # Matches TC-LLM-U-005
-    "get_xai_justification":XAIJustificationAgent(),       # Matches TC-LLM-U-006
-    "search_route":        Route_search_agent(),           # Matches TC-LLM-U-002
-    "suggest_poi":         POI_suggest_agent(),            # Matches TC-LLM-U-003
-    "modify_itinerary":    ItineraryModificationAgent(),   # Matches TC-LLM-U-007
-    "generate_chat_title": ChatTitleAgent(),               # Matches TC-LLM-U-015
-    "get_poi_details":          POI_data_agent(),        # Lookup by name (single or multi-instance)
-    "search_poi_by_category":   POI_search_agent(),      # Browse by category (cafes, restaurants…)
-    "get_user_personas":        UserPersonaListAgent(),  # Lists user's travel personas
+    "calculator":              CalculatorAgent(),
+    "get_weather":             WeatherAgent(),
+    "update_user_profile":     UserProfileUpdateAgent(),
+    "submit_trip_feedback":    TripFeedbackAgent(),
+    "explain_recommendation":  RecommendationExplainerAgent(),
+    "generate_route":          RouteGenerationAgent(),
+    "suggest_poi":             POISuggestionAgent(),
+    "modify_itinerary":        ItineraryModificationAgent(),
+    "generate_chat_title":     ChatTitleAgent(),
+    "get_poi_details":         POIDataAgent(),
+    "search_poi_by_category":  POISearchAgent(),
+    "list_user_personas":      UserPersonaListAgent(),
 }
 
 # Agents that require the user_id to be injected at call time.
 # These agents accept a 'user_id' kwarg even though it is NOT exposed in the
 # LLM tool schema (to keep the LLM's job simple).
-USER_ID_AWARE_TOOLS = {"get_user_personas", "search_route"}
+USER_ID_AWARE_TOOLS = {"list_user_personas", "generate_route", "explain_recommendation", "update_user_profile"}
 
 # Pre-load model on startup
 print("[SYSTEM] Initializing AI Engine...")
@@ -59,29 +60,22 @@ def handle_chat():
         return jsonify({"status": "error", "message": "Query is empty"}), 400
 
     try:
+        print("query recieved:\n")
+        print(user_query)
+        SYSTEM_PROMPT = """You are a friendly and knowledgeable travel assistant for a route planning app.
+
+        CRITICAL RULES:
+        - NEVER invent place names, addresses, ratings, or coordinates from memory.
+        - ALL place and route data MUST come from a tool call. No exceptions.
+        - If a tool returns no results, say so honestly rather than filling in from memory.
+        - Always present tool results in a natural, engaging way — don't just dump raw data.
+        - The app's database is focused on Ankara, Turkey. Scope your responses accordingly.
+        """
         # 1. Build message history with system prompt
         messages = [
             {
                 "role": "system",
-                "content": (
-                    "You are a helpful travel assistant with access to tools. "
-                    "When a user asks about their travel persona or what kind of traveller they are, "
-                    "always use the get_user_personas tool. "
-                    "When creating or optimising a route, use search_route — it will automatically "
-                    "load the user's saved preferences from the database. "
-                    "When a user asks about a specific place, landmark, cafe, restaurant, or any "
-                    "point of interest, ALWAYS use the get_poi_details tool to fetch the real details "
-                    "from the local database — do NOT guess or make up information. "
-                    "The tool handles both unique places (e.g. 'Anıtkabir') and generic names that "
-                    "may have many branches (e.g. 'Aspava', 'Starbucks') — it returns all matches "
-                    "with full details including name, type, address, rating, price level and status. "
-                    "When the user asks for a RECOMMENDATION or wants to EXPLORE a type of place "
-                    "(e.g. 'suggest a cafe', 'what restaurants are nearby?', 'find me a park'), "
-                    "use the search_poi_by_category tool instead — it returns the top-rated places "
-                    "for one of the 7 categories: BARS_AND_NIGHTCLUBS, CAFES_AND_DESSERTS, "
-                    "HISTORIC_PLACES, HOTELS, LANDMARKS, PARKS, RESTAURANTS. "
-                    "Present all tool results exactly as returned — do not summarise or omit details."
-                )
+                "content": (SYSTEM_PROMPT)
             },
         ]
 
@@ -102,8 +96,12 @@ def handle_chat():
             tool_name = tool_info.get("name")
             params = tool_info.get("parameters", {})
 
+
             # Execute tool (injects user_id for persona-aware agents)
             tool_result = invoke_action(tool_name, params, user_id)
+
+            print("\n\nTool Result")
+            print(str(tool_result))
 
             # 5. Append tool call + result to history (ChatML / Tool-use standard)
             messages.append({"role": "assistant", "content": llm_output.get("raw", "")})

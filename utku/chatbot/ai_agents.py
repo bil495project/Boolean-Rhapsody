@@ -8,23 +8,30 @@ class BaseAgent:
         return json.dumps({"status": status, "message": message, "data": data})
 
 
-class calculatorAgent(BaseAgent):
-    """Agent responsible for evaluating mathematical expressions safely."""
+class CalculatorAgent(BaseAgent):
+    """Evaluates mathematical expressions in a sandboxed environment."""
     tool_template = {
-        "name": "calculator_agent",
-        "description": "Performs mathematical calculations. Supports basic arithmetic, sqrt, and power functions.",
+        "name": "calculator",
+        "description": (
+            "Evaluates a mathematical expression and returns the result. "
+            "Supports basic arithmetic (+, -, *, /), sqrt(), pow(), abs(), and round(). "
+            "Use this whenever the user asks to compute or calculate a numeric value. "
+            "Do NOT use for date arithmetic or unit conversions."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
                 "expression": {
                     "type": "string",
-                    "description": "The math expression to solve (e.g., 'sqrt(16) * 5')."
+                    "description": (
+                        "A valid mathematical expression to evaluate. "
+                        "Examples: '12 * (3 + 4)', 'sqrt(144)', 'pow(2, 10) / 4'."
+                    )
                 }
             },
             "required": ["expression"]
         }
     }
-
     def __call__(self, expression: str):
         try:
             allowed_names = {
@@ -40,28 +47,34 @@ class calculatorAgent(BaseAgent):
             return f"Calculation Error: {str(e)}"
 
 
-class weatherAgent(BaseAgent):
-    """Agent responsible for fetching real-time weather data for a specific location."""
+class WeatherAgent(BaseAgent):
+    """Fetches current weather conditions for a given location."""
     tool_template = {
-        "name": "weather_agent",
-        "description": "Retrieves current weather, temperature, and atmospheric conditions.",
+        "name": "get_weather",
+        "description": (
+            "Returns the current temperature and weather conditions for a specified city. "
+            "Use this when the user asks about the weather, temperature, or whether to pack "
+            "certain clothing for a destination."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
                 "location": {
                     "type": "string",
-                    "description": "The city and country (e.g., 'Berlin, Germany')."
+                    "description": (
+                        "The city and country to fetch weather for. "
+                        "Format: 'City, Country'. Example: 'Istanbul, Turkey'."
+                    )
                 },
                 "unit": {
                     "type": "string",
                     "enum": ["celsius", "fahrenheit"],
-                    "description": "The temperature scale to use. Defaults to celsius."
+                    "description": "Temperature unit. Defaults to 'celsius'."
                 }
             },
             "required": ["location"]
         }
     }
-
     def __call__(self, location: str, unit: str = "celsius"):
         try:
             temp = 22 if unit == "celsius" else 72
@@ -71,33 +84,104 @@ class weatherAgent(BaseAgent):
             return f"Weather Service Error: {str(e)}"
 
 
-class UserProfileAgent_SetInfo(BaseAgent):
+class UserProfileUpdateAgent(BaseAgent):
+    """Updates persistent user preferences stored in the backend."""
     tool_template = {
-        "name": "user_profile_agent",  # Matches TC-LLM-U-008
-        "description": "Updates user preferences (e.g., budget-friendly, historical).",
+        "name": "update_user_profile",
+        "description": (
+            "Updates one or more preference fields on the user's travel persona "
+            "(e.g. preferred budget level, interest in history, food importance, pace/tempo, nature, social). "
+            "CRITICAL INSTRUCTION: ALWAYS CALL THIS TOOL IMMEDIATELY whenever the user asks to change, update, or "
+            "set a new preference (like 'set my tempo to low', 'update my profile', 'I want less history'). "
+            "DO NOT ask for confirmation before calling! DO NOT just talk about updating it! YOU MUST CALL THE TOOL! "
+            "Fields are double values from 0.0 to 1.0. Adjust the values based on "
+            "the user's request. For example, if they say 'totally no history', set historyPreference to 0.0. "
+            "If they say 'I want to chill around', set tempo to a low value (e.g. 0.2)."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
-                "user_id": {"type": "string"},
-                "user_data_update_info": {"type": "object"}
+                "user_data_update_info": {
+                    "type": "object",
+                    "description": (
+                        "A key-value map of the fields to update. Valid keys: "
+                        "'historyPreference', 'naturePreference', 'foodImportance', "
+                        "'budgetLevel', 'socialPreference', 'tempo'. "
+                        "Values MUST be doubles between 0.0 and 1.0. "
+                        "Example: {'historyPreference': 0.5, 'naturePreference': 1.0}."
+                    )
+                }
             },
-            "required": ["user_id", "user_data_update_info"]
+            "required": ["user_data_update_info"]
         }
     }
 
-    def __call__(self, user_id, user_data_update_info):
-        return f"User {user_id} preferences updated: {user_data_update_info}"
+    def __call__(self, user_data_update_info: dict, user_id: str = None) -> str:
+        print(f"[SYSTEM] UserProfileUpdateAgent: user_id={user_id}, updates={user_data_update_info}")
+        
+        if not user_id:
+            return "I couldn't identify your account. Please log in to update your profile preferences."
+            
+        personas = _fetch_personas(user_id)
+        if not personas:
+            return "You do not have any travel personas yet. Please create one before updating preferences."
+            
+        # Allowed keys to update
+        valid_keys = {"historyPreference", "naturePreference", "foodImportance", "budgetLevel", "socialPreference", "tempo"}
+        processed_updates = {}
+        
+        for k, v in user_data_update_info.items():
+            if k in valid_keys and isinstance(v, (int, float)):
+                processed_updates[k] = max(0.0, min(1.0, float(v)))
+                
+        if not processed_updates:
+            return "No valid preference updates were provided. Valid keys are: historyPreference, naturePreference, foodImportance, budgetLevel, socialPreference, tempo."
+            
+        updated_count = 0
+        for persona in personas:
+            persona_id = persona.get("id")
+            if not persona_id:
+                continue
+                
+            # Copy existing fields and overwrite with new changes
+            updated_persona = persona.copy()
+            updated_persona.update(processed_updates)
+            
+            # The backend API expects the full payload for PUT /me/personas/{id}
+            result = _set_persona(user_id, persona_id, updated_persona)
+            if result.get("success"):
+                updated_count += 1
+                
+        if updated_count > 0:
+            return f"Successfully updated your preferences ({', '.join([f'{k}={v}' for k,v in processed_updates.items()])}) across {updated_count} persona(s)."
+        else:
+            return "Failed to update your personas in the database."
 
 
-class UserFeedbackAgent(BaseAgent):
+class TripFeedbackAgent(BaseAgent):
+    """Records user feedback for a completed trip."""
     tool_template = {
-        "name": "submit_user_feedback",
-        "description": "Logs user feedback for a specific completed trip.",
+        "name": "submit_trip_feedback",
+        "description": (
+            "Saves the user's feedback for a specific completed trip. "
+            "Use this after a trip when the user rates their experience, mentions "
+            "what they liked or disliked, or leaves a comment. "
+            "Do NOT use for updating general profile preferences — use 'update_user_profile' for that."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
-                "trip_id": {"type": "string"},
-                "user_feedback": {"type": "string", "description": "The textual feedback from the user."}
+                "trip_id": {
+                    "type": "string",
+                    "description": "The unique identifier of the completed trip."
+                },
+                "user_feedback": {
+                    "type": "string",
+                    "description": (
+                        "The user's feedback in free text. "
+                        "Example: 'The route was great but the museum visit was too long.'"
+                    )
+                }
             },
             "required": ["trip_id", "user_feedback"]
         }
@@ -107,25 +191,101 @@ class UserFeedbackAgent(BaseAgent):
         return f"Feedback for trip {trip_id} recorded: '{user_feedback[:50]}...'"
 
 
-class XAIJustificationAgent(BaseAgent):
+class RecommendationExplainerAgent(BaseAgent):
+    """Explains why a specific place or route was recommended to the user."""
     tool_template = {
-        "name": "get_xai_justification",
-        "description": "Provides an explainable AI justification for a specific recommendation.",
+        "name": "explain_recommendation",
+        "description": (
+            "Returns an explainable AI (XAI) justification for why a specific place "
+            "was recommended, based on the user's travel persona features and the place's features. "
+            "Use this when the user asks 'Why was X recommended to me?' or 'Why did you recommend this place?'"
+            "ALWAYS USE THIS AGENT IF USER ASKS WHY A ROUTE/PLACE WAS RECOMMENDED. EXAMPLE USES: 'why did you recommend me place X?', 'Why did you showed this?', 'Bana niye bunu önerdin?'"
+            
+        ),
         "parameters": {
             "type": "object",
             "properties": {
-                "recommendation_id": {"type": "string"},
-                "user_data": {"type": "object", "description": "Relevant user context for the explanation."}
+                "place_name": {
+                    "type": "string",
+                    "description": "The exact name of the recommended place to explain (e.g. 'Anıtkabir', 'Eymir Gölü')."
+                }
             },
-            "required": ["recommendation_id"]
+            "required": ["place_name"]
         }
     }
 
-    def __call__(self, recommendation_id, user_data=None):
-        return (
-            f"Justification for {recommendation_id}: This was recommended based on "
-            "your preference for high-rated historical sites."
-        )
+    def __call__(self, place_name: str, user_id: str = None) -> str:
+        import requests
+        print(f"[SYSTEM] RecommendationExplainerAgent: explaining '{place_name}' for user_id={user_id}")
+        
+        if not user_id:
+            return "I couldn't identify your account. Please log in to get a personalized explanation."
+
+        # 1. Fetch place from DB
+        try:
+            url = f"{BACKEND_URL}/api/places/search"
+            resp = requests.get(url, params={"name": place_name, "size": 1}, timeout=5)
+            if resp.status_code != 200:
+                return f"Could not retrieve place data for '{place_name}' (HTTP {resp.status_code})."
+            
+            data = resp.json()
+            results = data.get("content", data) if isinstance(data, dict) else data
+            if not results:
+                return f"Could not find any place named '{place_name}' in the database."
+                
+            place = results[0]
+            p_name = place.get("name", place_name)
+            p_types = place.get("types", "Unknown")
+            p_rating = place.get("ratingScore", "N/A")
+            p_price = place.get("priceLevel", "N/A")
+        except Exception as e:
+            print(f"[ERROR] RecommendationExplainerAgent place lookup: {e}")
+            return f"An error occurred while looking up '{place_name}'."
+            
+        # 2. Fetch user personas
+        personas = _fetch_personas(user_id)
+        if not personas:
+            return f"Place '{p_name}' has types '{p_types}' and rating {p_rating}, but you don't have any saved travel personas, so I cannot explain the personalization."
+            
+        # Use default persona, or first if none is default
+        persona = next((p for p in personas if p.get('isDefault')), personas[0])
+        
+        # 3. Construct explanation text for LLM
+        explanation = [
+            f"Here is the feature breakdown for explaining why '{p_name}' was recommended:",
+            "",
+            "**Place Features:**",
+            f"- Types/Categories: {p_types}",
+            f"- Rating: {p_rating} ⭐",
+        ]
+        if p_price and p_price != "N/A":
+            explanation.append(f"- Price Level: {p_price}")
+            
+        explanation.append("")
+        explanation.append("**User's Persona Preferences:**")
+        
+        # Helper to convert float to qualitative level
+        def label(v):
+            if v is None: return "Unknown"
+            return "Low" if v < 0.35 else "Moderate" if v < 0.65 else "High"
+            
+        weights = {
+            "History preference": persona.get("historyPreference"),
+            "Nature preference": persona.get("naturePreference"),
+            "Food importance": persona.get("foodImportance"),
+            "Budget capacity": persona.get("budgetLevel"),
+            "Social preference": persona.get("socialPreference"),
+            "Pace / Tempo": persona.get("tempo")
+        }
+        for k, v in weights.items():
+            if v is not None:
+                explanation.append(f"- {k}: {label(v)} ({v})")
+                
+        explanation.append("")
+        explanation.append("Instructions for the assistant:")
+        explanation.append("Using the above place features and user's persona scores, first print the information on place and user exactly as you recieved. Then after printing these information, move on with explaining to the user in a friendly way why this place is a strong match for them. E.g., if the place is historical and they have a High History preference, point that out.")
+        
+        return "\n".join(explanation)
 
 
 # ---------------------------------------------------------------------------
@@ -151,6 +311,56 @@ def _fetch_personas(user_id: str) -> list:
         print(f"[WARN] _fetch_personas failed for user_id={user_id}: {e}")
     return []
 
+def _set_persona(user_id: str, persona_id: str, persona_data: dict) -> dict:
+    """
+    Spring Boot endpoint'ini çağırarak seyahat personasını günceller.
+    Hata durumlarında detaylı açıklama döner.
+    """
+    # 1. Temel Doğrulama
+    if not user_id or not persona_id:
+        return {"success": False, "message": "Eksik parametre: user_id veya persona_id bulunamadı."}
+        
+    try:
+        url = f"{BACKEND_URL}/api/users/{user_id}/personas/{persona_id}"
+        
+        # 2. Payload Hazırlama (Sadece None olmayanları al)
+        fields = [
+            "name", "isDefault", "tempo", "socialPreference", "naturePreference",
+            "historyPreference", "foodImportance", "alcoholPreference",
+            "transportStyle", "budgetLevel", "tripLength", "crowdPreference", "userVector"
+        ]
+        
+        payload = {
+            key: persona_data[key] 
+            for key in fields 
+            if key in persona_data and persona_data[key] is not None
+        }
+        
+        if not payload:
+            return {"success": True, "message": "Güncellenecek yeni bir veri sağlanmadı, işlem atlandı."}
+
+        # 3. İstek Gönderimi
+        resp = requests.put(url, json=payload, timeout=5)
+        
+        # 4. HTTP Durum Kodlarına Göre Açıklama
+        if resp.status_code == 200:
+            return {"success": True, "message": "Persona başarıyla güncellendi."}
+        elif resp.status_code == 404:
+            return {"success": False, "message": f"Hata 404: Kullanıcı (ID: {user_id}) veya Persona (ID: {persona_id}) sistemde bulunamadı."}
+        elif resp.status_code == 400:
+            return {"success": False, "message": f"Hata 400: Geçersiz veri formatı. Backend yanıtı: {resp.text}"}
+        elif resp.status_code == 403:
+            return {"success": False, "message": "Hata 403: Bu işlem için yetkiniz yok."}
+        else:
+            return {"success": False, "message": f"Beklenmedik HTTP hatası ({resp.status_code}): {resp.text}"}
+
+    # 5. Network ve Beklenmedik Hatalar
+    except requests.exceptions.Timeout:
+        return {"success": False, "message": "Bağlantı zaman aşımına uğradı. Backend sunucusu yanıt vermiyor."}
+    except requests.exceptions.ConnectionError:
+        return {"success": False, "message": "Sunucuya bağlanılamadı. Lütfen BACKEND_URL'in doğruluğunu ve sunucunun çalıştığını kontrol edin."}
+    except Exception as e:
+        return {"success": False, "message": f"Beklenmedik bir sistem hatası oluştu: {str(e)}"}
 
 def _describe_persona(p: dict) -> str:
     """
@@ -199,12 +409,14 @@ class UserPersonaListAgent(BaseAgent):
     The user_id is injected at call-time by server.py from the Flask request context.
     """
     tool_template = {
-        "name": "get_user_personas",
+        "name": "list_user_personas",
         "description": (
-            "Retrieves and describes all travel personas saved by the current user. ",
-            "No need to pass the user_id to the tool, since the tool gets the user_id inside the function"
-            "Use this when the user asks what kind of traveller they are, wants to know "
-            "their travel personality, or asks to see their saved travel profiles/personas."
+            "Retrieves and describes all travel personas saved by the current user. "
+            "A persona contains weighted preferences such as tempo, budget level, "
+            "nature/history interest, and social preference. "
+            "Use this when the user asks: 'What kind of traveller am I?', "
+            "'Show me my travel profiles', or 'What are my saved personas?'. "
+            "The user_id is resolved automatically — do not ask the user for it."
         ),
         "parameters": {
             "type": "object",
@@ -235,84 +447,31 @@ class UserPersonaListAgent(BaseAgent):
         body = "\n\n".join(_describe_persona(p) for p in personas)
         return header + body
 
-
-# ---------------------------------------------------------------------------
-# Agent: Route_search_agent  (UPDATED)
-# ---------------------------------------------------------------------------
-class Route_search_agent(BaseAgent):
+class POISuggestionAgent(BaseAgent):
+    """Suggests Points of Interest relevant to the user's current route and profile."""
     tool_template = {
-        "name": "search_route",
+        "name": "suggest_poi",
         "description": (
-            "Calculates and returns an optimised travel route through a list of Points of Interest (POIs). "
-            "When the user talks about their travel style or preferences, this agent automatically loads "
-            "their saved persona weights from the backend to personalise the route. "
-            "Use persona_id to select a specific saved persona, or omit it to use the user's default one."
+            "Suggests Points of Interest (POIs) that complement the user's current route "
+            "and match their travel preferences. "
+            "Use this when the user asks for ideas of what to add to an existing route, "
+            "or says something like 'What else could I visit nearby?'. "
+            "For searching POIs by category from scratch, use 'search_poi_by_category' instead."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "POI_data": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Ordered list of POI names to visit."
-                },
-                "persona_id": {
+                "current_route_info": {
                     "type": "string",
                     "description": (
-                        "Optional. ID of a specific saved travel persona to use for weighting this route. "
-                        "If omitted, the user's default persona is used automatically."
+                        "A description or ID of the user's current route or itinerary context. "
+                        "Example: 'Route starting at Anıtkabir, visiting 3 historical sites in Ankara.'"
                     )
+                },
+                "user_data": {
+                    "type": "object",
+                    "description": "Optional. The user's preference profile to personalise suggestions."
                 }
-            },
-            "required": ["POI_data"]
-        }
-    }
-
-    def __call__(self, POI_data: list, persona_id: str = None, user_id: str = None):
-        """
-        Generates a personalised route using the user's saved persona weights.
-        user_id is NOT in the tool schema — it is injected at runtime by server.py.
-        """
-        print(f"[SYSTEM] Route_search_agent: user_id={user_id} | persona_id={persona_id}")
-
-        persona_summary = None
-
-        if user_id:
-            personas = _fetch_personas(user_id)
-            if personas:
-                selected = None
-                if persona_id:
-                    selected = next((p for p in personas if p.get("id") == persona_id), None)
-                if selected is None:
-                    selected = next((p for p in personas if p.get("isDefault")), None)
-                if selected is None:
-                    selected = personas[0]  # any available persona
-                if selected:
-                    persona_summary = _describe_persona(selected)
-                    print(f"[SYSTEM] Route using persona: {selected.get('name')}")
-
-        poi_list = ", ".join(POI_data)
-
-        if persona_summary:
-            return (
-                f"Optimised route generated through: {poi_list}.\n\n"
-                f"Route personalised based on your travel persona:\n{persona_summary}"
-            )
-        return (
-            f"Optimised route generated through: {poi_list}. "
-            "(No saved persona found — using balanced default weights.)"
-        )
-
-
-class POI_suggest_agent(BaseAgent):
-    tool_template = {
-        "name": "suggest_poi",
-        "description": "Suggests Points of Interest based on user profile and current route.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "user_data": {"type": "object"},
-                "current_route_info": {"type": "string"}
             },
             "required": ["current_route_info"]
         }
@@ -416,7 +575,7 @@ def _format_place(p: dict) -> str:
     )
 
 
-class POI_data_agent(BaseAgent):
+class POIDataAgent(BaseAgent):
     """
     Fetches POI details from the local database via the Spring Boot backend.
 
@@ -435,14 +594,16 @@ class POI_data_agent(BaseAgent):
     a category of places, or wants to know the details of a POI.
     """
 
+    """Fetches full details for one or more named places from the local database."""
     tool_template = {
         "name": "get_poi_details",
         "description": (
-            "Searches the local POI database by name and returns the full details "
-            "(type, address, coordinates, rating, price level, status) of every matching place. "
-            "Use this for BOTH well-known singular places (e.g. 'Anıtkabir', 'Kocatepe Camii') "
-            "AND generic place names that may have multiple instances (e.g. 'Aspava', 'Starbucks'). "
-            "Always prefer this tool over guessing when the user asks about a specific location."
+            "Looks up a place by name in the local POI database and returns its full details: "
+            "type, address, coordinates, rating, price level, and operational status. "
+            "Supports both unique landmarks (e.g. 'Anıtkabir') and names shared by multiple "
+            "branches (e.g. 'Aspava'). When multiple matches are found, all are returned. "
+            "Use this when the user asks about a SPECIFIC named place. "
+            "For browsing by category (e.g. 'find me a café'), use 'search_poi_by_category' instead."
         ),
         "parameters": {
             "type": "object",
@@ -450,8 +611,8 @@ class POI_data_agent(BaseAgent):
                 "poi_name": {
                     "type": "string",
                     "description": (
-                        "The name (or partial name) of the place to look up. "
-                        "Examples: 'Anıtkabir', 'Aspava', 'cafe', 'museum'."
+                        "The name or partial name of the place to look up. "
+                        "Examples: 'Anıtkabir', 'Kocatepe Camii', 'Aspava'."
                     )
                 }
             },
@@ -528,7 +689,7 @@ _VALID_CATEGORIES = {
 }
 
 
-class POI_search_agent(BaseAgent):
+class POISearchAgent(BaseAgent):
     """
     Searches the local POI database by place category and returns the
     top-rated matches with all their attributes.
@@ -552,35 +713,44 @@ class POI_search_agent(BaseAgent):
     RESTAURANTS          → restaurants, food places, eateries, dining
     """
 
+    """Searches the local POI database by category and returns top-rated results."""
     tool_template = {
         "name": "search_poi_by_category",
         "description": (
-            "Searches the local POI database for places that belong to a specific category "
-            "and returns the top-rated matches with full details (name, type, address, "
-            "coordinates, rating, price level, status). "
-            "Use this when the user asks for a RECOMMENDATION or wants to EXPLORE a type of place "
-            "(e.g. 'find me a cafe', 'suggest a restaurant', 'what museums are there?'). "
-            "Map the user's intent to EXACTLY ONE of the 7 valid category values: "
-            "BARS_AND_NIGHTCLUBS, CAFES_AND_DESSERTS, HISTORIC_PLACES, HOTELS, "
-            "LANDMARKS, PARKS, RESTAURANTS."
+            "Searches the local POI database for places in a given category and returns "
+            "the top-rated results with full details (name, address, rating, price, status). "
+            "Use this when the user wants to DISCOVER or BROWSE a type of place "
+            "(e.g. 'find me a restaurant', 'what cafés are nearby?', 'show me museums'). "
+            "For a specific named place, use 'get_poi_details' instead.\n\n"
+            "Category mapping guide:\n"
+            "  BARS_AND_NIGHTCLUBS  → bars, pubs, clubs, nightlife\n"
+            "  CAFES_AND_DESSERTS   → cafés, kafe, coffee shops, bakeries, dessert places\n"
+            "  HISTORIC_PLACES      → museums, mosques, churches, ruins, historical sites\n"
+            "  HOTELS               → hotels, accommodation, lodging\n"
+            "  LANDMARKS            → famous buildings, monuments, stadiums, city squares\n"
+            "  PARKS                → parks, gardens, nature spots, outdoor spaces\n"
+            "  RESTAURANTS          → restaurants, eateries, dining"
+            
+            "ALWAYS call this tool when the user asks for place recommendations "
+            "or wants to discover a type of venue. "
+            "NEVER answer from memory — all place data must come from this tool."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "place_category": {
                     "type": "string",
-                    "enum": list(_VALID_CATEGORIES.keys()),
-                    "description": (
-                        "The category of place to search for. Must be one of: "
-                        "BARS_AND_NIGHTCLUBS, CAFES_AND_DESSERTS, HISTORIC_PLACES, "
-                        "HOTELS, LANDMARKS, PARKS, RESTAURANTS."
-                    )
+                    "enum": [
+                        "BARS_AND_NIGHTCLUBS", "CAFES_AND_DESSERTS", "HISTORIC_PLACES",
+                        "HOTELS", "LANDMARKS", "PARKS", "RESTAURANTS"
+                    ],
+                    "description": "The category of place to search for. Must be one of the listed enum values."
                 },
                 "limit": {
                     "type": "integer",
                     "description": (
-                        "Maximum number of results to return. Defaults to 10. "
-                        "Use a higher value (up to 20) when the user asks for many options."
+                        "Maximum number of results to return. Defaults to 10, maximum 20. "
+                        "Use a higher value when the user asks for 'many options' or 'a list'."
                     )
                 }
             },
@@ -638,3 +808,562 @@ class POI_search_agent(BaseAgent):
             print(f"[ERROR] POI_search_agent: {str(e)}")
             return f"An unexpected error occurred while searching for {category_label}: {str(e)}"
 
+
+# ---------------------------------------------------------------------------
+# Agent: RouteGenerationFormatAgent
+# ---------------------------------------------------------------------------
+
+class RouteGenerationAgent(BaseAgent):
+    """Builds and submits a route generation request to the backend algorithm."""
+    tool_template = {
+        "name": "generate_route",
+        "description": (
+            "Plans a personalised travel route based on the user's preferences, named stops, "
+            "and constraints (meals, hotel, visit count). Resolves all named places to database IDs, "
+            "fetches the user's active travel persona, and submits the request to the route "
+            "generation algorithm. Returns up to k ranked route alternatives with full stop details.\n\n"
+            "Use this when the user wants to plan a trip or route and provides any combination of: "
+            "a start/end point, specific places to visit, types of places to include, "
+            "meal requirements, or accommodation needs.\n\n"
+            "After calling this tool, narrate the returned routes back to the user in an engaging way, "
+            "making use of ratings, addresses, price levels, and place types in the summary.\n\n"
+            "RULES:\n"
+            "1. List every named place the user mentions in 'named_locations', verbatim.\n"
+            "2. If the user states a start point, set 'start_location' to that exact name.\n"
+            "3. In 'poi_slots', use the user's exact wording for PLACE entries — never shorten names.\n"
+            "4. Never include HOTEL as a poi_slot entry. Use 'stay_at_hotel: true' or set it as "
+            "   start/end location instead."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "named_locations": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Every specific place name the user mentions, copied verbatim. "
+                        "Include the start location if it is a named place. "
+                        "Example: ['Anıtkabir', 'Şimşek Aspava', 'Hotel Metropol']."
+                    )
+                },
+                "start_location": {
+                    "type": "string",
+                    "description": (
+                        "The starting point of the route. Use the user's exact wording. "
+                        "Can be a named place ('Anıtkabir') or a category keyword ('HOTEL'). "
+                        "Required when the user specifies where they begin."
+                    )
+                },
+                "end_location": {
+                    "type": "string",
+                    "description": (
+                        "The ending point of the route. Same format as start_location. "
+                        "Omit if the user does not specify an endpoint."
+                    )
+                },
+                "poi_slots": {
+                    "type": "array",
+                    "description": (
+                        "Ordered list of desired stops. Each entry is either a named PLACE "
+                        "or a category TYPE. Do NOT include HOTEL entries here."
+                    ),
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "type": {
+                                "type": "string",
+                                "enum": ["PLACE", "TYPE"],
+                                "description": "'PLACE' for a named location, 'TYPE' for a category."
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Required when type is 'PLACE'. Use the user's exact wording."
+                            },
+                            "poiType": {
+                                "type": "string",
+                                "enum": ["KAFE", "RESTAURANT", "PARK", "HISTORIC_PLACE", "LANDMARK", "BAR"],
+                                "description": "Required when type is 'TYPE'. The category of place to include."
+                            },
+                            "filters": {
+                                "type": "object",
+                                "description": "Optional quality filters for this slot.",
+                                "properties": {
+                                    "minRating": {
+                                        "type": "number",
+                                        "description": "Minimum acceptable rating (0.0–5.0)."
+                                    },
+                                    "minRatingCount": {
+                                        "type": "integer",
+                                        "description": "Minimum number of reviews required."
+                                    }
+                                }
+                            }
+                        },
+                        "required": ["type"]
+                    }
+                },
+                "meal_preferences": {
+                    "type": "object",
+                    "description": "Meal stops to include in the route.",
+                    "properties": {
+                        "needsBreakfast": {"type": "boolean", "description": "Include a breakfast stop."},
+                        "needsLunch":     {"type": "boolean", "description": "Include a lunch stop."},
+                        "needsDinner":    {"type": "boolean", "description": "Include a dinner stop."}
+                    }
+                },
+                "stay_at_hotel": {
+                    "type": "boolean",
+                    "description": "Set to true if the user needs a hotel included in the route."
+                },
+                "requested_visit_count": {
+                    "type": "integer",
+                    "description": "Total number of POI stops desired. Defaults to 5."
+                },
+                "k": {
+                    "type": "integer",
+                    "description": "Number of alternative routes to generate. Defaults to 3."
+                },
+                "persona_id": {
+                    "type": "string",
+                    "description": (
+                        "ID of a specific saved persona to use for preferences. "
+                        "If omitted, the user's default persona is used automatically."
+                    )
+                }
+            },
+            "required": ["named_locations", "poi_slots"]
+        }
+    }
+
+    # ------------------------------------------------------------------
+    # Private helper: resolve a single place name → placeId string | None
+    # ------------------------------------------------------------------
+    def _resolve_place_id(self, place_name: str):
+        """
+        Multi-strategy place name resolution:
+
+          1. Full name   — direct backend substring search (fast path)
+          2. Intersection — searches each significant token separately;
+                            candidates present in ALL token result sets are
+                            assumed to contain every word → most precise match.
+          3. Union + score — if no intersection, score all candidates from any
+                             token search by Turkish-aware token overlap with the
+                             original query and pick the best.
+
+        Size is raised to 25 for token searches so that longer-tailed names
+        (e.g. "ŞİMŞEK ASPAVA MİTHATPAŞA şb.") are not crowded out of results.
+
+        Returns None on total failure.
+        """
+
+        # ── internal helpers ─────────────────────────────────────────────────
+        def _tr_normalize(s: str) -> str:
+            """Lowercase with Turkish-aware character folding for scoring."""
+            return (
+                s
+                .replace('İ', 'i').replace('I', 'ı')   # Turkish dotted/dotless I
+                .replace('Ş', 'ş').replace('Ğ', 'ğ')
+                .replace('Ç', 'ç').replace('Ö', 'ö').replace('Ü', 'ü')
+                .lower()
+            )
+
+        def _overlap_score(candidate_name: str, query: str) -> float:
+            """Fraction of query tokens that appear anywhere in candidate_name."""
+            q_tokens = set(_tr_normalize(query).split())
+            c_text   = _tr_normalize(candidate_name)
+            if not q_tokens:
+                return 0.0
+            matched = sum(1 for t in q_tokens if t in c_text)
+            return matched / len(q_tokens)
+
+        def _search_raw(query: str, size: int = 10) -> list:
+            """Raw backend call — returns content list or [] on any failure."""
+            try:
+                url  = f"{BACKEND_URL}/api/places/search"
+                resp = requests.get(url, params={"name": query, "size": size}, timeout=5)
+                if resp.status_code != 200:
+                    print(f"[WARN] RouteGenerationFormatAgent: HTTP {resp.status_code} searching '{query}'")
+                    return []
+                data = resp.json()
+                return (data.get("content", data) if isinstance(data, dict) else data) or []
+            except requests.exceptions.ConnectionError:
+                print(f"[WARN] RouteGenerationFormatAgent: connection error searching '{query}'")
+                return []
+            except Exception as e:
+                print(f"[WARN] RouteGenerationFormatAgent: error searching '{query}': {e}")
+                return []
+
+        # ── Strategy 0: full-phrase search + best-score pick ────────────────
+        #   Search the full name as a phrase (backend does ILIKE '%...%').
+        #   Instead of blindly picking results[0], we score every candidate
+        #   against the original query and return the best match.
+        #   This handles cases like "Şimşek Aspava" where a generic "Aspava"
+        #   sibling might sort first on the backend but has a lower token-overlap
+        #   score than the actual "Şimşek Aspava" branch.
+        results = _search_raw(place_name, size=15)
+        if results:
+            # Score every candidate by token-overlap with the full query.
+            scored = [
+                (c, _overlap_score(c.get("name", ""), place_name))
+                for c in results if c.get("id")
+            ]
+            if scored:
+                best_candidate, best_score = max(scored, key=lambda x: x[1])
+                best_name = best_candidate.get("name", "")
+                print(
+                    f"[SYSTEM] RouteGenerationFormatAgent: full-phrase → "
+                    f"'{place_name}' resolved to '{best_name}' (score={best_score:.2f})"
+                )
+                return best_candidate.get("id")
+
+        # ── Strategy 1 & 2: token-based (fallback when full phrase misses) ───
+        #   Filter noise tokens (< 3 chars) then search with a larger page
+        tokens = [t for t in place_name.split() if len(t) >= 3]
+        if not tokens:
+            print(f"[WARN] RouteGenerationFormatAgent: no results found for place '{place_name}'")
+            return None
+
+        # Build per-token result maps: { place_id → candidate_dict }
+        token_maps = []
+        for token in tokens:
+            raw = _search_raw(token, size=25)   # bigger page = fewer misses
+            if raw:
+                token_maps.append({c["id"]: c for c in raw if c.get("id")})
+
+        if not token_maps:
+            print(f"[WARN] RouteGenerationFormatAgent: no token results for place '{place_name}'")
+            return None
+
+        # ── Strategy 1: intersection ─────────────────────────────────────────
+        #   IDs that appear in EVERY token result set must contain all words.
+        #   "ŞİMŞEK ASPAVA MİTHATPAŞA" appears for "Şimşek" AND "Aspava";
+        #   "Aspava Kebap" only appears for "Aspava" → excluded.
+        intersected = set(token_maps[0].keys())
+        for tm in token_maps[1:]:
+            intersected &= set(tm.keys())
+
+        if intersected:
+            best = max(
+                intersected,
+                key=lambda pid: _overlap_score(
+                    token_maps[0].get(pid, {}).get("name", ""), place_name
+                )
+            )
+            best_name = token_maps[0].get(best, {}).get("name", best)
+            print(
+                f"[SYSTEM] RouteGenerationFormatAgent: intersection → "
+                f"'{place_name}' resolved to '{best_name}'"
+            )
+            return best
+
+        # ── Strategy 2: union + best score ───────────────────────────────────
+        #   Merge all candidates and score each against the full query.
+        all_candidates: dict = {}
+        for tm in token_maps:
+            all_candidates.update(tm)
+
+        best = max(
+            all_candidates,
+            key=lambda pid: _overlap_score(
+                all_candidates[pid].get("name", ""), place_name
+            )
+        )
+        best_score = _overlap_score(all_candidates[best].get("name", ""), place_name)
+        best_name  = all_candidates[best].get("name", best)
+
+        if best_score > 0:
+            print(
+                f"[SYSTEM] RouteGenerationFormatAgent: union → "
+                f"'{place_name}' resolved to '{best_name}' (score={best_score:.2f})"
+            )
+            return best
+
+        print(f"[WARN] RouteGenerationFormatAgent: no results found for place '{place_name}'")
+        return None
+
+    # ------------------------------------------------------------------
+    # __call__
+    # ------------------------------------------------------------------
+    def __call__(
+        self,
+        named_locations: list,
+        poi_slots: list,
+        start_location: str = None,
+        end_location: str = None,
+        meal_preferences: dict = None,
+        stay_at_hotel: bool = False,
+        requested_visit_count: int = 5,
+        k: int = 3,
+        persona_id: str = None,
+        user_id: str = None,   # injected by server, NOT in tool_template
+    ) -> str:
+        print(f"[SYSTEM] RouteGenerationFormatAgent: user_id={user_id} | persona_id={persona_id}")
+
+        warnings = []
+
+        # ── 1. Fetch user preferences (persona) ─────────────────────────────
+        _DEFAULT_PREFS = {
+            "tempo":             0.5,
+            "socialPreference":  0.5,
+            "naturePreference":  0.5,
+            "historyPreference": 0.5,
+            "foodImportance":    0.5,
+            "alcoholPreference": 0.5,
+            "transportStyle":    0.5,
+            "budgetLevel":       0.5,
+            "tripLength":        0.5,
+            "crowdPreference":   0.5,
+        }
+
+        preferences = dict(_DEFAULT_PREFS)
+
+        if user_id:
+            personas = _fetch_personas(user_id)
+            if personas:
+                selected = None
+                if persona_id:
+                    selected = next((p for p in personas if str(p.get("id")) == str(persona_id)), None)
+                if selected is None:
+                    selected = next((p for p in personas if p.get("isDefault")), None)
+                if selected is None:
+                    selected = personas[0]
+
+                if selected:
+                    print(f"[SYSTEM] RouteGenerationFormatAgent: using persona '{selected.get('name')}'")
+                    for key in _DEFAULT_PREFS:
+                        val = selected.get(key)
+                        if val is not None:
+                            preferences[key] = float(val)
+            else:
+                print(f"[WARN] RouteGenerationFormatAgent: no personas found for user_id={user_id}, using defaults")
+                warnings.append("No user persona found — preference defaults (0.5) were used.")
+        else:
+            print("[WARN] RouteGenerationFormatAgent: user_id not provided, using default preferences")
+            warnings.append("user_id not provided — preference defaults (0.5) were used.")
+
+        # ── 2. Build a place-name → placeId cache for all named_locations ───
+        #       (iteratively resolve each name; do NOT batch into one call)
+        place_id_cache = {}
+        for name in (named_locations or []):
+            resolved = self._resolve_place_id(name)
+            place_id_cache[name] = resolved
+            if resolved is None:
+                warnings.append(f"Could not resolve place '{name}' to a placeId — set to null.")
+
+        # ── 3. Resolve startAnchor ────────────────────────────────────────────
+        # A keyword set of POI types that should be treated as TYPE anchors.
+        # We use substring detection so phrases like "4-star hotel" also match.
+        _ANCHOR_TYPES = {"HOTEL", "AIRPORT", "KAFE", "RESTAURANT", "PARK",
+                         "HISTORIC_PLACE", "LANDMARK", "BAR"}
+
+        def _detect_poi_type(text: str):
+            """Return the first matching POI type keyword found in text, or None."""
+            upper = text.upper()
+            return next((t for t in _ANCHOR_TYPES if t in upper), None)
+
+        start_anchor = None
+        if start_location:
+            if start_location in place_id_cache:
+                # Already resolved via named_locations cache
+                start_anchor = {"kind": "PLACE", "placeId": place_id_cache[start_location]}
+            else:
+                poi_type = _detect_poi_type(start_location)
+                if poi_type:
+                    start_anchor = {"kind": "TYPE", "poiType": poi_type}
+                else:
+                    pid = self._resolve_place_id(start_location)
+                    if pid is None:
+                        warnings.append(f"Could not resolve start_location '{start_location}' — placeId set to null.")
+                    start_anchor = {"kind": "PLACE", "placeId": pid}
+
+        # ── 4. Resolve endAnchor ──────────────────────────────────────────────
+        end_anchor = None
+        if end_location:
+            if end_location in place_id_cache:
+                end_anchor = {"kind": "PLACE", "placeId": place_id_cache[end_location]}
+            else:
+                poi_type = _detect_poi_type(end_location)
+                if poi_type:
+                    end_anchor = {"kind": "TYPE", "poiType": poi_type}
+                else:
+                    pid = self._resolve_place_id(end_location)
+                    if pid is None:
+                        warnings.append(f"Could not resolve end_location '{end_location}' — placeId set to null.")
+                    end_anchor = {"kind": "PLACE", "placeId": pid}
+
+        # ── 5. Build poiSlots ─────────────────────────────────────────────────
+        resolved_poi_slots = []
+        for slot in (poi_slots or []):
+            slot_type = slot.get("type", "").upper()
+            filters   = slot.get("filters")
+
+            if slot_type == "PLACE":
+                place_name = slot.get("name", "")
+                # Use cache first; resolve freshly if not in cache
+                if place_name in place_id_cache:
+                    pid = place_id_cache[place_name]
+                else:
+                    pid = self._resolve_place_id(place_name)
+                    place_id_cache[place_name] = pid
+                    if pid is None:
+                        warnings.append(f"Could not resolve POI slot place '{place_name}' — placeId set to null.")
+
+                entry = {"kind": "PLACE", "placeId": pid}
+
+            elif slot_type == "TYPE":
+                entry = {"kind": "TYPE", "poiType": slot.get("poiType", "")}
+
+            else:
+                # Unknown slot type — skip with a warning
+                warnings.append(f"Unknown poi_slots entry type '{slot.get('type')}' — slot skipped.")
+                continue
+
+            if filters:
+                entry["filters"] = filters
+
+            resolved_poi_slots.append(entry)
+
+        # ── 6. Extract meal preferences ───────────────────────────────────────
+        mp = meal_preferences or {}
+        needs_breakfast = bool(mp.get("needsBreakfast", False))
+        needs_lunch     = bool(mp.get("needsLunch",     False))
+        needs_dinner    = bool(mp.get("needsDinner",    False))
+
+        # ── 7. Assemble the final payload ─────────────────────────────────────
+        constraints = {
+            "stayAtHotel":   bool(stay_at_hotel),
+            "needsBreakfast": needs_breakfast,
+            "needsLunch":     needs_lunch,
+            "needsDinner":    needs_dinner,
+            "poiSlots":           resolved_poi_slots,
+            "requestedVisitCount": int(requested_visit_count),
+        }
+
+        if start_anchor is not None:
+            constraints["startAnchor"] = start_anchor
+        if end_anchor is not None:
+            constraints["endAnchor"] = end_anchor
+
+        payload = {
+            "preferences": preferences,
+            "constraints":  constraints,
+            "k":            int(k),
+        }
+
+        if warnings:
+            payload["warnings"] = warnings
+
+        #return json.dumps(payload, ensure_ascii=False, indent=2)
+        print(f"[SYSTEM] RouteGenerationFormatAgent: POSTing payload to {BACKEND_URL}/api/routes/generate")
+        print(f"[SYSTEM] Payload: {json.dumps(payload, ensure_ascii=False)}")
+
+        # ── 8. POST to backend ────────────────────────────────────────────────
+        try:
+            resp = requests.post(
+                f"{BACKEND_URL}/api/routes/generate",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=30,
+            )
+        except requests.exceptions.ConnectionError:
+            err = (
+                "I'm currently unable to reach the route generation backend. "
+                "Please ensure the backend server is running and try again."
+            )
+            print(f"[ERROR] RouteGenerationFormatAgent: connection error — {err}")
+            return err
+        except Exception as e:
+            err = f"An unexpected error occurred while calling the route generation service: {str(e)}"
+            print(f"[ERROR] RouteGenerationFormatAgent: {err}")
+            return err
+
+        if resp.status_code != 200:
+            err = (
+                f"The route generation backend returned an error "
+                f"(HTTP {resp.status_code}): {resp.text[:300]}"
+            )
+            print(f"[WARN] RouteGenerationFormatAgent: {err}")
+            return err
+
+        try:
+            routes: list = resp.json()
+        except Exception as e:
+            err = f"Could not parse route generation response as JSON: {str(e)}"
+            print(f"[ERROR] RouteGenerationFormatAgent: {err}")
+            return err
+
+        if not routes:
+            return (
+                "The route generation service returned no routes. "
+                "This may be due to insufficient places in the database for the given constraints."
+            )
+
+        # ── 9. Format human-readable summary for the LLM ─────────────────────
+        def _fmt_duration(total_sec: int) -> str:
+            h, m = divmod(int(total_sec) // 60, 60)
+            if h and m:
+                return f"{h}h {m}min"
+            if h:
+                return f"{h}h"
+            return f"{m}min"
+
+        def _fmt_distance(metres: float) -> str:
+            km = metres / 1000.0
+            return f"{km:.1f} km"
+
+        lines = [f"### Generated {len(routes)} Route Alternative{'s' if len(routes) != 1 else ''}\n"]
+
+        for i, route in enumerate(routes, start=1):
+            route_id     = route.get("routeId", "N/A")
+            travel_mode  = route.get("travelMode", "N/A")
+            duration_str = _fmt_duration(route.get("totalDurationSec", 0))
+            distance_str = _fmt_distance(route.get("totalDistanceM", 0))
+            feasible     = "Yes" if route.get("feasible", False) else "No"
+
+            lines.append(f"#### Route {i} (ID: {route_id})")
+            lines.append(f"**Travel Mode:** {travel_mode} | **Duration:** {duration_str} | **Distance:** {distance_str} | **Feasible:** {feasible}\n")
+
+            lines.append("| Stop | POI Name | Visit Time | Type | Rating | Price Level | Address | Coordinates |")
+            lines.append("|---|---|---|---|---|---|---|---|")
+
+            points = route.get("points") or []
+            for pt in points:
+                # Basic point info
+                stop_idx   = pt.get("index", 0)
+                visit_min  = pt.get("plannedVisitMin", 0)
+                is_anchor  = pt.get("fixedAnchor", False)
+                anchor_tag = " *(anchor)*" if is_anchor else ""
+
+                # Full location details
+                poi_name   = str(pt.get("poiName") or "Unknown").replace("|", "-")
+                types      = str(pt.get("types") or "N/A").replace("|", "-")
+                address    = str(pt.get("formattedAddress") or "N/A").replace("|", "-")
+                lat        = pt.get("latitude")
+                lng        = pt.get("longitude")
+                rating     = pt.get("ratingScore")
+                r_count    = pt.get("ratingCount")
+                price      = pt.get("priceLevel")
+
+                coords = f"({lat:.4f}°N, {lng:.4f}°E)" if lat is not None and lng is not None else "N/A"
+
+                if rating is not None and r_count is not None:
+                    rating_str = f"{rating} ⭐ ({r_count:,} reviews)"
+                elif rating is not None:
+                    rating_str = f"{rating} ⭐"
+                else:
+                    rating_str = "N/A"
+
+                price_str  = str(_PRICE_LEVEL_LABELS.get(price, price) if price else "N/A").replace("|", "-")
+
+                lines.append(
+                    f"| {stop_idx + 1} | **{poi_name}**{anchor_tag} | {visit_min} min | {types} | {rating_str} | {price_str} | {address} | {coords} |"
+                )
+
+            lines.append("")  # blank line between routes
+
+        if warnings:
+            lines.append("⚠️  Resolution warnings:")
+            for w in warnings:
+                lines.append(f"  • {w}")
+
+        return "\n".join(lines)

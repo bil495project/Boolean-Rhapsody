@@ -42,10 +42,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
                         .requestMatchers("/api/places/**").permitAll()
                         .requestMatchers("/api/llm/title").permitAll() // Title generation does not need auth
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/users/*/personas").permitAll() // Internal:
-                                                                                                                       // Flask
-                                                                                                                       // LLM
-                                                                                                                       // agent
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/users/*/personas").permitAll() // Internal: Flask LLM agent
+                        .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/users/*/personas/*").permitAll() // Internal: Flask LLM agent
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/routes/generate").permitAll() // Internal:
                                                                                                                        // Flask
                                                                                                                        // LLM

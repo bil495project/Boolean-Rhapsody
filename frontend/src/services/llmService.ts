@@ -53,6 +53,7 @@ export interface ToolCallResult {
         | 'route_generated'
         | 'itinerary_modified'
         | 'weather_info'
+        | 'profile_updated'
         | 'tool_result';
     destinations?: MapDestination[];
     savedDestination?: MapDestination;
@@ -101,8 +102,8 @@ const TOOL_TYPE_MAP: Record<string, ToolCallResult['type']> = {
     'weather_agent': 'weather_info',
     'get_poi_details': 'destination_recommendation',
     'calculator_agent': 'tool_result',
-    'user_profile_agent': 'tool_result',
-    'submit_user_feedback': 'tool_result',
+    'update_user_profile': 'profile_updated',
+    'submit_trip_feedback': 'tool_result',
     'get_xai_justification': 'tool_result',
     'generate_chat_title': 'tool_result',
 };

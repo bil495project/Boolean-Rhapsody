@@ -15,6 +15,7 @@ import ChatMessage from './ChatMessage';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { addMessageLocal, addMessageAsync, setLoading, toggleSidebar, createChatAsync } from '../../store/chatSlice';
 import { toggleSaveDestination, syncToggleToBackend } from '../../store/savedSlice';
+import { restoreSession } from '../../store/authSlice';
 import { sendMessage, type ChatMessage as GeminiMessage, type ToolCallResult, generateTripTitle } from '../../services/llmService';
 import { useNavigate } from 'react-router-dom';
 
@@ -81,6 +82,10 @@ const ChatPanel = ({
                     dispatch(toggleSaveDestination(response.savedDestination));
                     dispatch(syncToggleToBackend(response.savedDestination));
                 }
+                
+                if (response.type === 'profile_updated') {
+                    dispatch(restoreSession());
+                }
 
                 console.log('LLM Result in ChatPanel (New Chat):', response);
                 // Add AI response message to backend
@@ -132,6 +137,10 @@ const ChatPanel = ({
             if (response.type === 'destination_saved' && response.savedDestination) {
                 dispatch(toggleSaveDestination(response.savedDestination));
                 dispatch(syncToggleToBackend(response.savedDestination));
+            }
+            
+            if (response.type === 'profile_updated') {
+                dispatch(restoreSession());
             }
 
             console.log('LLM Result in ChatPanel:', response);
