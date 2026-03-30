@@ -18,6 +18,8 @@ import com.roadrunner.route.service.RouteConstraintSpec.BoundaryKind;
 import com.roadrunner.route.service.RouteConstraintSpec.BoundaryRequirement;
 import com.roadrunner.route.service.RouteConstraintSpec.InteriorRequirement;
 import com.roadrunner.route.service.RouteConstraintSpec.InteriorRequirementKind;
+import com.roadrunner.route.service.RouteConstraintSpec.InteriorSlot;
+import com.roadrunner.route.service.RouteConstraintSpec.InteriorSlotKind;
 import com.roadrunner.route.service.RouteConstraintSpec.MealRequirement;
 
 @Service
@@ -36,7 +38,6 @@ public class RouteConstraintResolver {
                 && constraints.getStartAnchor() == null
                 && constraints.getEndAnchor() == null
                 && (constraints.getPoiSlots() == null || constraints.getPoiSlots().isEmpty())
-                && constraints.getRequestedVisitCount() == null
                 && !Boolean.TRUE.equals(constraints.getNeedsBreakfast())
                 && !Boolean.TRUE.equals(constraints.getNeedsLunch())
                 && !Boolean.TRUE.equals(constraints.getNeedsDinner());
@@ -80,18 +81,23 @@ public class RouteConstraintResolver {
         boolean sameHotelLoop = startBoundary.kind() == BoundaryKind.HOTEL
                 && endBoundary.kind() == BoundaryKind.HOTEL;
 
-        int freeInteriorCount = constraints.getRequestedVisitCount() != null
-                ? Math.max(0, constraints.getRequestedVisitCount())
-                : defaultFreeInteriorCount(userVector);
-
+        int targetInteriorCount = defaultFreeInteriorCount(userVector);
+        List<InteriorSlot> orderedInteriorSlots = new ArrayList<>();
         List<InteriorRequirement> hardSlots = new ArrayList<>();
         if (constraints.getPoiSlots() != null) {
+            targetInteriorCount = constraints.getPoiSlots().size();
             for (RoutePoiSlotRequest slot : constraints.getPoiSlots()) {
-                hardSlots.add(new InteriorRequirement(
+                if (slot == null || slot.isGeneratedSlotPlaceholder()) {
+                    orderedInteriorSlots.add(new InteriorSlot(InteriorSlotKind.GENERATED, null));
+                    continue;
+                }
+                InteriorRequirement requirement = new InteriorRequirement(
                         normalizeSlotKind(slot.getKind()),
                         slot.getPlaceId(),
                         slot.getPoiType(),
-                        slot.getFilters()));
+                        slot.getFilters());
+                orderedInteriorSlots.add(new InteriorSlot(InteriorSlotKind.FIXED, requirement));
+                hardSlots.add(requirement);
             }
         }
 
@@ -110,7 +116,8 @@ public class RouteConstraintResolver {
                 startBoundary,
                 endBoundary,
                 sameHotelLoop,
-                freeInteriorCount,
+                targetInteriorCount,
+                List.copyOf(orderedInteriorSlots),
                 List.copyOf(hardSlots),
                 List.copyOf(mealRequirements));
     }
@@ -238,7 +245,17 @@ public class RouteConstraintResolver {
         for (int i = 0; i < slots.size(); i++) {
             RoutePoiSlotRequest slot = slots.get(i);
             String fieldName = "poiSlots[" + i + "]";
+            if (slot == null || slot.isGeneratedSlotPlaceholder()) {
+                continue;
+            }
+            if (!slot.hasAnyConfiguration()) {
+                continue;
+            }
             String kind = safeUpper(slot.getKind());
+            if (kind.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        fieldName + " must be null, empty, PLACE, or TYPE");
+            }
             if ("PLACE".equals(kind)) {
                 if (slot.getPlaceId() == null || slot.getPlaceId().isBlank()) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " PLACE requires placeId");
@@ -263,7 +280,8 @@ public class RouteConstraintResolver {
                 }
                 continue;
             }
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " kind must be PLACE or TYPE");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    fieldName + " kind must be PLACE or TYPE");
         }
     }
 

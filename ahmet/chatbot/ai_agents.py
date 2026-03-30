@@ -602,7 +602,8 @@ class RouteGenerationFormatAgent(BaseAgent):
             "   you MUST set start_location to that exact name or type. For example, if user says "
             "   'I will start at Anıtkabir' set start_location to 'Anıtkabir'.\n"
             "3. poi_slots: For each named place (type=PLACE), use the exact full name as given by the user. "
-            "   Do NOT shorten or genericise the name (e.g. use 'Şimşek Aspava', NOT just 'Aspava').\n"
+            "   Do NOT shorten or genericise the name (e.g. use 'Şimşek Aspava', NOT just 'Aspava'). "
+            "Use null entries when the user wants the system to fill extra stops automatically.\n"
             "4. If the user starts at a specific named place, include it as the FIRST poi_slot with type=PLACE "
             "   AND also set it as start_location.\n"
             "5. HOTEL restriction: NEVER include 'HOTEL' as a poi_slot (with type=TYPE or PLACE), as hotels "
@@ -638,37 +639,42 @@ class RouteGenerationFormatAgent(BaseAgent):
                 "poi_slots": {
                     "type": "array",
                     "items": {
-                        "type": "object",
-                        "properties": {
-                            "type": {
-                                "type": "string",
-                                "enum": ["PLACE", "TYPE"],
-                                "description": "Whether this slot is a named place or a category type."
-                            },
-                            "name": {
-                                "type": "string",
-                                "description": (
-                                    "EXACT full place name as stated by the user (required when type == 'PLACE'). "
-                                    "e.g. 'Şimşek Aspava', NOT just 'Aspava'."
-                                )
-                            },
-                            "poiType": {
-                                "type": "string",
-                                "enum": ["KAFE", "RESTAURANT", "PARK", "HISTORIC_PLACE", "LANDMARK", "BAR"],
-                                "description": "POI category (required when type == 'TYPE'). DO NOT use 'HOTEL' here; set stay_at_hotel = true or use start/end_location."
-                            },
-                            "filters": {
+                        "anyOf": [
+                            {"type": "null"},
+                            {
                                 "type": "object",
-                                "description": "Optional quality filters.",
                                 "properties": {
-                                    "minRating": {"type": "number"},
-                                    "minRatingCount": {"type": "integer"}
-                                }
+                                    "type": {
+                                        "type": "string",
+                                        "enum": ["PLACE", "TYPE"],
+                                        "description": "Whether this slot is a named place or a category type."
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "description": (
+                                            "EXACT full place name as stated by the user (required when type == 'PLACE'). "
+                                            "PLACE entries must keep the user's full exact place name."
+                                        )
+                                    },
+                                    "poiType": {
+                                        "type": "string",
+                                        "enum": ["KAFE", "RESTAURANT", "PARK", "HISTORIC_PLACE", "LANDMARK", "BAR"],
+                                        "description": "POI category (required when type == 'TYPE'). DO NOT use 'HOTEL' here; set stay_at_hotel = true or use start/end_location."
+                                    },
+                                    "filters": {
+                                        "type": "object",
+                                        "description": "Optional quality filters.",
+                                        "properties": {
+                                            "minRating": {"type": "number"},
+                                            "minRatingCount": {"type": "integer"}
+                                        }
+                                    }
+                                },
+                                "required": ["type"]
                             }
-                        },
-                        "required": ["type"]
+                        ]
                     },
-                    "description": "Ordered list of desired stops."
+                    "description": "Ordered list of desired stops. Use null items when the system should fill a slot automatically."
                 },
                 "meal_preferences": {
                     "type": "object",
@@ -682,10 +688,6 @@ class RouteGenerationFormatAgent(BaseAgent):
                 "stay_at_hotel": {
                     "type": "boolean",
                     "description": "Whether the user needs hotel accommodation."
-                },
-                "requested_visit_count": {
-                    "type": "integer",
-                    "description": "Number of POI stops the user wants. Defaults to 5."
                 },
                 "k": {
                     "type": "integer",
@@ -857,7 +859,6 @@ class RouteGenerationFormatAgent(BaseAgent):
         end_location: str = None,
         meal_preferences: dict = None,
         stay_at_hotel: bool = False,
-        requested_visit_count: int = 5,
         k: int = 3,
         persona_id: str = None,
         user_id: str = None,   # injected by server, NOT in tool_template
@@ -959,6 +960,10 @@ class RouteGenerationFormatAgent(BaseAgent):
         # ── 5. Build poiSlots ─────────────────────────────────────────────────
         resolved_poi_slots = []
         for slot in (poi_slots or []):
+            if slot is None:
+                resolved_poi_slots.append(None)
+                continue
+
             slot_type = slot.get("type", "").upper()
             filters   = slot.get("filters")
 
@@ -977,6 +982,10 @@ class RouteGenerationFormatAgent(BaseAgent):
 
             elif slot_type == "TYPE":
                 entry = {"kind": "TYPE", "poiType": slot.get("poiType", "")}
+
+            elif slot_type in {"", "FREE"} and not filters and not slot.get("name") and not slot.get("poiType"):
+                resolved_poi_slots.append(None)
+                continue
 
             else:
                 # Unknown slot type — skip with a warning
@@ -1001,7 +1010,6 @@ class RouteGenerationFormatAgent(BaseAgent):
             "needsLunch":     needs_lunch,
             "needsDinner":    needs_dinner,
             "poiSlots":           resolved_poi_slots,
-            "requestedVisitCount": int(requested_visit_count),
         }
 
         if start_anchor is not None:

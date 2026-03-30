@@ -8,7 +8,8 @@ public record RouteConstraintSpec(
         BoundaryRequirement startBoundary,
         BoundaryRequirement endBoundary,
         boolean sameHotelLoop,
-        int freeInteriorCount,
+        int targetInteriorCount,
+        List<InteriorSlot> orderedInteriorSlots,
         List<InteriorRequirement> hardSlots,
         List<MealRequirement> mealRequirements) {
 
@@ -18,6 +19,10 @@ public record RouteConstraintSpec(
 
     public boolean hasFixedEnd() {
         return endBoundary != null && endBoundary.kind() != BoundaryKind.NONE;
+    }
+
+    public boolean hasOrderedInteriorSlots() {
+        return orderedInteriorSlots != null && !orderedInteriorSlots.isEmpty();
     }
 
     public enum BoundaryKind {
@@ -30,6 +35,11 @@ public record RouteConstraintSpec(
     public enum InteriorRequirementKind {
         PLACE,
         TYPE
+    }
+
+    public enum InteriorSlotKind {
+        GENERATED,
+        FIXED
     }
 
     public enum MealRequirement {
@@ -50,5 +60,10 @@ public record RouteConstraintSpec(
             String placeId,
             String poiType,
             RouteCandidateFiltersRequest filters) {
+    }
+
+    public record InteriorSlot(
+            InteriorSlotKind kind,
+            InteriorRequirement requirement) {
     }
 }

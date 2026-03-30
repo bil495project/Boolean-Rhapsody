@@ -398,7 +398,6 @@ const RoutePage = () => {
         startAnchor: null,
         endAnchor: null,
         poiSlots: null,
-        requestedVisitCount: null,
     });
 
     const findPlaceOption = (placeId?: string | null): MapDestination | null => {
@@ -418,7 +417,7 @@ const RoutePage = () => {
     };
 
     const legacyConstraintToBoundarySelection = (
-        constraints: RouteConstraints | undefined,
+        constraints: RouteConstraints | null | undefined,
         target: 'start' | 'end',
     ): RouteBoundarySelection | null => {
         if (!constraints) {
