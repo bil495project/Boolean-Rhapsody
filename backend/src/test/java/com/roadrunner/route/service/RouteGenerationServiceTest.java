@@ -534,8 +534,8 @@ class RouteGenerationServiceTest {
     }
 
     @Test
-    @DisplayName("Constrained hotel loop meal duraklarini mevcut poi slotlarina sigdirir")
-    void shouldFitMealsWithinConfiguredPoiSlots() {
+    @DisplayName("Constrained hotel loop meal duraklarini poi slotlarinin ustune ekleyebilir")
+    void shouldAddMealsBeyondConfiguredPoiSlots() {
         when(placeRepository.findAll()).thenReturn(buildTestPlaces());
         when(placeRepository.findById("c1")).thenReturn(
                 java.util.Optional.of(buildTestPlaces().stream()
@@ -562,8 +562,8 @@ class RouteGenerationServiceTest {
 
         assertThat(route.getPoints().get(0).getPoi().getId())
                 .isEqualTo(route.getPoints().get(route.getPoints().size() - 1).getPoi().getId());
-        assertThat(route.getPoints()).hasSize(6);
-        assertThat(route.getPoints().subList(1, route.getPoints().size() - 1)).hasSize(4);
+        assertThat(route.getPoints()).hasSize(7);
+        assertThat(route.getPoints().subList(1, route.getPoints().size() - 1)).hasSize(5);
         assertThat(route.getPoints().stream()
                 .filter(point -> point.getProtectionReason() != null && point.getProtectionReason().contains("meal:dinner"))
                 .count()).isEqualTo(1);
@@ -573,8 +573,8 @@ class RouteGenerationServiceTest {
     }
 
     @Test
-    @DisplayName("Meal talepleri poi slot kapasitesini asarsa hata verir")
-    void shouldFailWhenMealsExceedPoiSlotCapacity() {
+    @DisplayName("Meal talepleri hard poi slotlari kilitlediginde ekstra durak olarak eklenir")
+    void shouldAddMealStopsWhenPoiSlotsAreFullyReserved() {
         when(placeRepository.findAll()).thenReturn(buildTestPlaces());
 
         GenerateRoutesRequest req = buildConstrainedRequest();
@@ -584,16 +584,24 @@ class RouteGenerationServiceTest {
         constraints.setNeedsBreakfast(true);
         constraints.setNeedsLunch(true);
         constraints.setNeedsDinner(true);
-        List<RoutePoiSlotRequest> slots = new ArrayList<>();
-        slots.add(null);
-        slots.add(null);
-        constraints.setPoiSlots(slots);
+        constraints.setPoiSlots(List.of(
+                new RoutePoiSlotRequest("TYPE", null, "PARK", null),
+                new RoutePoiSlotRequest("TYPE", null, "PARK", null),
+                new RoutePoiSlotRequest("TYPE", null, "PARK", null)));
 
         ResolvedRouteGenerationRequest resolved = requestInterpreter.interpret(req);
+        Route route = routeService.generateRoutes(resolved, 1).get(0);
 
-        assertThatThrownBy(() -> routeService.generateRoutes(resolved, 1))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("insufficient");
+        List<RoutePoint> interior = route.getPoints().subList(1, route.getPoints().size() - 1);
+        assertThat(interior).hasSizeGreaterThan(3);
+        assertThat(interior.stream()
+                .filter(point -> point.getProtectionReason() != null && point.getProtectionReason().contains("meal:"))
+                .count()).isGreaterThanOrEqualTo(3);
+        assertThat(interior.stream()
+                .map(RoutePoint::getPoi)
+                .map(labelService::label)
+                .filter(label -> label == RouteLabel.PARK_VE_SEYIR_NOKTALARI)
+                .count()).isGreaterThanOrEqualTo(3);
     }
 
     @Test

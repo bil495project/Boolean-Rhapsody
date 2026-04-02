@@ -558,7 +558,7 @@ public class RouteGenerationService {
                 if (protectedInterior.size() > spec.targetInteriorCount()) {
                     throw new ResponseStatusException(
                             HttpStatus.BAD_REQUEST,
-                            "Configured POI slots are insufficient for the requested meals and fixed POIs");
+                            "Configured POI slots are insufficient for the requested fixed POIs");
                 }
 
                 int generatedPoiCount = spec.targetInteriorCount() - protectedInterior.size();
@@ -588,6 +588,18 @@ public class RouteGenerationService {
                     }
                     interiorPoints.add(freePoint(place));
                 }
+
+                interiorPoints.addAll(resolveAdditionalMealPoints(
+                        spec.mealRequirements(),
+                        interiorPoints,
+                        pool,
+                        req,
+                        boundaries.referenceLat(),
+                        boundaries.referenceLng(),
+                        variant,
+                        priorInteriorIds,
+                        usedIds,
+                        i));
 
                 orderedInterior = orderNearestNeighbor(
                         interiorPoints,
@@ -712,7 +724,6 @@ public class RouteGenerationService {
                                                             Set<String> usedIds,
                                                             int routeIndex) {
         List<RoutePoint> protectedPoints = new ArrayList<>();
-        Map<MealRequirement, String> mealAssignments = new EnumMap<>(MealRequirement.class);
 
         for (InteriorRequirement requirement : spec.hardSlots()) {
             Place place = resolveInteriorRequirementPlace(
@@ -722,24 +733,6 @@ public class RouteGenerationService {
             point.setProtectedPoint(true);
             point.setProtectionReason(requirement.kind() == InteriorRequirementKind.PLACE ? "slot:place" : "slot:type");
             protectedPoints.add(point);
-        }
-
-        for (MealRequirement meal : spec.mealRequirements()) {
-            RoutePoint existing = findReusableMealPoint(protectedPoints, meal, mealAssignments);
-            if (existing != null) {
-                mealAssignments.put(meal, existing.getPoi().getId());
-                existing.setProtectionReason(appendProtectionReason(existing.getProtectionReason(), "meal:" + meal.name().toLowerCase(Locale.ROOT)));
-                continue;
-            }
-
-            Place mealPlace = resolveMealPlace(
-                    meal, pool, req, anchorLat, anchorLng, variant, priorInteriorIds, usedIds, routeIndex, mealAssignments);
-            usedIds.add(mealPlace.getId());
-            RoutePoint point = freePoint(mealPlace);
-            point.setProtectedPoint(true);
-            point.setProtectionReason("meal:" + meal.name().toLowerCase(Locale.ROOT));
-            protectedPoints.add(point);
-            mealAssignments.put(meal, mealPlace.getId());
         }
 
         return protectedPoints;
@@ -757,7 +750,6 @@ public class RouteGenerationService {
                                                           int routeIndex) {
         List<InteriorSlot> slots = spec.orderedInteriorSlots();
         List<RoutePoint> orderedPoints = new ArrayList<>(java.util.Collections.nCopies(slots.size(), null));
-        Map<MealRequirement, String> mealAssignments = new EnumMap<>(MealRequirement.class);
         List<Integer> generatedIndices = new ArrayList<>();
 
         for (int i = 0; i < slots.size(); i++) {
@@ -776,39 +768,7 @@ public class RouteGenerationService {
             orderedPoints.set(i, point);
         }
 
-        List<MealRequirement> unresolvedMeals = new ArrayList<>();
-        for (MealRequirement meal : spec.mealRequirements()) {
-            RoutePoint existing = findReusableMealPoint(nonNullPoints(orderedPoints), meal, mealAssignments);
-            if (existing != null) {
-                mealAssignments.put(meal, existing.getPoi().getId());
-                existing.setProtectionReason(appendProtectionReason(
-                        existing.getProtectionReason(),
-                        "meal:" + meal.name().toLowerCase(Locale.ROOT)));
-            } else {
-                unresolvedMeals.add(meal);
-            }
-        }
-
-        if (unresolvedMeals.size() > generatedIndices.size()) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Configured POI slots are insufficient for the requested meals and fixed POIs");
-        }
-
-        int generatedCursor = 0;
-        for (MealRequirement meal : unresolvedMeals) {
-            int slotIndex = generatedIndices.get(generatedCursor++);
-            Place mealPlace = resolveMealPlace(
-                    meal, pool, req, anchorLat, anchorLng, variant, priorInteriorIds, usedIds, routeIndex, mealAssignments);
-            usedIds.add(mealPlace.getId());
-            RoutePoint point = freePoint(mealPlace);
-            point.setProtectedPoint(true);
-            point.setProtectionReason("meal:" + meal.name().toLowerCase(Locale.ROOT));
-            orderedPoints.set(slotIndex, point);
-            mealAssignments.put(meal, mealPlace.getId());
-        }
-
-        int remainingGeneratedCount = generatedIndices.size() - generatedCursor;
+        int remainingGeneratedCount = generatedIndices.size();
         List<Place> generatedPlaces = List.of();
         if (remainingGeneratedCount > 0) {
             Map<RouteLabel, Integer> quotas = computeCategoryQuotas(req, remainingGeneratedCount, variant.quotaExponent());
@@ -831,7 +791,7 @@ public class RouteGenerationService {
         }
 
         int generatedPlaceCursor = 0;
-        for (; generatedCursor < generatedIndices.size(); generatedCursor++) {
+        for (int generatedCursor = 0; generatedCursor < generatedIndices.size(); generatedCursor++) {
             int slotIndex = generatedIndices.get(generatedCursor);
             Place place = generatedPlaces.get(generatedPlaceCursor++);
             usedIds.add(place.getId());
@@ -841,6 +801,19 @@ public class RouteGenerationService {
         if (orderedPoints.stream().anyMatch(java.util.Objects::isNull)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ordered interior slot resolution is incomplete");
         }
+
+        orderedPoints.addAll(resolveAdditionalMealPoints(
+                spec.mealRequirements(),
+                nonNullPoints(orderedPoints),
+                pool,
+                req,
+                anchorLat,
+                anchorLng,
+                variant,
+                priorInteriorIds,
+                usedIds,
+                routeIndex));
+
         return orderedPoints;
     }
 
@@ -852,6 +825,48 @@ public class RouteGenerationService {
             }
         }
         return resolved;
+    }
+
+    private List<RoutePoint> resolveAdditionalMealPoints(List<MealRequirement> meals,
+                                                         List<RoutePoint> resolvedInteriorPoints,
+                                                         List<Place> pool,
+                                                         ParsedWeightRequest req,
+                                                         double anchorLat,
+                                                         double anchorLng,
+                                                         RouteVariantProfile variant,
+                                                         List<Set<String>> priorInteriorIds,
+                                                         Set<String> usedIds,
+                                                         int routeIndex) {
+        List<RoutePoint> extraMealPoints = new ArrayList<>();
+        if (meals == null || meals.isEmpty()) {
+            return extraMealPoints;
+        }
+
+        Map<MealRequirement, String> mealAssignments = new EnumMap<>(MealRequirement.class);
+        List<RoutePoint> availablePoints = new ArrayList<>(resolvedInteriorPoints);
+
+        for (MealRequirement meal : meals) {
+            RoutePoint existing = findReusableMealPoint(availablePoints, meal, mealAssignments);
+            if (existing != null) {
+                mealAssignments.put(meal, existing.getPoi().getId());
+                existing.setProtectionReason(appendProtectionReason(
+                        existing.getProtectionReason(),
+                        "meal:" + meal.name().toLowerCase(Locale.ROOT)));
+                continue;
+            }
+
+            Place mealPlace = resolveMealPlace(
+                    meal, pool, req, anchorLat, anchorLng, variant, priorInteriorIds, usedIds, routeIndex, mealAssignments);
+            usedIds.add(mealPlace.getId());
+            RoutePoint point = freePoint(mealPlace);
+            point.setProtectedPoint(true);
+            point.setProtectionReason("meal:" + meal.name().toLowerCase(Locale.ROOT));
+            extraMealPoints.add(point);
+            availablePoints.add(point);
+            mealAssignments.put(meal, mealPlace.getId());
+        }
+
+        return extraMealPoints;
     }
 
     private Place resolveInteriorRequirementPlace(InteriorRequirement requirement,
