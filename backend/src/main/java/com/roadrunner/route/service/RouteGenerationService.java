@@ -307,7 +307,12 @@ public class RouteGenerationService {
                 .reversed());
 
         int bandSize = hotelCandidateBandSize(ranked.size(), variant);
-        int selectedIndex = deterministicIndex(bandSize, req.requestId(), variant.routeIndex(), 73, rnd);
+        int selectedIndex = deterministicIndex(
+                bandSize,
+                req.requestId(),
+                variant.routeIndex(),
+                Objects.hash(73, usedIds.size(), extraExcluded.size()),
+                rnd);
         return Optional.of(ranked.get(selectedIndex));
     }
 
@@ -438,7 +443,12 @@ public class RouteGenerationService {
                 .reversed());
 
         int bandSize = hotelCandidateBandSize(ranked.size(), variant);
-        int selectedIndex = deterministicIndex(bandSize, req.requestId(), variant.routeIndex(), 0, rnd);
+        int selectedIndex = deterministicIndex(
+                bandSize,
+                req.requestId(),
+                variant.routeIndex(),
+                Objects.hash(0, priorHotelIds.size()),
+                rnd);
         return ranked.get(selectedIndex);
     }
 
@@ -1037,8 +1047,13 @@ public class RouteGenerationService {
 
         candidates.sort(Comparator.comparingDouble((Place place) -> scoreVisitCandidate(
                 place, labelService.label(place), req, anchorLat, anchorLng, variant, priorInteriorIds)).reversed());
-        int bandSize = Math.max(1, Math.min(candidates.size(), 1 + variant.routeIndex()));
-        int index = deterministicIndex(bandSize, req.requestId(), variant.routeIndex(), 91, rnd);
+        int bandSize = candidateBandSize(candidates.size(), 0.35, variant);
+        int index = deterministicIndex(
+                bandSize,
+                req.requestId(),
+                variant.routeIndex(),
+                Objects.hash(91, usedIds.size()),
+                rnd);
         return Optional.of(candidates.get(index));
     }
 
@@ -1073,9 +1088,13 @@ public class RouteGenerationService {
 
         candidates.sort(Comparator.comparingDouble((Place place) -> scoreVisitCandidate(
                 place, label, req, anchorLat, anchorLng, variant, priorInteriorIds)).reversed());
-        int bandSize = Math.max(1, Math.min(candidates.size(), 1 + variant.routeIndex()));
-        int selectedIndex = deterministicIndex(bandSize, req.requestId(), variant.routeIndex(),
-                label.ordinal(), rnd);
+        int bandSize = candidateBandSize(candidates.size(), req.weightFor(label), variant);
+        int selectedIndex = deterministicIndex(
+                bandSize,
+                req.requestId(),
+                variant.routeIndex(),
+                Objects.hash(label.ordinal(), usedIds.size()),
+                rnd);
         return Optional.of(candidates.get(selectedIndex));
     }
 
@@ -1439,7 +1458,21 @@ public class RouteGenerationService {
     }
 
     private int hotelCandidateBandSize(int size, RouteVariantProfile variant) {
-        return Math.max(1, Math.min(size, 1 + variant.routeIndex()));
+        double ratio = 0.25 + (variant.explorationFactor() * 0.40);
+        int bandSize = (int) Math.ceil(size * Math.min(0.60, ratio));
+        int minBandSize = size >= 3 ? 2 : 1;
+        return Math.max(minBandSize, Math.min(size, bandSize));
+    }
+
+    private int candidateBandSize(int size,
+                                  double categoryWeight,
+                                  RouteVariantProfile variant) {
+        double ratio = 0.12
+                + (variant.explorationFactor() * 0.45)
+                + ((1.0 - clamp01(categoryWeight)) * 0.28);
+        int bandSize = (int) Math.ceil(size * Math.min(0.85, ratio));
+        int minBandSize = size >= 3 && categoryWeight < 0.9 ? 2 : 1;
+        return Math.max(minBandSize, Math.min(size, bandSize));
     }
 
     private int deterministicIndex(int bandSize,

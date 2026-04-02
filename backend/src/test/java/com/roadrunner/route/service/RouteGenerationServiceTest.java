@@ -15,6 +15,7 @@ import com.roadrunner.place.repository.PlaceRepository;
 import com.roadrunner.route.dto.request.GenerateRoutesRequest;
 import com.roadrunner.route.dto.request.RouteAnchorRequest;
 import com.roadrunner.route.dto.request.RouteCandidateFiltersRequest;
+import com.roadrunner.route.dto.request.RouteBoundarySelectionRequest;
 import com.roadrunner.route.dto.request.RouteConstraintsRequest;
 import com.roadrunner.route.dto.request.RoutePreferencesRequest;
 import com.roadrunner.route.dto.request.RoutePoiSlotRequest;
@@ -288,6 +289,30 @@ class RouteGenerationServiceTest {
                     .toList();
             signatures.add(interiorIds);
         }
+        assertThat(signatures).hasSizeGreaterThan(1);
+    }
+
+    @Test
+    @DisplayName("Ayni constrained istek tekrarlandiginda rota tek imzaya kilitlenmez")
+    void shouldDiversifyRepeatedConstrainedGenerations() {
+        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
+
+        GenerateRoutesRequest req = buildConstrainedRequest();
+        req.setK(1);
+        RouteConstraintsRequest constraints = req.getConstraints();
+        constraints.setStartPoint(new RouteBoundarySelectionRequest("HOTEL", null, null, null));
+        constraints.setEndPoint(new RouteBoundarySelectionRequest("HOTEL", null, null, null));
+
+        ResolvedRouteGenerationRequest resolved = requestInterpreter.interpret(req);
+
+        Set<List<String>> signatures = new HashSet<>();
+        for (int i = 0; i < 8; i++) {
+            Route route = routeService.generateRoutes(resolved, 1).get(0);
+            signatures.add(route.getPoints().stream()
+                    .map(point -> point.getPoi() != null ? point.getPoi().getId() : point.getAnchorName())
+                    .toList());
+        }
+
         assertThat(signatures).hasSizeGreaterThan(1);
     }
 
