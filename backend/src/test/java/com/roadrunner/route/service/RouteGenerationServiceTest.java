@@ -605,6 +605,54 @@ class RouteGenerationServiceTest {
     }
 
     @Test
+    @DisplayName("Constrained requestte stayAtHotel true ise rota hotel loop olarak uretilir")
+    void shouldHonorStayAtHotelInConstrainedRequests() {
+        when(placeRepository.findAll()).thenReturn(buildTestPlaces());
+
+        GenerateRoutesRequest req = buildConstrainedRequest();
+        RouteConstraintsRequest constraints = req.getConstraints();
+        constraints.setStayAtHotel(true);
+        constraints.setNeedsBreakfast(true);
+        constraints.setNeedsLunch(true);
+        constraints.setNeedsDinner(true);
+        constraints.setPoiSlots(List.of(
+                new RoutePoiSlotRequest("TYPE", null, "PARK", null),
+                new RoutePoiSlotRequest("TYPE", null, "PARK", null),
+                new RoutePoiSlotRequest("TYPE", null, "PARK", null)));
+
+        ResolvedRouteGenerationRequest resolved = requestInterpreter.interpret(req);
+        Route route = routeService.generateRoutes(resolved, 1).get(0);
+
+        assertThat(resolved.constraintSpec().startBoundary().kind())
+                .isEqualTo(RouteConstraintSpec.BoundaryKind.HOTEL);
+        assertThat(resolved.constraintSpec().endBoundary().kind())
+                .isEqualTo(RouteConstraintSpec.BoundaryKind.HOTEL);
+        assertThat(route.getPoints().get(0).getPoi()).isNotNull();
+        assertThat(route.getPoints().get(route.getPoints().size() - 1).getPoi()).isNotNull();
+        assertThat(labelService.label(route.getPoints().get(0).getPoi()))
+                .isEqualTo(RouteLabel.HOTEL);
+        assertThat(route.getPoints().get(0).getPoi().getId())
+                .isEqualTo(route.getPoints().get(route.getPoints().size() - 1).getPoi().getId());
+    }
+
+    @Test
+    @DisplayName("startWithPoi stayAtHoteli start tarafinda override eder ama end hotel kalir")
+    void shouldLetExplicitPoiBoundaryOverrideStayAtHotelPerSide() {
+        GenerateRoutesRequest req = buildConstrainedRequest();
+        RouteConstraintsRequest constraints = req.getConstraints();
+        constraints.setStayAtHotel(true);
+        constraints.setStartWithPoi(true);
+        constraints.setStartAnchor(new RouteAnchorRequest("PLACE", "l1", null, null));
+
+        ResolvedRouteGenerationRequest resolved = requestInterpreter.interpret(req);
+
+        assertThat(resolved.constraintSpec().startBoundary().kind())
+                .isEqualTo(RouteConstraintSpec.BoundaryKind.PLACE);
+        assertThat(resolved.constraintSpec().endBoundary().kind())
+                .isEqualTo(RouteConstraintSpec.BoundaryKind.HOTEL);
+    }
+
+    @Test
     @DisplayName("Anchor boole false ise gelen poi anchor ignore edilir")
     void shouldIgnoreAnchorObjectWhenBooleanIsFalse() {
         GenerateRoutesRequest req = buildConstrainedRequest();

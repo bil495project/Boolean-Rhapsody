@@ -23,6 +23,10 @@ CREATE DATABASE roadrunner;
 
 ## 2. Backend Setup
 
+Route payload semantics and example requests:
+
+- `backend/ROUTE_INPUT_GUIDE.md`
+
 ### 2.1 Configure `application.properties`
 
 Copy the example file and fill in your credentials:

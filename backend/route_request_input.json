@@ -1,0 +1,36 @@
+{
+  "preferences": {
+    "tempo": 1.0,
+    "socialPreference": 0.4,
+    "naturePreference": 0.8,
+    "historyPreference": 0.3,
+    "foodImportance": 0.7,
+    "alcoholPreference": 0.0,
+    "transportStyle": 0.3,
+    "budgetLevel": 0.5,
+    "tripLength": 0.5,
+    "crowdPreference": 0.2
+  },
+  "constraints": {
+    "stayAtHotel": true,
+    "needsBreakfast": true,
+    "needsLunch": true,
+    "needsDinner": false,
+    "startWithPoi": false,
+    "endWithPoi": false,
+    "startWithHotel": null,
+    "endWithHotel": null,
+    "startPoint": null,
+    "endPoint": null,
+    "startAnchor": null,
+    "endAnchor": null,
+    "poiSlots": [
+      { "kind": "TYPE", "poiType": "PARK" },
+      { "kind": "TYPE", "poiType": "LANDMARK" },
+      {}
+    ]
+  },
+  "centerLat": 39.9208,
+  "centerLng": 32.8541,
+  "k": 3
+}

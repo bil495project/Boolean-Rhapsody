@@ -212,6 +212,22 @@ class RouteControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("Generate minimal valid payload preferences bos olsa da basarili doner")
+    void shouldGenerateRoutesFromMinimalValidPayload() throws Exception {
+        GenerateRoutesRequest req = new GenerateRoutesRequest();
+        req.setPreferences(new RoutePreferencesRequest());
+        req.setK(1);
+
+        mockMvc.perform(post("/api/routes/generate")
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].points.length()").value(org.hamcrest.Matchers.greaterThanOrEqualTo(3)));
+    }
+
+    @Test
     @DisplayName("Generate yeni contract ile 200 donup k rota uretiyor")
     void shouldGenerateKRoutes() throws Exception {
         GenerateRoutesRequest req = new GenerateRoutesRequest();
@@ -431,25 +447,42 @@ class RouteControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("Generate meal talepleri poi slot kapasitesini asarsa 400 doner")
-    void shouldRejectWhenMealsExceedPoiSlotCapacity() throws Exception {
+    @DisplayName("Generate stayAtHotel ve park slotlari ile meal duraklarini ekstra ekleyip hotel loop kurar")
+    void shouldAppendMealsBeyondPoiSlotsAndKeepHotelLoop() throws Exception {
         GenerateRoutesRequest req = buildPreferenceOnlyRequest();
         RouteConstraintsRequest constraints = req.getConstraints();
-        constraints.setStartPoint(new RouteBoundarySelectionRequest("HOTEL", null, null, null));
-        constraints.setEndPoint(new RouteBoundarySelectionRequest("HOTEL", null, null, null));
+        constraints.setStayAtHotel(true);
         constraints.setNeedsBreakfast(true);
         constraints.setNeedsLunch(true);
         constraints.setNeedsDinner(true);
-        List<RoutePoiSlotRequest> slots = new ArrayList<>();
-        slots.add(null);
-        slots.add(null);
-        constraints.setPoiSlots(slots);
+        constraints.setPoiSlots(List.of(
+                new RoutePoiSlotRequest("TYPE", null, "PARK", null),
+                new RoutePoiSlotRequest("TYPE", null, "PARK", null),
+                new RoutePoiSlotRequest("TYPE", null, "PARK", null)));
+        constraints.setEndAnchor(new RouteAnchorRequest("TYPE", null, "HOTEL", null));
 
-        mockMvc.perform(post("/api/routes/generate")
+        MvcResult result = mockMvc.perform(post("/api/routes/generate")
                         .header("Authorization", "Bearer " + jwtToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk())
+                .andReturn();
+
+        List<RouteResponse> routes = objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                new TypeReference<>() {});
+
+        RouteResponse route = routes.get(0);
+        assertThat(route.getPoints().get(0).getTypes()).contains("hotel");
+        assertThat(route.getPoints().get(route.getPoints().size() - 1).getTypes()).contains("hotel");
+        assertThat(route.getPoints().get(0).getPoiId())
+                .isEqualTo(route.getPoints().get(route.getPoints().size() - 1).getPoiId());
+        assertThat(route.getPoints().stream()
+                .filter(point -> point.getProtectionReason() != null && point.getProtectionReason().contains("meal:"))
+                .count()).isGreaterThanOrEqualTo(3);
+        assertThat(route.getPoints().stream()
+                .filter(point -> point.getProtectionReason() != null && point.getProtectionReason().contains("slot:type"))
+                .count()).isGreaterThanOrEqualTo(3);
     }
 
     @Test
@@ -509,6 +542,21 @@ class RouteControllerIntegrationTest {
         GenerateRoutesRequest req = buildPreferenceOnlyRequest();
         RouteConstraintsRequest constraints = req.getConstraints();
         constraints.setPoiSlots(List.of(new RoutePoiSlotRequest(null, null, "RESTAURANT", null)));
+
+        mockMvc.perform(post("/api/routes/generate")
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Generate cozulemeyen PLACE slot icin 400 doner")
+    void shouldRejectUnresolvablePlaceSlot() throws Exception {
+        GenerateRoutesRequest req = buildPreferenceOnlyRequest();
+        RouteConstraintsRequest constraints = req.getConstraints();
+        constraints.setStayAtHotel(true);
+        constraints.setPoiSlots(List.of(new RoutePoiSlotRequest("PLACE", "missing-place-id", null, null)));
 
         mockMvc.perform(post("/api/routes/generate")
                         .header("Authorization", "Bearer " + jwtToken)
