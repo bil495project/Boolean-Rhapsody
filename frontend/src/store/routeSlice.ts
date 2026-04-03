@@ -179,7 +179,9 @@ const routeSlice = createSlice({
             state.approvedRoute = null;
             state.error = null;
             state.isLoading = false;
-            state.currentRequest = null;
+            // Build a default request so route mutations (reroll/insert/remove/reorder)
+            // have the required userVector and preferences to operate.
+            state.currentRequest = buildGenerateRoutesPayload(undefined);
             state.savedRouteId = null;
             state.savedRouteTitle = null;
         },
