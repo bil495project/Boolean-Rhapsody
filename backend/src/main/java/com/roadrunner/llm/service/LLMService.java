@@ -122,6 +122,60 @@ public class LLMService {
     }
 
     /**
+     * Directly calls Flask /explain_route, bypassing the LLM tool-call parser.
+     * Used by the "Ask LLM about Route" button to avoid JSON extraction failures
+     * on Turkish / special-character stop names.
+     *
+     * @param routeStopNames ordered list of stop names from the route
+     * @param routeSummary   optional metadata (duration, distance, travel mode)
+     * @param userId         authenticated user id (may be null)
+     * @return LLMChatResponse with the narrative response
+     */
+    public LLMChatResponse explainRoute(
+            List<String> routeStopNames,
+            Map<String, Object> routeSummary,
+            String userId) {
+
+        String endpoint = llmServerUrl + "/explain_route";
+        logger.info("Forwarding explain_route request to Flask: {}", endpoint);
+
+        try {
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("route_stop_names", routeStopNames);
+            if (routeSummary != null && !routeSummary.isEmpty()) {
+                requestBody.put("route_summary", routeSummary);
+            }
+            if (userId != null && !userId.isEmpty()) {
+                requestBody.put("user_id", userId);
+            }
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
+
+            ResponseEntity<LLMChatResponse> responseEntity = restTemplate.postForEntity(
+                    endpoint, request, LLMChatResponse.class);
+
+            if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
+                return responseEntity.getBody();
+            }
+
+            LLMChatResponse err = new LLMChatResponse();
+            err.setStatus("error");
+            err.setMessage("explain_route returned: " + responseEntity.getStatusCode());
+            return err;
+
+        } catch (RestClientException e) {
+            logger.error("explain_route connection failed: {}", e.getMessage());
+            LLMChatResponse err = new LLMChatResponse();
+            err.setStatus("error");
+            err.setMessage("explain_route bağlantı hatası: " + e.getMessage());
+            return err;
+        }
+    }
+
+    /**
      * Generates a short title for a chat session based on the user's first query.
      *
      * @param firstMessage the user's initial message

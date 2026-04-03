@@ -6,9 +6,10 @@ import sys
 import time
 from chatbot.ai_agents import (
     CalculatorAgent, WeatherAgent, UserProfileUpdateAgent,
-    TripFeedbackAgent, RecommendationExplainerAgent, RouteGenerationAgent,
+    TripFeedbackAgent, RecommendationExplainerAgent, RouteGenerationFormatAgent,
     POISuggestionAgent, ItineraryModificationAgent, ChatTitleAgent,
-    POIDataAgent, POISearchAgent, UserPersonaListAgent
+    POIDataAgent, POI_search_agent, UserPersonaListAgent,
+    GeneratedRouteExplanationAgent,
 )
 
 # --- Configuration ---
@@ -43,13 +44,14 @@ TOOLS = [
     {"type": "function", "function": UserProfileUpdateAgent.tool_template},
     {"type": "function", "function": TripFeedbackAgent.tool_template},
     {"type": "function", "function": RecommendationExplainerAgent.tool_template},
-    {"type": "function", "function": RouteGenerationAgent.tool_template},
+    {"type": "function", "function": RouteGenerationFormatAgent.tool_template},
     {"type": "function", "function": POISuggestionAgent.tool_template},
     {"type": "function", "function": ItineraryModificationAgent.tool_template},
     {"type": "function", "function": ChatTitleAgent.tool_template},
     {"type": "function", "function": POIDataAgent.tool_template},
-    {"type": "function", "function": POISearchAgent.tool_template},
+    {"type": "function", "function": POI_search_agent.tool_template},
     {"type": "function", "function": UserPersonaListAgent.tool_template},
+    {"type": "function", "function": GeneratedRouteExplanationAgent.tool_template},
 ]
 
 # chatbot.py updates

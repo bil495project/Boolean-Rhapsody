@@ -22,6 +22,7 @@ import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import ShuffleIcon from '@mui/icons-material/Shuffle';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import type { RouteData, RoutePointData } from '../../services/routeService';
 import type { ColorPaletteProp } from '@mui/joy/styles';
 import type { MapDestination } from '../../data/destinations';
@@ -130,6 +131,8 @@ interface EditableRouteCardProps {
     onInsertPlaceInputChange?: (query: string) => void;
     onInsertPlaceSelect?: (value: MapDestination | null) => void;
     onInsertCancel?: () => void;
+    /** Called when the user clicks "Ask LLM about Route". */
+    onAskLLM?: (route: RouteData) => void;
 }
 
 const EditableRouteCard = ({
@@ -150,6 +153,7 @@ const EditableRouteCard = ({
     onInsertPlaceInputChange,
     onInsertPlaceSelect,
     onInsertCancel,
+    onAskLLM,
 }: EditableRouteCardProps) => {
     const [draggedPointIndex, setDraggedPointIndex] = useState<number | null>(null);
     const [dragOverPointIndex, setDragOverPointIndex] = useState<number | null>(null);
@@ -216,6 +220,7 @@ const EditableRouteCard = ({
                 </Box>
 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                    {/* Stats */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                         <AccessTimeIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
                         <Typography level="body-sm" sx={{ color: 'text.secondary' }}>
@@ -234,6 +239,36 @@ const EditableRouteCard = ({
                             {route.travelMode || 'driving'}
                         </Typography>
                     </Box>
+
+                    {/* Ask LLM button */}
+                    {onAskLLM && (
+                        <Tooltip title="Open chat and ask the AI to explain every stop on this route">
+                            <Button
+                                id={`ask-llm-route-${index}`}
+                                size="sm"
+                                variant="soft"
+                                color="primary"
+                                startDecorator={<AutoAwesomeIcon sx={{ fontSize: 16 }} />}
+                                onClick={() => onAskLLM(route)}
+                                sx={{
+                                    fontWeight: 600,
+                                    borderRadius: 'xl',
+                                    px: 1.5,
+                                    py: 0.4,
+                                    fontSize: '0.75rem',
+                                    background: 'linear-gradient(135deg, var(--joy-palette-primary-400), var(--joy-palette-primary-600))',
+                                    color: 'white',
+                                    transition: 'all 0.2s',
+                                    '&:hover': {
+                                        transform: 'translateY(-1px)',
+                                        boxShadow: 'sm',
+                                    },
+                                }}
+                            >
+                                Ask LLM about Route
+                            </Button>
+                        </Tooltip>
+                    )}
                 </Box>
             </Box>
 

@@ -96,51 +96,78 @@ class weatherAgent(BaseAgent):
             return f"Weather Service Error: {str(e)}"
 
 
-class UserProfileAgent_SetInfo(BaseAgent):
-    """Agent responsible for WRITING (updating) user travel preferences.
-
-    This is the write counterpart to UserPersonaListAgent (get_user_personas),
-    which only reads. Use this agent when the user explicitly states a new
-    preference or wants to change an existing one.
-
-    Updatable preference categories include: tempo, social preference,
-    nature preference, history preference, food importance, alcohol preference,
-    transport style, budget level, trip length, crowd preference.
-    """
+class UserProfileUpdateAgent(BaseAgent):
+    """Updates persistent user preferences stored in the backend."""
     tool_template = {
-        "name": "user_profile_agent",  # Matches TC-LLM-U-008
+        "name": "update_user_profile",
         "description": (
-            "Updates (writes) user travel preferences. Use this when the user explicitly "
-            "states a new preference or wants to change an existing setting "
-            "(e.g. 'I prefer budget-friendly places', 'set my pace to relaxed', "
-            "'I love historical sites'). "
-            "Updatable categories: tempo, social preference, nature preference, "
-            "history preference, food importance, alcohol preference, transport style, "
-            "budget level, trip length, crowd preference. "
-            "Do NOT use this tool to VIEW existing preferences — use get_user_personas instead."
+            "Updates one or more preference fields on the user's travel persona "
+            "(e.g. preferred budget level, interest in history, food importance, pace/tempo, nature, social). "
+            "CRITICAL INSTRUCTION: ALWAYS CALL THIS TOOL IMMEDIATELY whenever the user asks to change, update, or "
+            "set a new preference (like 'set my tempo to low', 'update my profile', 'I want less history'). "
+            "DO NOT ask for confirmation before calling! DO NOT just talk about updating it! YOU MUST CALL THE TOOL! "
+            "Fields are double values from 0.0 to 1.0. Adjust the values based on "
+            "the user's request. For example, if they say 'totally no history', set historyPreference to 0.0. "
+            "If they say 'I want to chill around', set tempo to a low value (e.g. 0.2)."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "user_id": {
-                    "type": "string",
-                    "description": "The unique identifier of the user whose preferences to update."
-                },
                 "user_data_update_info": {
                     "type": "object",
                     "description": (
-                        "A JSON object containing the preference fields to update. "
-                        "Keys are preference category names (e.g. 'budgetLevel', 'historyPreference') "
-                        "and values are the new settings (typically a float 0.0–1.0 or a descriptive string)."
+                        "A key-value map of the fields to update. Valid keys: "
+                        "'historyPreference', 'naturePreference', 'foodImportance', "
+                        "'budgetLevel', 'socialPreference', 'tempo'. "
+                        "Values MUST be doubles between 0.0 and 1.0. "
+                        "Example: {'historyPreference': 0.5, 'naturePreference': 1.0}."
                     )
                 }
             },
-            "required": ["user_id", "user_data_update_info"]
+            "required": ["user_data_update_info"]
         }
     }
 
-    def __call__(self, user_id, user_data_update_info):
-        return f"User {user_id} preferences updated: {user_data_update_info}"
+    def __call__(self, user_data_update_info: dict, user_id: str = None) -> str:
+        print(f"[SYSTEM] UserProfileUpdateAgent: user_id={user_id}, updates={user_data_update_info}")
+        
+        if not user_id:
+            return "I couldn't identify your account. Please log in to update your profile preferences."
+            
+        personas = _fetch_personas(user_id)
+        if not personas:
+            return "You do not have any travel personas yet. Please create one before updating preferences."
+            
+        # Allowed keys to update
+        valid_keys = {"historyPreference", "naturePreference", "foodImportance", "budgetLevel", "socialPreference", "tempo"}
+        processed_updates = {}
+        
+        for k, v in user_data_update_info.items():
+            if k in valid_keys and isinstance(v, (int, float)):
+                processed_updates[k] = max(0.0, min(1.0, float(v)))
+                
+        if not processed_updates:
+            return "No valid preference updates were provided. Valid keys are: historyPreference, naturePreference, foodImportance, budgetLevel, socialPreference, tempo."
+            
+        updated_count = 0
+        for persona in personas:
+            persona_id = persona.get("id")
+            if not persona_id:
+                continue
+                
+            # Copy existing fields and overwrite with new changes
+            updated_persona = persona.copy()
+            updated_persona.update(processed_updates)
+            
+            # The backend API expects the full payload for PUT /me/personas/{id}
+            result = _set_persona(user_id, persona_id, updated_persona)
+            if result.get("success"):
+                updated_count += 1
+                
+        if updated_count > 0:
+            return f"Successfully updated your preferences ({', '.join([f'{k}={v}' for k,v in processed_updates.items()])}) across {updated_count} persona(s)."
+        else:
+            return "Failed to update your personas in the database."
 
 
 class UserFeedbackAgent(BaseAgent):
@@ -183,48 +210,102 @@ class UserFeedbackAgent(BaseAgent):
         return f"Feedback for trip {trip_id} recorded: '{user_feedback[:50]}...'"
 
 
-class XAIJustificationAgent(BaseAgent):
-    """Agent responsible for providing explainable AI justifications for recommendations."""
+class RecommendationExplainerAgent(BaseAgent):
+    """Explains why a specific place or route was recommended to the user."""
     tool_template = {
-        "name": "get_xai_justification",
+        "name": "explain_recommendation",
         "description": (
-            "Provides an explainable AI (XAI) justification for a specific recommendation "
-            "that was previously made by the system. "
-            "Trigger this tool when the user asks WHY something was recommended "
-            "(e.g. 'why did you suggest Anıtkabir?', 'why was I recommended that hotel?', "
-            "'explain this recommendation'). "
-            "The recommendation_id is the unique identifier of a previously generated recommendation "
-            "(e.g. a route ID or a POI suggestion ID). "
-            "The response will explain which user preferences, persona weights, and data signals "
-            "contributed to the recommendation."
+            "Returns an explainable AI (XAI) justification for why a specific place "
+            "was recommended, based on the user's travel persona features and the place's features. "
+            "Use this when the user asks 'Why was X recommended to me?' or 'Why did you recommend this place?'"
+            "ALWAYS USE THIS AGENT IF USER ASKS WHY A ROUTE/PLACE WAS RECOMMENDED. EXAMPLE USES: 'why did you recommend me place X?', 'Why did you showed this?', 'Bana niye bunu önerdin?'"
+            
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "recommendation_id": {
+                "place_name": {
                     "type": "string",
-                    "description": (
-                        "The unique identifier of the recommendation to explain "
-                        "(e.g. a route ID or suggestion ID from a previous tool call)."
-                    )
-                },
-                "user_data": {
-                    "type": "object",
-                    "description": (
-                        "Optional. Additional user context to enrich the explanation "
-                        "(e.g. current preferences or session data). Omit if not available."
-                    )
+                    "description": "The exact name of the recommended place to explain (e.g. 'Anıtkabir', 'Eymir Gölü')."
                 }
             },
-            "required": ["recommendation_id"]
+            "required": ["place_name"]
         }
     }
 
-    def __call__(self, recommendation_id, user_data=None):
-        return (
-            f"Justification for {recommendation_id}: This was recommended based on "
-            "your preference for high-rated historical sites."
-        )
+    def __call__(self, place_name: str, user_id: str = None) -> str:
+        import requests
+        print(f"[SYSTEM] RecommendationExplainerAgent: explaining '{place_name}' for user_id={user_id}")
+        
+        if not user_id:
+            return "I couldn't identify your account. Please log in to get a personalized explanation."
+
+        # 1. Fetch place from DB
+        try:
+            url = f"{BACKEND_URL}/api/places/search"
+            resp = requests.get(url, params={"name": place_name, "size": 1}, timeout=5)
+            if resp.status_code != 200:
+                return f"Could not retrieve place data for '{place_name}' (HTTP {resp.status_code})."
+            
+            data = resp.json()
+            results = data.get("content", data) if isinstance(data, dict) else data
+            if not results:
+                return f"Could not find any place named '{place_name}' in the database."
+                
+            place = results[0]
+            p_name = place.get("name", place_name)
+            p_types = place.get("types", "Unknown")
+            p_rating = place.get("ratingScore", "N/A")
+            p_price = place.get("priceLevel", "N/A")
+        except Exception as e:
+            print(f"[ERROR] RecommendationExplainerAgent place lookup: {e}")
+            return f"An error occurred while looking up '{place_name}'."
+            
+        # 2. Fetch user personas
+        personas = _fetch_personas(user_id)
+        if not personas:
+            return f"Place '{p_name}' has types '{p_types}' and rating {p_rating}, but you don't have any saved travel personas, so I cannot explain the personalization."
+            
+        # Use default persona, or first if none is default
+        persona = next((p for p in personas if p.get('isDefault')), personas[0])
+        
+        # 3. Construct explanation text for LLM
+        explanation = [
+            f"Here is the feature breakdown for explaining why '{p_name}' was recommended:",
+            "",
+            "**Place Features:**",
+            f"- Types/Categories: {p_types}",
+            f"- Rating: {p_rating} ⭐",
+        ]
+        if p_price and p_price != "N/A":
+            explanation.append(f"- Price Level: {p_price}")
+            
+        explanation.append("")
+        explanation.append("**User's Persona Preferences:**")
+        
+        # Helper to convert float to qualitative level
+        def label(v):
+            if v is None: return "Unknown"
+            return "Low" if v < 0.35 else "Moderate" if v < 0.65 else "High"
+            
+        weights = {
+            "History preference": persona.get("historyPreference"),
+            "Nature preference": persona.get("naturePreference"),
+            "Food importance": persona.get("foodImportance"),
+            "Budget capacity": persona.get("budgetLevel"),
+            "Social preference": persona.get("socialPreference"),
+            "Pace / Tempo": persona.get("tempo")
+        }
+        for k, v in weights.items():
+            if v is not None:
+                explanation.append(f"- {k}: {label(v)} ({v})")
+                
+        explanation.append("")
+        explanation.append("Instructions for the assistant:")
+        explanation.append("Using the above place features and user's persona scores, first print the information on place and user exactly as you recieved. Then after printing these information, move on with explaining to the user in a friendly way why this place is a strong match for them. E.g., if the place is historical and they have a High History preference, point that out.")
+        
+        return "\n".join(explanation)
+
 
 
 # ---------------------------------------------------------------------------
@@ -250,6 +331,56 @@ def _fetch_personas(user_id: str) -> list:
         print(f"[WARN] _fetch_personas failed for user_id={user_id}: {e}")
     return []
 
+def _set_persona(user_id: str, persona_id: str, persona_data: dict) -> dict:
+    """
+    Spring Boot endpoint'ini çağırarak seyahat personasını günceller.
+    Hata durumlarında detaylı açıklama döner.
+    """
+    # 1. Temel Doğrulama
+    if not user_id or not persona_id:
+        return {"success": False, "message": "Eksik parametre: user_id veya persona_id bulunamadı."}
+        
+    try:
+        url = f"{BACKEND_URL}/api/users/{user_id}/personas/{persona_id}"
+        
+        # 2. Payload Hazırlama (Sadece None olmayanları al)
+        fields = [
+            "name", "isDefault", "tempo", "socialPreference", "naturePreference",
+            "historyPreference", "foodImportance", "alcoholPreference",
+            "transportStyle", "budgetLevel", "tripLength", "crowdPreference", "userVector"
+        ]
+        
+        payload = {
+            key: persona_data[key] 
+            for key in fields 
+            if key in persona_data and persona_data[key] is not None
+        }
+        
+        if not payload:
+            return {"success": True, "message": "Güncellenecek yeni bir veri sağlanmadı, işlem atlandı."}
+
+        # 3. İstek Gönderimi
+        resp = requests.put(url, json=payload, timeout=5)
+        
+        # 4. HTTP Durum Kodlarına Göre Açıklama
+        if resp.status_code == 200:
+            return {"success": True, "message": "Persona başarıyla güncellendi."}
+        elif resp.status_code == 404:
+            return {"success": False, "message": f"Hata 404: Kullanıcı (ID: {user_id}) veya Persona (ID: {persona_id}) sistemde bulunamadı."}
+        elif resp.status_code == 400:
+            return {"success": False, "message": f"Hata 400: Geçersiz veri formatı. Backend yanıtı: {resp.text}"}
+        elif resp.status_code == 403:
+            return {"success": False, "message": "Hata 403: Bu işlem için yetkiniz yok."}
+        else:
+            return {"success": False, "message": f"Beklenmedik HTTP hatası ({resp.status_code}): {resp.text}"}
+
+    # 5. Network ve Beklenmedik Hatalar
+    except requests.exceptions.Timeout:
+        return {"success": False, "message": "Bağlantı zaman aşımına uğradı. Backend sunucusu yanıt vermiyor."}
+    except requests.exceptions.ConnectionError:
+        return {"success": False, "message": "Sunucuya bağlanılamadı. Lütfen BACKEND_URL'in doğruluğunu ve sunucunun çalıştığını kontrol edin."}
+    except Exception as e:
+        return {"success": False, "message": f"Beklenmedik bir sistem hatası oluştu: {str(e)}"}
 
 def _describe_persona(p: dict) -> str:
     """

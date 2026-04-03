@@ -69,6 +69,43 @@ public class LLMController {
         return ResponseEntity.ok(Map.of("title", title));
     }
 
+    /**
+     * Directly explains a route by calling Flask /explain_route, skipping the
+     * LLM tool-call extraction step that breaks on Turkish / special characters.
+     *
+     * Request body (JSON):
+     *   { "route_stop_names": ["Stop A", "Stop B", ...],
+     *     "route_summary": { "total_duration_min": 90, "total_distance_km": 5.2, "travel_mode": "walking" },
+     *     "user_id": "optional" }
+     */
+    @PostMapping("/explain-route")
+    public ResponseEntity<LLMChatResponse> explainRoute(
+            @RequestBody Map<String, Object> body,
+            HttpServletRequest httpRequest) {
+
+        @SuppressWarnings("unchecked")
+        java.util.List<String> stopNames = (java.util.List<String>) body.get("route_stop_names");
+
+        if (stopNames == null || stopNames.isEmpty()) {
+            LLMChatResponse err = new LLMChatResponse();
+            err.setStatus("error");
+            err.setMessage("route_stop_names is required");
+            return ResponseEntity.badRequest().body(err);
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> routeSummary = (Map<String, Object>) body.get("route_summary");
+
+        // Resolve userId from body or JWT fallback
+        String userId = body.containsKey("user_id") ? String.valueOf(body.get("user_id")) : null;
+        if (userId == null || userId.equals("null")) {
+            userId = extractUserIdFromJwt(httpRequest);
+        }
+
+        LLMChatResponse response = llmService.explainRoute(stopNames, routeSummary, userId);
+        return ResponseEntity.ok(response);
+    }
+
     /** Tries to parse the sub claim from the Bearer JWT, returns null on failure. */
     private String extractUserIdFromJwt(HttpServletRequest httpRequest) {
         String authHeader = httpRequest.getHeader("Authorization");

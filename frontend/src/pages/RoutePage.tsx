@@ -31,7 +31,7 @@ import EditableRouteCard from '../components/route/EditableRouteCard';
 import PlaceSearchAutocomplete from '../components/route/PlaceSearchAutocomplete';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { toggleSidebar } from '../store/chatSlice';
-import { generateRoutesThunk, clearRoutes, hydrateSavedRoute, replaceRouteAtIndex, approveRouteForChat, clearChatApproval } from '../store/routeSlice';
+import { generateRoutesThunk, clearRoutes, hydrateSavedRoute, replaceRouteAtIndex, approveRouteForChat, clearChatApproval, setPendingRouteExplain } from '../store/routeSlice';
 import { addSaveDestination } from '../store/savedSlice';
 import { syncToggleToBackend } from '../store/savedThunks';
 import { setStops } from '../store/navigationSlice';
@@ -723,6 +723,10 @@ const RoutePage = () => {
             const stopIds = validPoints.map((p) => p.poiId);
             dispatch(setStops(stopIds));
 
+            // Persist the approved route into selectedChatRoute so it is visible
+            // on the ChatPage map if the user navigates back to the chat later.
+            dispatch(approveRouteForChat(route));
+
             setApprovedRouteIds((prev) => new Set(prev).add(route.routeId));
             setSnackbar({
                 open: true,
@@ -743,6 +747,14 @@ const RoutePage = () => {
         } finally {
             setApprovingRouteId(null);
         }
+    };
+
+    // ── Ask LLM about Route ────────────────────────────────────────────────────
+    // Saves the route in Redux so ChatPage can auto-fire the explanation query,
+    // then navigates to a fresh chat session.
+    const handleAskLLM = (route: RouteData) => {
+        dispatch(setPendingRouteExplain(route));
+        navigate('/chat/new');
     };
 
     const performRouteMutation = async (
@@ -1424,6 +1436,7 @@ const RoutePage = () => {
                                     onInsertPlaceInputChange={(query) => handlePlaceInputChange(query, 'insert')}
                                     onInsertPlaceSelect={handleInsertPlaceSelect}
                                     onInsertCancel={closeInsertPicker}
+                                    onAskLLM={handleAskLLM}
                                 />
                             </Box>
                         ))}

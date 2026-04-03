@@ -422,3 +422,46 @@ function generate_title_local(query: string): string {
 export const sendMessage = send_message;
 export const sendMessageSimple = send_message_simple;
 export const generateTripTitle = generate_trip_title;
+
+// ─── Route Explanation (direct, bypasses LLM tool-call parsing) ───────────────
+
+/**
+ * Calls the backend /api/llm/explain-route endpoint directly.
+ * This bypasses the LLM's tool-call JSON extraction step which breaks on
+ * Turkish characters and strings containing '&'.
+ *
+ * @param routeStopNames  ordered list of stop names (exact, verbatim)
+ * @param routeSummary    optional metadata (duration, distance, travel mode)
+ * @returns               ToolCallResult with the narrative message
+ */
+export async function explainRoute(
+    routeStopNames: string[],
+    routeSummary?: {
+        total_duration_min?: number;
+        total_distance_km?: number;
+        travel_mode?: string;
+    }
+): Promise<ToolCallResult> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/llm/explain-route`, {
+            method: 'POST',
+            headers: get_auth_headers(),
+            body: JSON.stringify({
+                route_stop_names: routeStopNames,
+                route_summary: routeSummary ?? {},
+            }),
+        });
+
+        if (!response.ok) {
+            const body = await response.text();
+            throw new Error(`explain-route returned ${response.status}: ${body}`);
+        }
+
+        const backend_response: LLMBackendResponse = await response.json();
+        return await parse_response(backend_response);
+    } catch (error) {
+        throw error instanceof Error
+            ? error
+            : new Error(`explainRoute error: ${String(error)}`);
+    }
+}

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useSearchParams, Navigate, useNavigate } from 'react-router-dom';
 import { Box, Drawer } from '@mui/joy';
 import { useMediaQuery } from '@mui/system';
@@ -17,10 +17,12 @@ import {
     setLoading,
     toggleSidebar,
 } from '../store/chatSlice';
-import { sendMessage, generateTripTitle, type ToolCallResult } from '../services/llmService';
+import { sendMessage, generateTripTitle, explainRoute, type ToolCallResult } from '../services/llmService';
 import type { MapDestination } from '../data/destinations';
 import { fetchAllPlaces } from '../store/placesSlice';
-import { clearChatApproval } from '../store/routeSlice';
+import { clearChatApproval, clearPendingRouteExplain } from '../store/routeSlice';
+import { mapTypesArrayToCategory } from '../utils/placeCategory';
+import { getPlaceImage } from '../utils/placeImage';
 
 const ChatPage = () => {
     const { chatId } = useParams<{ chatId: string }>();
@@ -34,9 +36,50 @@ const ChatPage = () => {
         (state) => state.chat
     );
     const { destinations } = useAppSelector((state) => state.places);
-    const { pendingChatApproval, approvedRoute, returnChatId } = useAppSelector(
+    const { pendingChatApproval, approvedRoute, returnChatId, selectedChatRoute, pendingRouteExplain } = useAppSelector(
         (state) => state.route
     );
+
+    // ─── Derive map data from the selected route (if any) ─────────────────
+    // These are memoized so the MapPanel's React.memo can skip re-renders when
+    // nothing about the route actually changed.
+    const routeLineCoords = useMemo<[number, number][] | null>(() => {
+        if (!selectedChatRoute) return null;
+        return selectedChatRoute.points.map(
+            (p) => [p.latitude, p.longitude] as [number, number]
+        );
+    }, [selectedChatRoute]);
+
+    const routeDestinations = useMemo<MapDestination[]>(() => {
+        if (!selectedChatRoute) return [];
+        return selectedChatRoute.points
+            .filter((p) => p.poiId)
+            .map((p) => {
+                const category = mapTypesArrayToCategory(p.types);
+                return {
+                    id: p.poiId!,
+                    name: p.poiName || 'Unknown Place',
+                    location: p.formattedAddress || '',
+                    image: getPlaceImage({ id: p.poiId!, name: p.poiName || 'Unknown Place', category }),
+                    rating: p.ratingScore || 4.0,
+                    priceLevel: (() => {
+                        switch (p.priceLevel) {
+                            case 'PRICE_LEVEL_INEXPENSIVE': return 1;
+                            case 'PRICE_LEVEL_MODERATE':    return 2;
+                            case 'PRICE_LEVEL_EXPENSIVE':   return 3;
+                            case 'PRICE_LEVEL_VERY_EXPENSIVE': return 4;
+                            default: return 1;
+                        }
+                    })() as 1 | 2 | 3 | 4,
+                    category,
+                    coordinates: [p.latitude, p.longitude] as [number, number],
+                    reviewCount: p.ratingCount,
+                };
+            });
+    }, [selectedChatRoute]);
+
+    // Fit the map viewport to the route bounds whenever the selected route changes.
+    const routeFitCoords = routeLineCoords ?? undefined;
 
     // Fetch destinations from backend if not already loaded
     useEffect(() => {
@@ -193,6 +236,88 @@ const ChatPage = () => {
         processApprovedRoute();
     }, [pendingChatApproval, approvedRoute, activeChat, returnChatId, dispatch, user?.id]);
 
+    // ─── Handle "Ask LLM about Route" navigation from RoutePage ─────────────────
+    // When the user clicks the button on a route card, RoutePage stores the
+    // selected route in pendingRouteExplain and navigates here (/chat/new).
+    // This effect picks it up, auto-creates a chat, and auto-sends the
+    // explain_generated_route query so the LLM explains every stop.
+    const explainProcessedRef = useRef(false);
+    useEffect(() => {
+        if (!pendingRouteExplain || !isNewChatMode || explainProcessedRef.current) return;
+
+        explainProcessedRef.current = true;
+
+        const fireRouteExplanation = async () => {
+            dispatch(setLoading(true));
+            try {
+                // Build the stop name list from the route's points
+                const stopNames = pendingRouteExplain.points
+                    .filter((p) => p.poiName)
+                    .map((p) => p.poiName!);
+
+                if (stopNames.length === 0) {
+                    dispatch(clearPendingRouteExplain());
+                    explainProcessedRef.current = false;
+                    return;
+                }
+
+                const durationMin = Math.round(pendingRouteExplain.totalDurationSec / 60);
+                const distanceKm  = (pendingRouteExplain.totalDistanceM / 1000).toFixed(1);
+                const mode        = pendingRouteExplain.travelMode || 'walking';
+
+                // Human-readable stop list for the LLM query
+                const stopList = stopNames.map((n, i) => `${i + 1}. ${n}`).join(', ');
+
+                // This prompt drives the LLM to call explain_generated_route
+                const query =
+                    `I have a generated route with ${stopNames.length} stops: ${stopList}. ` +
+                    `The total estimated duration is ~${durationMin} minutes, ` +
+                    `distance is ~${distanceKm} km, and the travel mode is ${mode}. ` +
+                    `Please use the explain_generated_route tool to fetch and explain every stop in detail, ` +
+                    `then give me a friendly summary of the whole route.`;
+
+                // Create a new chat for this conversation
+                const title = `Route Explanation: ${stopNames.slice(0, 2).join(' → ')}${stopNames.length > 2 ? '…' : ''}`;
+                const result = await dispatch(createChatAsync({ title })).unwrap();
+                const newChatId = result.id;
+
+                navigate(`/chat/${newChatId}`, { replace: true });
+
+                // Persist the user-side question
+                await dispatch(addMessageAsync({ chatId: newChatId, role: 'user', content: query }));
+
+                // Get the LLM response via the dedicated explain-route endpoint
+                // (avoids the LLM tool-call JSON parser which breaks on Turkish chars)
+                const response: ToolCallResult = await explainRoute(
+                    stopNames,
+                    {
+                        total_duration_min: durationMin,
+                        total_distance_km:  parseFloat(distanceKm),
+                        travel_mode:        mode,
+                    }
+                );
+
+                await dispatch(addMessageAsync({
+                    chatId: newChatId,
+                    role: 'assistant',
+                    content: response.message ||
+                        'Here is the explanation for your route stops.',
+                    toolUsed:   response.toolUsed,
+                    toolParams: response.toolParams,
+                }));
+            } catch (error) {
+                console.error('Error firing route explanation:', error);
+            } finally {
+                dispatch(setLoading(false));
+                dispatch(clearPendingRouteExplain());
+                explainProcessedRef.current = false;
+            }
+        };
+
+        fireRouteExplanation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pendingRouteExplain, isNewChatMode]);
+
     const handleMobileDrawerClose = () => {
         setMobileDrawerOpen(false);
     };
@@ -309,9 +434,14 @@ const ChatPage = () => {
                         {mapFullscreen && (
                             <Box sx={{ flex: 1, overflow: 'hidden' }}>
                                 <MapPanel
-                                    destinations={destinations}
+                                    destinations={routeDestinations.length > 0 ? routeDestinations : destinations}
                                     highlightedDestination={highlightedDestination}
                                     onDestinationSelect={handleDestinationSelect}
+                                    route={routeLineCoords}
+                                    orderedDestinations={routeDestinations}
+                                    disableClustering={routeDestinations.length > 0}
+                                    fitCoordinates={routeFitCoords}
+                                    markerKeyPrefix={selectedChatRoute?.routeId ?? 'chat'}
                                 />
                             </Box>
                         )}
@@ -354,9 +484,14 @@ const ChatPage = () => {
                             }}
                         >
                             <MapPanel
-                                destinations={destinations}
+                                destinations={routeDestinations.length > 0 ? routeDestinations : destinations}
                                 highlightedDestination={highlightedDestination}
                                 onDestinationSelect={handleDestinationSelect}
+                                route={routeLineCoords}
+                                orderedDestinations={routeDestinations}
+                                disableClustering={routeDestinations.length > 0}
+                                fitCoordinates={routeFitCoords}
+                                markerKeyPrefix={selectedChatRoute?.routeId ?? 'chat'}
                             />
                         </Box>
 

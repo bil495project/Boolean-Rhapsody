@@ -37,6 +37,18 @@ interface RouteState {
     returnChatId: string | null;
     /** The single route the user selected in the approval flow. */
     approvedRoute: RouteData | null;
+    /**
+     * The route the user selected from the route page during a chat-approval flow.
+     * Unlike `approvedRoute`, this field is NOT cleared by `clearChatApproval` so
+     * the ChatPage map can keep displaying the selected route after returning from
+     * the RoutePage.
+     */
+    selectedChatRoute: RouteData | null;
+    /**
+     * A route the user asked to explain via the "Ask LLM about Route" button.
+     * ChatPage reads this on mount, fires the query automatically, then clears it.
+     */
+    pendingRouteExplain: RouteData | null;
 }
 
 interface HydrateSavedRoutePayload {
@@ -61,6 +73,8 @@ const initialState: RouteState = {
     pendingChatApproval: false,
     returnChatId: null,
     approvedRoute: null,
+    selectedChatRoute: null,
+    pendingRouteExplain: null,
 };
 
 function buildUserVector(
@@ -177,6 +191,9 @@ const routeSlice = createSlice({
             state.pendingChatApproval = true;
             state.returnChatId = action.payload.chatId;
             state.approvedRoute = null;
+            // Clear any previously selected route so the map starts fresh for
+            // this new round of route alternatives.
+            state.selectedChatRoute = null;
             state.error = null;
             state.isLoading = false;
             // Build a default request so route mutations (reroll/insert/remove/reorder)
@@ -189,6 +206,9 @@ const routeSlice = createSlice({
         /** Mark a route as approved by the user from the Route Page. */
         approveRouteForChat: (state, action: PayloadAction<RouteData>) => {
             state.approvedRoute = action.payload;
+            // Persist the selected route so the ChatPage map keeps displaying it
+            // even after the approval flow is cleared.
+            state.selectedChatRoute = action.payload;
             // Keep pendingChatApproval true so ChatPage can detect it
         },
 
@@ -197,6 +217,23 @@ const routeSlice = createSlice({
             state.pendingChatApproval = false;
             state.returnChatId = null;
             state.approvedRoute = null;
+            // NOTE: selectedChatRoute is intentionally NOT cleared here so the
+            // map in ChatPage continues to display the approved route.
+        },
+
+        /** Clear the route shown on the ChatPage map (e.g. when a new chat starts). */
+        clearSelectedChatRoute: (state) => {
+            state.selectedChatRoute = null;
+        },
+
+        /** Signal ChatPage to auto-fire a route explanation query for this route. */
+        setPendingRouteExplain: (state, action: PayloadAction<RouteData>) => {
+            state.pendingRouteExplain = action.payload;
+        },
+
+        /** Clear after ChatPage has consumed the pending explanation request. */
+        clearPendingRouteExplain: (state) => {
+            state.pendingRouteExplain = null;
         },
     },
     extraReducers: (builder) => {
@@ -225,6 +262,9 @@ export const {
     setChatRoutes,
     approveRouteForChat,
     clearChatApproval,
+    clearSelectedChatRoute,
+    setPendingRouteExplain,
+    clearPendingRouteExplain,
 } = routeSlice.actions;
 
 export default routeSlice.reducer;

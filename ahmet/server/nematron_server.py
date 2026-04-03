@@ -109,13 +109,13 @@ def handle_chat():
                     "EXAMPLE: 'Show me the best restaurants' → call search_poi_by_category with "
                     "place_category='RESTAURANTS'.\n\n"
 
-                    "### 4. get_user_personas — Travel Persona Retrieval\n"
+                    "### 4. list_user_personas — Travel Persona Retrieval\n"
                     "WHEN TO USE: The user asks about their travel personality, saved profiles, or personas.\n"
                     "WHEN NOT TO USE: The user wants to UPDATE their preferences (use user_profile_agent) "
                     "or plan a route (use generate_route_format).\n"
                     "EXAMPLE: 'What kind of traveller am I?' → call get_user_personas.\n\n"
 
-                    "### 5. user_profile_agent — Update User Preferences\n"
+                    "### 5. update_user_profile — Update User Preferences\n"
                     "WHEN TO USE: The user wants to change or set a travel preference "
                     "(e.g. 'I prefer budget-friendly places', 'set my pace to relaxed').\n"
                     "WHEN NOT TO USE: The user wants to VIEW their personas (use get_user_personas).\n"
@@ -140,7 +140,7 @@ def handle_chat():
                     "WHEN NOT TO USE: The user is asking a general question or planning a new trip.\n"
                     "EXAMPLE: 'The trip T-456 was amazing, loved every stop' → call submit_user_feedback.\n\n"
 
-                    "### 9. get_xai_justification — Explainable AI Justification\n"
+                    "### 9. explain_recommendation — Explainable AI Justification\n"
                     "WHEN TO USE: The user asks WHY a specific recommendation was made "
                     "(e.g. 'why did you suggest Anıtkabir?', 'why was I recommended that hotel?').\n"
                     "WHEN NOT TO USE: The user asks general questions about a place (use get_poi_details).\n"
