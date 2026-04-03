@@ -667,12 +667,37 @@ const RoutePage = () => {
     };
 
     const handleApprove = async (route: RouteData) => {
-        // ── Chat approval flow: return the selected route to the chat agent ──
+        // ── Chat approval flow: save to DB, then return to the chat agent ──
         if (pendingChatApproval) {
-            dispatch(approveRouteForChat(route));
-            // Navigate back to the originating chat
-            const targetChat = returnChatId ? `/chat/${returnChatId}` : '/chat';
-            navigate(targetChat);
+            setApprovingRouteId(route.routeId);
+            try {
+                // Save route to database (Saved Routes)
+                if (currentRequest) {
+                    await dispatch(createSavedRouteThunk({
+                        route,
+                        generateRequest: currentRequest,
+                    })).unwrap();
+                }
+
+                dispatch(approveRouteForChat(route));
+                setSnackbar({
+                    open: true,
+                    message: 'Route approved and saved! Returning to chat...',
+                    color: 'success',
+                });
+
+                // Brief delay so the user sees the success message
+                const targetChat = returnChatId ? `/chat/${returnChatId}` : '/chat';
+                setTimeout(() => navigate(targetChat), 600);
+            } catch (err) {
+                // Even if save fails, still approve and navigate back
+                console.error('Failed to save route, approving anyway:', err);
+                dispatch(approveRouteForChat(route));
+                const targetChat = returnChatId ? `/chat/${returnChatId}` : '/chat';
+                navigate(targetChat);
+            } finally {
+                setApprovingRouteId(null);
+            }
             return;
         }
 
