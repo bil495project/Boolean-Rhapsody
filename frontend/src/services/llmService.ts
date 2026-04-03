@@ -223,6 +223,16 @@ async function parse_response(
             }
         }
 
+        // If no routes could be parsed, fallback to showing the error/text response
+        if (routes.length === 0 && response_text) {
+            return {
+                type: 'text',
+                message: response_text,
+                toolUsed: tool_used,
+                toolParams: backend_response.toolParams,
+            };
+        }
+
         return {
             type: 'route_approval_required',
             routeData: routes,

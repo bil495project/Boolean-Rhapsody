@@ -9,16 +9,30 @@ class BaseAgent:
 
 
 class calculatorAgent(BaseAgent):
-    """Agent responsible for evaluating mathematical expressions safely."""
+    """Agent responsible for evaluating mathematical expressions safely.
+
+    Supports a sandboxed subset of Python math: basic arithmetic (+, -, *, /),
+    sqrt(), pow(), abs(), and round(). All other builtins are blocked.
+    """
     tool_template = {
         "name": "calculator_agent",
-        "description": "Performs mathematical calculations. Supports basic arithmetic, sqrt, and power functions.",
+        "description": (
+            "Evaluates a mathematical expression and returns the numeric result. "
+            "Supported operations: addition (+), subtraction (-), multiplication (*), "
+            "division (/), sqrt(), pow(), abs(), round(). "
+            "Example inputs: '2 + 3 * 4', 'sqrt(16) * 5', 'pow(2, 10)', 'round(3.14159, 2)'. "
+            "Do NOT use this tool for travel-related calculations such as distances, "
+            "travel times, or currency conversions — those are handled by other tools."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
                 "expression": {
                     "type": "string",
-                    "description": "The math expression to solve (e.g., 'sqrt(16) * 5')."
+                    "description": (
+                        "The math expression to evaluate. Must use only supported operations. "
+                        "Examples: 'sqrt(16) * 5', '100 / 3', 'pow(2, 8) + 1'."
+                    )
                 }
             },
             "required": ["expression"]
@@ -44,18 +58,29 @@ class weatherAgent(BaseAgent):
     """Agent responsible for fetching real-time weather data for a specific location."""
     tool_template = {
         "name": "weather_agent",
-        "description": "Retrieves current weather, temperature, and atmospheric conditions.",
+        "description": (
+            "Performs a live lookup of current weather conditions (temperature and sky status) "
+            "for a given city. Returns the current temperature and a short condition description "
+            "(e.g. 'sunny', 'cloudy'). The default temperature unit is Celsius. "
+            "This tool provides CURRENT conditions only — it does not support forecasts "
+            "or historical weather data."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
                 "location": {
                     "type": "string",
-                    "description": "The city and country (e.g., 'Berlin, Germany')."
+                    "description": (
+                        "The city and country in 'City, Country' format. "
+                        "Examples: 'Ankara, Turkey', 'Berlin, Germany', 'Tokyo, Japan'."
+                    )
                 },
                 "unit": {
                     "type": "string",
                     "enum": ["celsius", "fahrenheit"],
-                    "description": "The temperature scale to use. Defaults to celsius."
+                    "description": (
+                        "The temperature scale to use. Defaults to 'celsius' if not specified."
+                    )
                 }
             },
             "required": ["location"]
@@ -72,14 +97,43 @@ class weatherAgent(BaseAgent):
 
 
 class UserProfileAgent_SetInfo(BaseAgent):
+    """Agent responsible for WRITING (updating) user travel preferences.
+
+    This is the write counterpart to UserPersonaListAgent (get_user_personas),
+    which only reads. Use this agent when the user explicitly states a new
+    preference or wants to change an existing one.
+
+    Updatable preference categories include: tempo, social preference,
+    nature preference, history preference, food importance, alcohol preference,
+    transport style, budget level, trip length, crowd preference.
+    """
     tool_template = {
         "name": "user_profile_agent",  # Matches TC-LLM-U-008
-        "description": "Updates user preferences (e.g., budget-friendly, historical).",
+        "description": (
+            "Updates (writes) user travel preferences. Use this when the user explicitly "
+            "states a new preference or wants to change an existing setting "
+            "(e.g. 'I prefer budget-friendly places', 'set my pace to relaxed', "
+            "'I love historical sites'). "
+            "Updatable categories: tempo, social preference, nature preference, "
+            "history preference, food importance, alcohol preference, transport style, "
+            "budget level, trip length, crowd preference. "
+            "Do NOT use this tool to VIEW existing preferences — use get_user_personas instead."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
-                "user_id": {"type": "string"},
-                "user_data_update_info": {"type": "object"}
+                "user_id": {
+                    "type": "string",
+                    "description": "The unique identifier of the user whose preferences to update."
+                },
+                "user_data_update_info": {
+                    "type": "object",
+                    "description": (
+                        "A JSON object containing the preference fields to update. "
+                        "Keys are preference category names (e.g. 'budgetLevel', 'historyPreference') "
+                        "and values are the new settings (typically a float 0.0–1.0 or a descriptive string)."
+                    )
+                }
             },
             "required": ["user_id", "user_data_update_info"]
         }
@@ -90,14 +144,36 @@ class UserProfileAgent_SetInfo(BaseAgent):
 
 
 class UserFeedbackAgent(BaseAgent):
+    """Agent responsible for recording user feedback about completed trips."""
     tool_template = {
         "name": "submit_user_feedback",
-        "description": "Logs user feedback for a specific completed trip.",
+        "description": (
+            "Records user feedback or a rating for a specific completed trip. "
+            "Trigger this tool when the user comments on a past trip experience "
+            "(e.g. 'that trip was great', 'I didn't enjoy the route', "
+            "'trip T-123 was a 5 out of 5'). "
+            "The trip_id is the unique identifier of a previously generated and completed trip "
+            "(e.g. 'T-123'). If the user does not mention a trip_id, ask them to specify which trip "
+            "they are referring to before calling this tool. "
+            "After calling this tool, acknowledge the user's feedback and confirm it was recorded."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
-                "trip_id": {"type": "string"},
-                "user_feedback": {"type": "string", "description": "The textual feedback from the user."}
+                "trip_id": {
+                    "type": "string",
+                    "description": (
+                        "The unique identifier of the completed trip the feedback is about "
+                        "(e.g. 'T-123'). Must reference an existing trip."
+                    )
+                },
+                "user_feedback": {
+                    "type": "string",
+                    "description": (
+                        "The user's textual feedback about the trip. "
+                        "Capture the user's sentiment and specific comments."
+                    )
+                }
             },
             "required": ["trip_id", "user_feedback"]
         }
@@ -108,14 +184,37 @@ class UserFeedbackAgent(BaseAgent):
 
 
 class XAIJustificationAgent(BaseAgent):
+    """Agent responsible for providing explainable AI justifications for recommendations."""
     tool_template = {
         "name": "get_xai_justification",
-        "description": "Provides an explainable AI justification for a specific recommendation.",
+        "description": (
+            "Provides an explainable AI (XAI) justification for a specific recommendation "
+            "that was previously made by the system. "
+            "Trigger this tool when the user asks WHY something was recommended "
+            "(e.g. 'why did you suggest Anıtkabir?', 'why was I recommended that hotel?', "
+            "'explain this recommendation'). "
+            "The recommendation_id is the unique identifier of a previously generated recommendation "
+            "(e.g. a route ID or a POI suggestion ID). "
+            "The response will explain which user preferences, persona weights, and data signals "
+            "contributed to the recommendation."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
-                "recommendation_id": {"type": "string"},
-                "user_data": {"type": "object", "description": "Relevant user context for the explanation."}
+                "recommendation_id": {
+                    "type": "string",
+                    "description": (
+                        "The unique identifier of the recommendation to explain "
+                        "(e.g. a route ID or suggestion ID from a previous tool call)."
+                    )
+                },
+                "user_data": {
+                    "type": "object",
+                    "description": (
+                        "Optional. Additional user context to enrich the explanation "
+                        "(e.g. current preferences or session data). Omit if not available."
+                    )
+                }
             },
             "required": ["recommendation_id"]
         }
@@ -202,9 +301,13 @@ class UserPersonaListAgent(BaseAgent):
         "name": "get_user_personas",
         "description": (
             "Retrieves and describes all travel personas saved by the current user. "
-            "No need to pass the user_id to the tool, since the tool gets the user_id inside the function"
+            "The user_id is automatically injected by the server — do NOT pass it as a parameter. "
             "Use this when the user asks what kind of traveller they are, wants to know "
-            "their travel personality, or asks to see their saved travel profiles/personas."
+            "their travel personality, or asks to see their saved travel profiles/personas. "
+            "This tool is READ-ONLY: it lists existing personas but does not create or modify them. "
+            "To update preferences, use user_profile_agent instead. "
+            "If the user has no saved personas, the tool will return a message suggesting "
+            "they create one in their profile settings."
         ),
         "parameters": {
             "type": "object",
@@ -236,14 +339,41 @@ class UserPersonaListAgent(BaseAgent):
         return header + body
 
 class POI_suggest_agent(BaseAgent):
+    """Agent that suggests POIs personalized to the user's profile within a route context.
+
+    Unlike search_poi_by_category (which is a generic category-based search),
+    this agent uses the user's saved persona/preferences AND the current route
+    context to generate contextually relevant suggestions.
+    """
     tool_template = {
         "name": "suggest_poi",
-        "description": "Suggests Points of Interest based on user profile and current route.",
+        "description": (
+            "Suggests Points of Interest personalized to the user's profile and tailored "
+            "to the context of their current or planned route. "
+            "Use this when the user asks for personalized suggestions within the context of "
+            "an active route (e.g. 'suggest some places along my route', "
+            "'what else can I visit on this trip?'). "
+            "Do NOT use this for generic category browsing without route context \u2014 "
+            "use search_poi_by_category instead."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
-                "user_data": {"type": "object"},
-                "current_route_info": {"type": "string"}
+                "user_data": {
+                    "type": "object",
+                    "description": (
+                        "Optional. The user's profile and preference data to personalize suggestions. "
+                        "Omit if not available \u2014 the tool will use defaults."
+                    )
+                },
+                "current_route_info": {
+                    "type": "string",
+                    "description": (
+                        "A text description or JSON summary of the user's current route context. "
+                        "Include key details like the route area, existing stops, and travel direction "
+                        "so the suggestions are geographically and thematically relevant."
+                    )
+                }
             },
             "required": ["current_route_info"]
         }
@@ -254,15 +384,47 @@ class POI_suggest_agent(BaseAgent):
 
 
 class ItineraryModificationAgent(BaseAgent):
+    """Agent responsible for modifying POIs within an existing trip itinerary."""
     tool_template = {
         "name": "modify_itinerary",
-        "description": "Modifies an existing trip itinerary (Add/Remove/Edit POIs).",
+        "description": (
+            "Modifies an existing trip itinerary by adding, removing, or editing a POI. "
+            "Use this when the user wants to change a specific stop in a previously generated trip. "
+            "Do NOT use this to create a new route from scratch \u2014 use generate_route_format instead. "
+            "Action types: "
+            "'add' = insert a new POI into the itinerary, "
+            "'remove' = delete an existing POI from the itinerary, "
+            "'edit' = modify the details of an existing POI in the itinerary."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
-                "trip_id": {"type": "string"},
-                "action_type": {"type": "string", "enum": ["add", "remove", "edit"]},
-                "poi_object": {"type": "object", "description": "The POI details to be modified."}
+                "trip_id": {
+                    "type": "string",
+                    "description": (
+                        "The unique identifier of the existing trip itinerary to modify "
+                        "(e.g. 'T-123'). Must reference a previously generated trip."
+                    )
+                },
+                "action_type": {
+                    "type": "string",
+                    "enum": ["add", "remove", "edit"],
+                    "description": (
+                        "The modification action to perform. "
+                        "'add' = insert new POI, 'remove' = delete existing POI, "
+                        "'edit' = update details of existing POI."
+                    )
+                },
+                "poi_object": {
+                    "type": "object",
+                    "description": (
+                        "The POI details for the modification. Must include at minimum: "
+                        "'name' (string) \u2014 the name of the POI. "
+                        "For 'add': also include 'type' and optionally 'position' (index in the itinerary). "
+                        "For 'remove': 'name' is sufficient to identify the POI to remove. "
+                        "For 'edit': include the fields to update (e.g. 'name', 'type', 'position')."
+                    )
+                }
             },
             "required": ["trip_id", "action_type", "poi_object"]
         }
@@ -274,13 +436,33 @@ class ItineraryModificationAgent(BaseAgent):
 
 
 class ChatTitleAgent(BaseAgent):
+    """Agent that generates a short display title for a new chat session.
+
+    This tool is called ONLY once \u2014 on the very first user message in a
+    conversation. It must NOT be called on subsequent turns. The output
+    is used exclusively for the UI sidebar display and is never narrated
+    back to the user.
+    """
     tool_template = {
         "name": "generate_chat_title",
-        "description": "Generates a brief (max 60 chars) title for the chat session based on the first message.",
+        "description": (
+            "Generates a brief title (maximum 60 characters) for the chat session "
+            "based on the user's very first message. "
+            "This tool is called ONLY on the first user message in a new conversation \u2014 "
+            "do NOT call it on any subsequent turn. "
+            "The title is used for UI display in the chat sidebar only. "
+            "Do NOT narrate or present the generated title to the user."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
-                "first_message": {"type": "string", "description": "The user's first query."}
+                "first_message": {
+                    "type": "string",
+                    "description": (
+                        "The user's first query in the conversation, "
+                        "used as the basis for generating a concise title."
+                    )
+                }
             },
             "required": ["first_message"]
         }
@@ -353,27 +535,38 @@ class POI_data_agent(BaseAgent):
 
     Behaviour
     ---------
-    • The agent calls ``GET /api/places/search?name=<poi_name>`` which performs a
-      case-insensitive *substring* search across all rows in the places table.
-    • If one result is returned it is treated as a well-known, unique place
-      (e.g. "Anıtkabir") and its details are shown directly.
-    • If multiple results are returned (e.g. searching "Aspava") all candidates
+    \u2022 Calls ``GET /api/places/search?name=<poi_name>`` which performs a
+      case-insensitive **substring** search across all rows in the places table.
+      This means searching for 'Aspava' matches 'Şimşek Aspava', 'Aspava Kebap', etc.
+    \u2022 If one result is returned it is treated as a well-known, unique place
+      (e.g. \"Anıtkabir\") and its details are shown directly.
+    \u2022 If multiple results are returned (e.g. searching \"Aspava\") all candidates
       are listed so the user can see every matching location.
-    • All database columns (name, types, address, coordinates, rating, price,
+    \u2022 All database columns (name, types, address, coordinates, rating, price,
       status) are included in the output.
 
-    The LLM should call this tool whenever the user asks about a specific place,
-    a category of places, or wants to know the details of a POI.
+    Decision boundary
+    -----------------
+    \u2022 Use THIS tool when the user asks about a **specific named place** (by name).
+    \u2022 Use ``search_poi_by_category`` when the user wants to **browse a category**
+      (e.g. 'show me cafes') without naming a specific place.
+    \u2022 If the user asks about a specific place before planning a route, call THIS tool
+      first to confirm it exists, then call ``generate_route_format`` to build the route.
     """
 
     tool_template = {
         "name": "get_poi_details",
         "description": (
-            "Searches the local POI database by name and returns the full details "
-            "(type, address, coordinates, rating, price level, status) of every matching place. "
-            "Use this for BOTH well-known singular places (e.g. 'Anıtkabir', 'Kocatepe Camii') "
-            "AND generic place names that may have multiple instances (e.g. 'Aspava', 'Starbucks'). "
-            "Always prefer this tool over guessing when the user asks about a specific location."
+            "Looks up a specific place by name in the local POI database using a case-insensitive "
+            "substring search, and returns full details (type, address, coordinates, rating, "
+            "price level, status) for every match. "
+            "Use this when the user asks about a SPECIFIC NAMED place \u2014 either a well-known "
+            "unique place (e.g. 'An\u0131tkabir', 'Kocatepe Camii') or a name that may have "
+            "multiple branches (e.g. 'Aspava', 'Starbucks'). "
+            "Do NOT use this for browsing a category of places \u2014 use search_poi_by_category instead. "
+            "If the user asks about a specific place before requesting a route, call this tool FIRST "
+            "to verify the place exists, then use generate_route_format for the route. "
+            "Always prefer this tool over guessing place information."
         ),
         "parameters": {
             "type": "object",
@@ -382,7 +575,8 @@ class POI_data_agent(BaseAgent):
                     "type": "string",
                     "description": (
                         "The name (or partial name) of the place to look up. "
-                        "Examples: 'Anıtkabir', 'Aspava', 'cafe', 'museum'."
+                        "The search is case-insensitive and matches substrings. "
+                        "Examples: 'An\u0131tkabir', 'Aspava', 'Starbucks'."
                     )
                 }
             },
@@ -489,11 +683,14 @@ class POI_search_agent(BaseAgent):
             "Searches the local POI database for places that belong to a specific category "
             "and returns the top-rated matches with full details (name, type, address, "
             "coordinates, rating, price level, status). "
-            "Use this when the user asks for a RECOMMENDATION or wants to EXPLORE a type of place "
-            "(e.g. 'find me a cafe', 'suggest a restaurant', 'what museums are there?'). "
-            "Map the user's intent to EXACTLY ONE of the 7 valid category values: "
+            "Use this when the user wants to BROWSE or EXPLORE a type of place without naming "
+            "a specific one (e.g. 'find me a cafe', 'suggest a restaurant', 'what museums are there?'). "
+            "Do NOT use this when the user names a specific place \u2014 use get_poi_details instead. "
+            "IMPORTANT: Pass EXACTLY ONE category per call. The 7 valid categories are: "
             "BARS_AND_NIGHTCLUBS, CAFES_AND_DESSERTS, HISTORIC_PLACES, HOTELS, "
-            "LANDMARKS, PARKS, RESTAURANTS."
+            "LANDMARKS, PARKS, RESTAURANTS. "
+            "For ambiguous requests (e.g. 'show me historic cafes'), choose the single category "
+            "that best matches the user's primary emphasis. If unclear, prefer the more specific category."
         ),
         "parameters": {
             "type": "object",
@@ -502,16 +699,17 @@ class POI_search_agent(BaseAgent):
                     "type": "string",
                     "enum": list(_VALID_CATEGORIES.keys()),
                     "description": (
-                        "The category of place to search for. Must be one of: "
+                        "Exactly ONE category to search. Must be one of: "
                         "BARS_AND_NIGHTCLUBS, CAFES_AND_DESSERTS, HISTORIC_PLACES, "
-                        "HOTELS, LANDMARKS, PARKS, RESTAURANTS."
+                        "HOTELS, LANDMARKS, PARKS, RESTAURANTS. "
+                        "Never pass multiple categories in a single call."
                     )
                 },
                 "limit": {
                     "type": "integer",
                     "description": (
-                        "Maximum number of results to return. Defaults to 10. "
-                        "Use a higher value (up to 20) when the user asks for many options."
+                        "Maximum number of results to return. Defaults to 10 if not specified. "
+                        "Use a higher value (up to 20) when the user explicitly asks for many options."
                     )
                 }
             },
@@ -576,40 +774,58 @@ class POI_search_agent(BaseAgent):
 
 class RouteGenerationFormatAgent(BaseAgent):
     """
-    Input formatter for the Route Generation Algorithm.
+    Input formatter bridge between natural language and the Route Generation Algorithm.
 
-    Gathers the user's travel preferences (from their saved persona),
-    resolves every named location to a real placeId from the backend,
-    and returns a strict JSON payload ready for the Route Generation Algorithm.
+    This agent translates a user's natural-language travel request into the strict
+    JSON payload required by the backend route generation service. It operates in
+    three phases:
+
+    Phase 1 — Persona / Preference Resolution
+        Fetches the user's saved travel personas from the backend. If a specific
+        persona_id is provided, that persona is used; otherwise the user's default
+        persona is selected. If no personas exist, neutral defaults (0.5) are used.
+
+    Phase 2 — Multi-Strategy Place ID Resolution
+        Every named location is resolved to a real placeId via the backend search
+        API. Three strategies are tried in order:
+          0. Full-phrase search with token-overlap scoring (fast path).
+          1. Intersection of per-token search results (precise fallback).
+          2. Union of per-token results scored by overlap (best-effort fallback).
+
+    Phase 3 — Payload Assembly & POST
+        Assembles the final JSON payload (preferences, constraints, poiSlots,
+        anchors, meal preferences, k) and POSTs it to
+        ``/api/routes/generate``. The backend returns a list of route alternatives.
+
+    IMPORTANT: The result of this agent is returned RAW to the frontend — the
+    LLM does NOT narrate, summarize, or comment on the response. The frontend
+    intercepts the payload, stores the routes in Redux, and navigates to the
+    Route Page for visual review.
     """
 
     tool_template = {
         "name": "generate_route_format",
         "description": (
-            "Collects the user's travel preferences and named locations, resolves each location "
-            "to a real place ID from the local database, and returns a strict JSON payload "
-            "formatted for the Route Generation Algorithm. Use this when the user wants to plan "
+            "Translates the user's travel request into a structured JSON payload, resolves "
+            "every named location to a real place ID from the local database, and POSTs the "
+            "payload to the Route Generation Algorithm. Use this when the user wants to plan "
             "a route or trip and provides details such as start/end points, desired stops, "
-            "meal preferences, or lodging needs.\n"
-            "IMPORTANT: After receiving the result from this tool, you MUST narrate the generated itinerary "
-            "back to the user in a rich, descriptive, and engaging way. Fully utilize the detailed location "
-            "metadata (place types, ratings, review counts, price levels, and explicit addresses) provided "
-            "in the tool's output to make the summary informative and appealing.\n\n"
-            "CRITICAL RULES:\n"
-            "1. named_locations: List EVERY specific place name the user mentions by full exact name "
-            "   (e.g. 'Şimşek Aspava', 'Anıtkabir'). Never omit a named place from this list.\n"
-            "2. start_location: If the user explicitly says they START or BEGIN at a named place or type, "
-            "   you MUST set start_location to that exact name or type. For example, if user says "
-            "   'I will start at Anıtkabir' set start_location to 'Anıtkabir'.\n"
-            "3. poi_slots: For each named place (type=PLACE), use the exact full name as given by the user. "
-            "   Do NOT shorten or genericise the name (e.g. use 'Şimşek Aspava', NOT just 'Aspava'). "
-            "Use null entries when the user wants the system to fill extra stops automatically.\n"
-            "4. If the user starts at a specific named place, include it as the FIRST poi_slot with type=PLACE "
-            "   AND also set it as start_location.\n"
-            "5. HOTEL restriction: NEVER include 'HOTEL' as a poi_slot (with type=TYPE or PLACE), as hotels "
-            "   cannot be used as interior route points. To include a hotel in the itinerary, you MUST either "
-            "   set 'stay_at_hotel' to true, or use 'start_location' / 'end_location' with 'HOTEL' if the user "
-            "   explicitly starts or ends at a hotel."
+            "meal preferences, or lodging needs.\n\n"
+            "RAW OUTPUT: This tool returns a raw JSON payload directly to the frontend. "
+            "The LLM must NOT attempt to narrate, summarize, or comment on the result. "
+            "Do NOT call this tool a second time for the same request.\n\n"
+            "CONSTRAINT RULES:\n"
+            "1. NAMED LOCATIONS: List EVERY specific place name the user mentions using their "
+            "   full exact name (e.g. '\u015eim\u015fek Aspava', 'An\u0131tkabir'). Never omit a named place.\n"
+            "2. START LOCATION: If the user says they START or BEGIN at a named place or type, "
+            "   set start_location to that exact name or type.\n"
+            "3. POI SLOTS: For each named place (type=PLACE), use the exact full name. "
+            "   Do NOT shorten or genericize names. Use null entries for auto-fill slots.\n"
+            "4. START AS FIRST SLOT: If the user starts at a specific named place, include it "
+            "   as the FIRST poi_slot with type=PLACE AND also set it as start_location.\n"
+            "5. HOTEL RESTRICTION: NEVER include 'HOTEL' as a poi_slot. Hotels cannot be interior "
+            "   route points. To include a hotel, set stay_at_hotel=true or use start_location / "
+            "   end_location with 'HOTEL'."
         ),
         "parameters": {
             "type": "object",
@@ -618,10 +834,11 @@ class RouteGenerationFormatAgent(BaseAgent):
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "ALL specific place names mentioned by the user, using the user's EXACT wording "
-                        "(e.g. ['Şimşek Aspava', 'Anıtkabir', 'Hotel Metropol']). "
-                        "Include EVERY named place — including the start location if it is a named place. "
-                        "Never shorten or paraphrase place names."
+                        "Master list of ALL specific place names mentioned by the user, using their "
+                        "EXACT verbatim wording (e.g. ['\u015eim\u015fek Aspava', 'An\u0131tkabir', 'Hotel Metropol']). "
+                        "Every named place referenced anywhere in the request (start, end, or poi_slots) "
+                        "MUST appear in this list. This list drives the place ID resolver \u2014 any name "
+                        "missing here will not be resolved. Never shorten or paraphrase place names."
                     )
                 },
                 "start_location": {
@@ -629,12 +846,15 @@ class RouteGenerationFormatAgent(BaseAgent):
                     "description": (
                         "The exact name or type of the starting point, copied verbatim from the user's message. "
                         "MUST be set whenever the user explicitly mentions where they will start "
-                        "(e.g. 'I'll start at Anıtkabir' → 'Anıtkabir')."
+                        "(e.g. 'I'll start at An\u0131tkabir' \u2192 'An\u0131tkabir'). Omit if the user does not specify a start."
                     )
                 },
                 "end_location": {
                     "type": "string",
-                    "description": "The name or type of the ending point."
+                    "description": (
+                        "The exact name or type of the ending point, copied verbatim from the user's message. "
+                        "Omit if the user does not specify an end point."
+                    )
                 },
                 "poi_slots": {
                     "type": "array",
@@ -647,23 +867,32 @@ class RouteGenerationFormatAgent(BaseAgent):
                                     "type": {
                                         "type": "string",
                                         "enum": ["PLACE", "TYPE"],
-                                        "description": "Whether this slot is a named place or a category type."
+                                        "description": (
+                                            "'PLACE' = a specific named place (resolved by name). "
+                                            "'TYPE' = a category-based slot (filled by the algorithm)."
+                                        )
                                     },
                                     "name": {
                                         "type": "string",
                                         "description": (
-                                            "EXACT full place name as stated by the user (required when type == 'PLACE'). "
-                                            "PLACE entries must keep the user's full exact place name."
+                                            "EXACT full place name as stated by the user. Required when type='PLACE'. "
+                                            "Must match an entry in named_locations exactly."
                                         )
                                     },
                                     "poiType": {
                                         "type": "string",
                                         "enum": ["KAFE", "RESTAURANT", "PARK", "HISTORIC_PLACE", "LANDMARK", "BAR"],
-                                        "description": "POI category (required when type == 'TYPE'). DO NOT use 'HOTEL' here; set stay_at_hotel = true or use start/end_location."
+                                        "description": (
+                                            "POI category. Required when type='TYPE'. "
+                                            "DO NOT use 'HOTEL' here \u2014 set stay_at_hotel=true or use start/end_location."
+                                        )
                                     },
                                     "filters": {
                                         "type": "object",
-                                        "description": "Optional quality filters.",
+                                        "description": (
+                                            "Optional quality filters to narrow the algorithm's selection. "
+                                            "Useful for type=TYPE slots."
+                                        ),
                                         "properties": {
                                             "minRating": {"type": "number"},
                                             "minRatingCount": {"type": "integer"}
@@ -674,11 +903,19 @@ class RouteGenerationFormatAgent(BaseAgent):
                             }
                         ]
                     },
-                    "description": "Ordered list of desired stops. Use null items when the system should fill a slot automatically."
+                    "description": (
+                        "Ordered list of desired stops along the route. Each entry is either a specific "
+                        "place (type=PLACE), a category request (type=TYPE), or null. "
+                        "Null entries signal the auto-filler algorithm to choose a stop automatically. "
+                        "The number of slots should reflect the user's stated number of stops."
+                    )
                 },
                 "meal_preferences": {
                     "type": "object",
-                    "description": "Meal needs extracted from the user's message.",
+                    "description": (
+                        "Meal needs extracted from the user's message. Set each flag to true "
+                        "if the user mentions needing that meal during the trip."
+                    ),
                     "properties": {
                         "needsBreakfast": {"type": "boolean"},
                         "needsLunch":     {"type": "boolean"},
@@ -687,15 +924,25 @@ class RouteGenerationFormatAgent(BaseAgent):
                 },
                 "stay_at_hotel": {
                     "type": "boolean",
-                    "description": "Whether the user needs hotel accommodation."
+                    "description": (
+                        "Set to true if the user needs hotel accommodation as part of the trip. "
+                        "This is the ONLY way to include a hotel in the itinerary."
+                    )
                 },
                 "k": {
                     "type": "integer",
-                    "description": "Number of route alternatives to generate. Defaults to 3."
+                    "description": (
+                        "Number of alternative route graphs to generate. Defaults to 3 if not mentioned "
+                        "by the user. Higher values produce more route options for comparison."
+                    )
                 },
                 "persona_id": {
                     "type": "string",
-                    "description": "ID of a specific persona to use. If omitted, the default persona is used."
+                    "description": (
+                        "Optional. The ID of a specific travel persona to use for preference weighting. "
+                        "If omitted, the user's default persona is used automatically. "
+                        "If the user has no personas, neutral defaults (0.5 for all weights) are applied."
+                    )
                 }
             },
             "required": ["named_locations", "poi_slots"]
