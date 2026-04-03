@@ -1071,72 +1071,14 @@ class RouteGenerationFormatAgent(BaseAgent):
                 "This may be due to insufficient places in the database for the given constraints."
             )
 
-        # ── 9. Format human-readable summary for the LLM ─────────────────────
-        def _fmt_duration(total_sec: int) -> str:
-            h, m = divmod(int(total_sec) // 60, 60)
-            if h and m:
-                return f"{h}h {m}min"
-            if h:
-                return f"{h}h"
-            return f"{m}min"
-
-        def _fmt_distance(metres: float) -> str:
-            km = metres / 1000.0
-            return f"{km:.1f} km"
-
-        lines = [f"### Generated {len(routes)} Route Alternative{'s' if len(routes) != 1 else ''}\n"]
-
-        for i, route in enumerate(routes, start=1):
-            route_id     = route.get("routeId", "N/A")
-            travel_mode  = route.get("travelMode", "N/A")
-            duration_str = _fmt_duration(route.get("totalDurationSec", 0))
-            distance_str = _fmt_distance(route.get("totalDistanceM", 0))
-            feasible     = "Yes" if route.get("feasible", False) else "No"
-
-            lines.append(f"#### Route {i} (ID: {route_id})")
-            lines.append(f"**Travel Mode:** {travel_mode} | **Duration:** {duration_str} | **Distance:** {distance_str} | **Feasible:** {feasible}\n")
-
-            lines.append("| Stop | POI Name | Visit Time | Type | Rating | Price Level | Address | Coordinates |")
-            lines.append("|---|---|---|---|---|---|---|---|")
-
-            points = route.get("points") or []
-            for pt in points:
-                # Basic point info
-                stop_idx   = pt.get("index", 0)
-                visit_min  = pt.get("plannedVisitMin", 0)
-                is_anchor  = pt.get("fixedAnchor", False)
-                anchor_tag = " *(anchor)*" if is_anchor else ""
-
-                # Full location details
-                poi_name   = str(pt.get("poiName") or "Unknown").replace("|", "-")
-                types      = str(pt.get("types") or "N/A").replace("|", "-")
-                address    = str(pt.get("formattedAddress") or "N/A").replace("|", "-")
-                lat        = pt.get("latitude")
-                lng        = pt.get("longitude")
-                rating     = pt.get("ratingScore")
-                r_count    = pt.get("ratingCount")
-                price      = pt.get("priceLevel")
-
-                coords = f"({lat:.4f}°N, {lng:.4f}°E)" if lat is not None and lng is not None else "N/A"
-
-                if rating is not None and r_count is not None:
-                    rating_str = f"{rating} ⭐ ({r_count:,} reviews)"
-                elif rating is not None:
-                    rating_str = f"{rating} ⭐"
-                else:
-                    rating_str = "N/A"
-
-                price_str  = str(_PRICE_LEVEL_LABELS.get(price, price) if price else "N/A").replace("|", "-")
-
-                lines.append(
-                    f"| {stop_idx + 1} | **{poi_name}**{anchor_tag} | {visit_min} min | {types} | {rating_str} | {price_str} | {address} | {coords} |"
-                )
-
-            lines.append("")  # blank line between routes
-
+        # ── 9. Return structured JSON for the frontend ─────────────────────
+        #    The frontend intercepts this payload, stores the routes in Redux,
+        #    and navigates the user to the Route Page for visual review.
+        result = {
+            "type": "route_alternatives",
+            "routes": routes,
+        }
         if warnings:
-            lines.append("⚠️  Resolution warnings:")
-            for w in warnings:
-                lines.append(f"  • {w}")
+            result["warnings"] = warnings
 
-        return "\n".join(lines)
+        return json.dumps(result, ensure_ascii=False)

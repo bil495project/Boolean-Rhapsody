@@ -20,6 +20,7 @@ import {
 import { sendMessage, generateTripTitle, type ToolCallResult } from '../services/llmService';
 import type { MapDestination } from '../data/destinations';
 import { fetchAllPlaces } from '../store/placesSlice';
+import { clearChatApproval } from '../store/routeSlice';
 
 const ChatPage = () => {
     const { chatId } = useParams<{ chatId: string }>();
@@ -33,6 +34,9 @@ const ChatPage = () => {
         (state) => state.chat
     );
     const { destinations } = useAppSelector((state) => state.places);
+    const { pendingChatApproval, approvedRoute, returnChatId } = useAppSelector(
+        (state) => state.route
+    );
 
     // Fetch destinations from backend if not already loaded
     useEffect(() => {
@@ -122,6 +126,72 @@ const ChatPage = () => {
             dispatch(setSidebarOpen(false));
         }
     }, [isMobile, dispatch]);
+
+    // ─── Handle approved route from Route Page ─────────────────────────
+    // When the user returns from the Route Page after approving a route,
+    // send the selected route to the LLM for a final conversational response.
+    const approvalProcessedRef = useRef(false);
+    useEffect(() => {
+        if (
+            !pendingChatApproval ||
+            !approvedRoute ||
+            !activeChat ||
+            approvalProcessedRef.current
+        ) {
+            return;
+        }
+
+        // Guard: only process if we're on the correct chat
+        if (returnChatId && activeChat.id !== returnChatId) {
+            return;
+        }
+
+        approvalProcessedRef.current = true;
+
+        const processApprovedRoute = async () => {
+            dispatch(setLoading(true));
+            try {
+                // Build a concise summary of the approved route for the LLM
+                const routeSummary = JSON.stringify(approvedRoute);
+                const approvalQuery =
+                    `[SYSTEM] The user has reviewed the generated route alternatives and approved the following route. ` +
+                    `Please provide a brief, friendly summary of this approved route — mention the key stops, ` +
+                    `estimated duration, and travel mode. Do NOT mention other route alternatives. ` +
+                    `Approved route data: ${routeSummary}`;
+
+                // Build history from existing chat messages
+                const history = activeChat.messages.map((msg) => ({
+                    role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
+                    content: msg.content,
+                }));
+
+                const response: ToolCallResult = await sendMessage(
+                    approvalQuery,
+                    history,
+                    user?.id,
+                );
+
+                await dispatch(addMessageAsync({
+                    chatId: activeChat.id,
+                    role: 'assistant',
+                    content: response.message || 'Your route has been approved! You can find it in your saved routes.',
+                }));
+            } catch (error) {
+                console.error('Error processing approved route:', error);
+                await dispatch(addMessageAsync({
+                    chatId: activeChat.id,
+                    role: 'assistant',
+                    content: 'Your route has been approved! \u2705',
+                }));
+            } finally {
+                dispatch(setLoading(false));
+                dispatch(clearChatApproval());
+                approvalProcessedRef.current = false;
+            }
+        };
+
+        processApprovedRoute();
+    }, [pendingChatApproval, approvedRoute, activeChat, returnChatId, dispatch, user?.id]);
 
     const handleMobileDrawerClose = () => {
         setMobileDrawerOpen(false);

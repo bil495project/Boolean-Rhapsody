@@ -16,6 +16,7 @@ import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { addMessageLocal, addMessageAsync, setLoading, toggleSidebar, createChatAsync } from '../../store/chatSlice';
 import { toggleSaveDestination, syncToggleToBackend } from '../../store/savedSlice';
 import { restoreSession } from '../../store/authSlice';
+import { setChatRoutes } from '../../store/routeSlice';
 import { sendMessage, type ChatMessage as GeminiMessage, type ToolCallResult, generateTripTitle } from '../../services/llmService';
 import { useNavigate } from 'react-router-dom';
 
@@ -74,8 +75,23 @@ const ChatPanel = ({
                 // Add user message to the newly created chat
                 await dispatch(addMessageAsync({ chatId: newChatId, role: 'user', content: userMessage }));
 
-                // Get AI response for the first message (no history yet)
+                // Get AI response (now returns ToolCallResult)
                 const response: ToolCallResult = await sendMessage(userMessage, []);
+
+                // ── Route approval flow: intercept route_approval_required ──
+                if (response.type === 'route_approval_required' && response.routeData && response.routeData.length > 0) {
+                    // Store routes in Redux for the Route Page
+                    dispatch(setChatRoutes({ routes: response.routeData, chatId: newChatId }));
+                    // Add a placeholder message so the user sees context when they return
+                    await dispatch(addMessageAsync({
+                        chatId: newChatId,
+                        role: 'assistant',
+                        content: "I've generated some route alternatives for you! Let me take you to the route page so you can review and approve your preferred route.",
+                    }));
+                    dispatch(setLoading(false));
+                    navigate('/route');
+                    return;
+                }
 
                 // If AI saved a destination via tool call, add it to savedSlice and sync
                 if (response.type === 'destination_saved' && response.savedDestination) {
@@ -132,6 +148,21 @@ const ChatPanel = ({
 
             // Get AI response (now returns ToolCallResult)
             const response: ToolCallResult = await sendMessage(userMessage, history);
+
+            // ── Route approval flow: intercept route_approval_required ──
+            if (response.type === 'route_approval_required' && response.routeData && response.routeData.length > 0) {
+                // Store routes in Redux for the Route Page
+                dispatch(setChatRoutes({ routes: response.routeData, chatId: activeChat.id }));
+                // Add a placeholder message so the user sees context when they return
+                await dispatch(addMessageAsync({
+                    chatId: activeChat.id,
+                    role: 'assistant',
+                    content: "I've generated some route alternatives for you! Let me take you to the route page so you can review and approve your preferred route.",
+                }));
+                dispatch(setLoading(false));
+                navigate('/route');
+                return;
+            }
 
             // If AI saved a destination via tool call, add it to savedSlice and sync
             if (response.type === 'destination_saved' && response.savedDestination) {

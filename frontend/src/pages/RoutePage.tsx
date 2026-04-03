@@ -31,7 +31,7 @@ import EditableRouteCard from '../components/route/EditableRouteCard';
 import PlaceSearchAutocomplete from '../components/route/PlaceSearchAutocomplete';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { toggleSidebar } from '../store/chatSlice';
-import { generateRoutesThunk, clearRoutes, hydrateSavedRoute, replaceRouteAtIndex } from '../store/routeSlice';
+import { generateRoutesThunk, clearRoutes, hydrateSavedRoute, replaceRouteAtIndex, approveRouteForChat, clearChatApproval } from '../store/routeSlice';
 import { addSaveDestination } from '../store/savedSlice';
 import { syncToggleToBackend } from '../store/savedThunks';
 import { setStops } from '../store/navigationSlice';
@@ -117,7 +117,7 @@ const RoutePage = () => {
 
     const { isAuthenticated, user } = useAppSelector((state) => state.auth);
     const { sidebarOpen, mapFullscreen, chatPanelWidth } = useAppSelector((state) => state.chat);
-    const { routes, isLoading, error, currentRequest, savedRouteId, savedRouteTitle } = useAppSelector((state) => state.route);
+    const { routes, isLoading, error, currentRequest, savedRouteId, savedRouteTitle, pendingChatApproval, returnChatId } = useAppSelector((state) => state.route);
     const { isSaving: isSavedRouteSaving } = useAppSelector((state) => state.savedRoutes);
 
     const isMobile = useMediaQuery('(max-width: 768px)');
@@ -667,6 +667,16 @@ const RoutePage = () => {
     };
 
     const handleApprove = async (route: RouteData) => {
+        // ── Chat approval flow: return the selected route to the chat agent ──
+        if (pendingChatApproval) {
+            dispatch(approveRouteForChat(route));
+            // Navigate back to the originating chat
+            const targetChat = returnChatId ? `/chat/${returnChatId}` : '/chat';
+            navigate(targetChat);
+            return;
+        }
+
+        // ── Standard approval flow: save and navigate to navigation ──
         setApprovingRouteId(route.routeId);
         try {
             let savedRouteMessage = 'Route approved!';
@@ -856,7 +866,41 @@ const RoutePage = () => {
 
             {/* Scrollable Content */}
             <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 2, md: 3 } }}>
-                {routeProfileMode === null && (
+                {/* Chat approval review mode banner */}
+                {pendingChatApproval && routes.length > 0 && (
+                    <Card
+                        variant="soft"
+                        color="primary"
+                        sx={{
+                            mb: 3,
+                            p: 3,
+                            background: 'linear-gradient(135deg, var(--joy-palette-primary-softBg), var(--joy-palette-primary-100))',
+                        }}
+                    >
+                        <Typography level="title-lg" sx={{ fontWeight: 700, mb: 0.5 }}>
+                            📍 Review Your Routes
+                        </Typography>
+                        <Typography level="body-sm" sx={{ color: 'text.secondary', mb: 1.5 }}>
+                            Your AI assistant generated {routes.length} route alternative{routes.length !== 1 ? 's' : ''}.
+                            Review, edit, and approve your preferred route to continue the conversation.
+                        </Typography>
+                        <Button
+                            variant="plain"
+                            color="neutral"
+                            size="sm"
+                            onClick={() => {
+                                dispatch(clearChatApproval());
+                                dispatch(clearRoutes());
+                                const targetChat = returnChatId ? `/chat/${returnChatId}` : '/chat';
+                                navigate(targetChat);
+                            }}
+                        >
+                            Cancel and return to chat
+                        </Button>
+                    </Card>
+                )}
+
+                {routeProfileMode === null && !pendingChatApproval && (
                     <Card variant="soft" color="primary" sx={{ mb: 3, p: 3 }}>
                         <Typography level="title-lg" sx={{ fontWeight: 700, mb: 0.5 }}>
                             Let's shape your route together
@@ -890,7 +934,7 @@ const RoutePage = () => {
                     </Card>
                 )}
 
-                {routeProfileMode === 'builder' && (
+                {routeProfileMode === 'builder' && !pendingChatApproval && (
                     <Box sx={{ display: 'grid', gap: 2, mb: 3 }}>
                         <TravelProfileBuilder
                             key={`route-profile-builder-${routeProfileBuilderKey}`}
@@ -940,7 +984,7 @@ const RoutePage = () => {
                     </Box>
                 )}
 
-                {routeProfileMode === 'saved-picker' && (
+                {routeProfileMode === 'saved-picker' && !pendingChatApproval && (
                     <Card variant="outlined" sx={{ mb: 3, p: 3 }}>
                         <Typography level="title-md" sx={{ fontWeight: 700, mb: 0.5 }}>
                             Your saved profiles
@@ -985,7 +1029,7 @@ const RoutePage = () => {
                     </Card>
                 )}
 
-                {routeProfileMode !== null && routeProfileMode !== 'saved-picker' && (
+                {routeProfileMode !== null && routeProfileMode !== 'saved-picker' && !pendingChatApproval && (
                     <Card variant="soft" color="neutral" sx={{ mb: 3, p: 2.5 }}>
                         <Typography level="body-sm" sx={{ fontWeight: 700 }}>
                             {routeProfileMode === 'none'
@@ -1012,7 +1056,7 @@ const RoutePage = () => {
                     </Card>
                 )}
 
-                {savedRouteId && (
+                {savedRouteId && !pendingChatApproval && (
                     <Card variant="soft" color="primary" sx={{ mb: 3, p: 2.5 }}>
                         <Typography level="title-sm" sx={{ fontWeight: 700 }}>
                             Saved route mode
@@ -1041,7 +1085,7 @@ const RoutePage = () => {
                 )}
 
                 {/* Generate Controls */}
-                {canGenerateRoutes && (
+                {canGenerateRoutes && !pendingChatApproval && (
                     <Card
                         variant="outlined"
                         sx={{

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.roadrunner.llm.dto.LLMChatRequest;
 import com.roadrunner.llm.dto.LLMChatResponse;
 
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 public class LLMService {
 
     private static final Logger logger = LoggerFactory.getLogger(LLMService.class);
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     private final RestTemplate restTemplate;
 
@@ -81,10 +83,26 @@ public class LLMService {
             );
 
             if (responseEntity.getStatusCode().is2xxSuccessful() && responseEntity.getBody() != null) {
+                LLMChatResponse body = responseEntity.getBody();
                 logger.info("LLM Server responded with status: {}, tool_used: {}",
-                        responseEntity.getBody().getStatus(),
-                        responseEntity.getBody().getToolUsed());
-                return responseEntity.getBody();
+                        body.getStatus(),
+                        body.getToolUsed());
+
+                // When the route generation tool was used, the response field contains
+                // a JSON string with route alternatives. Parse it into routeData so the
+                // frontend receives structured data instead of a raw JSON string.
+                if ("generate_route_format".equals(body.getToolUsed()) && body.getResponse() != null) {
+                    try {
+                        Object parsed = objectMapper.readValue(body.getResponse(), Object.class);
+                        body.setRouteData(parsed);
+                        body.setResponse(null); // clear string response to avoid sending duplicate data
+                    } catch (Exception e) {
+                        logger.warn("Failed to parse route data from generate_route_format response: {}", e.getMessage());
+                        // Fall through — frontend will receive the raw string in response
+                    }
+                }
+
+                return body;
             }
 
             // Non-2xx or null body

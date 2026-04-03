@@ -8,9 +8,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * Response DTO mapping the Flask LLM Server's JSON response.
  * 
  * Flask server returns:
- *   Success with tool: { "status": "success", "tool_used": "<name>", "response": "<text>" }
- *   Success no tool:   { "status": "success", "response": "<text>" }
- *   Error:             { "status": "error", "message": "<error_text>" }
+ * Success with tool: { "status": "success", "tool_used": "<name>", "response":
+ * "<text>" }
+ * Success no tool: { "status": "success", "response": "<text>" }
+ * Error: { "status": "error", "message": "<error_text>" }
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class LLMChatResponse {
@@ -23,9 +24,12 @@ public class LLMChatResponse {
     @JsonAlias("tool_params")
     @JsonProperty("toolParams")
     private Object toolParams;
+    @JsonProperty("routeData")
+    private Object routeData;
     private String message;
 
-    public LLMChatResponse() {}
+    public LLMChatResponse() {
+    }
 
     public String getStatus() {
         return status;
@@ -57,6 +61,14 @@ public class LLMChatResponse {
 
     public void setToolParams(Object toolParams) {
         this.toolParams = toolParams;
+    }
+
+    public Object getRouteData() {
+        return routeData;
+    }
+
+    public void setRouteData(Object routeData) {
+        this.routeData = routeData;
     }
 
     public String getMessage() {

@@ -14,6 +14,15 @@ import {
 } from '../utils/travelProfile';
 import type { TravelProfileAnswers } from '../types/travelProfile';
 
+// ─── Chat-approval flow types ─────────────────────────────────────────────────
+
+interface SetChatRoutesPayload {
+    routes: RouteData[];
+    chatId: string;
+}
+
+// ─── State ────────────────────────────────────────────────────────────────────
+
 interface RouteState {
     routes: RouteData[];
     isLoading: boolean;
@@ -21,6 +30,13 @@ interface RouteState {
     currentRequest: GenerateRoutesPayload | null;
     savedRouteId: string | null;
     savedRouteTitle: string | null;
+
+    /** True when routes were loaded from a chat flow and require user approval. */
+    pendingChatApproval: boolean;
+    /** The chat ID to navigate back to after approval. */
+    returnChatId: string | null;
+    /** The single route the user selected in the approval flow. */
+    approvedRoute: RouteData | null;
 }
 
 interface HydrateSavedRoutePayload {
@@ -42,6 +58,9 @@ const initialState: RouteState = {
     currentRequest: null,
     savedRouteId: null,
     savedRouteTitle: null,
+    pendingChatApproval: false,
+    returnChatId: null,
+    approvedRoute: null,
 };
 
 function buildUserVector(
@@ -149,6 +168,34 @@ const routeSlice = createSlice({
                 state.routes[index] = route;
             }
         },
+
+        // ─── Chat approval flow reducers ──────────────────────────────────
+
+        /** Store routes received from the chat LLM tool call for user review. */
+        setChatRoutes: (state, action: PayloadAction<SetChatRoutesPayload>) => {
+            state.routes = action.payload.routes;
+            state.pendingChatApproval = true;
+            state.returnChatId = action.payload.chatId;
+            state.approvedRoute = null;
+            state.error = null;
+            state.isLoading = false;
+            state.currentRequest = null;
+            state.savedRouteId = null;
+            state.savedRouteTitle = null;
+        },
+
+        /** Mark a route as approved by the user from the Route Page. */
+        approveRouteForChat: (state, action: PayloadAction<RouteData>) => {
+            state.approvedRoute = action.payload;
+            // Keep pendingChatApproval true so ChatPage can detect it
+        },
+
+        /** Reset all chat-approval state after the flow completes. */
+        clearChatApproval: (state) => {
+            state.pendingChatApproval = false;
+            state.returnChatId = null;
+            state.approvedRoute = null;
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -169,5 +216,14 @@ const routeSlice = createSlice({
     },
 });
 
-export const { clearRoutes, hydrateSavedRoute, replaceRouteAtIndex } = routeSlice.actions;
+export const {
+    clearRoutes,
+    hydrateSavedRoute,
+    replaceRouteAtIndex,
+    setChatRoutes,
+    approveRouteForChat,
+    clearChatApproval,
+} = routeSlice.actions;
+
 export default routeSlice.reducer;
+

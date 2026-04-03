@@ -51,12 +51,15 @@ export interface ToolCallResult {
         | 'destination_recommendation'
         | 'destination_saved'
         | 'route_generated'
+        | 'route_approval_required'
         | 'itinerary_modified'
         | 'weather_info'
         | 'profile_updated'
         | 'tool_result';
     destinations?: MapDestination[];
     savedDestination?: MapDestination;
+    /** Raw route data array for the route approval flow. */
+    routeData?: any[];
     message: string;
     toolUsed?: string;
     toolParams?: any;
@@ -75,6 +78,8 @@ interface LLMBackendResponse {
     response?: string;
     toolUsed?: string;  // camelCase from Spring Boot's Jackson serialization
     toolParams?: any;
+    /** Structured route data when toolUsed === 'generate_route_format'. */
+    routeData?: any;
     message?: string;
 }
 
@@ -106,6 +111,7 @@ const TOOL_TYPE_MAP: Record<string, ToolCallResult['type']> = {
     'submit_trip_feedback': 'tool_result',
     'get_xai_justification': 'tool_result',
     'generate_chat_title': 'tool_result',
+    'generate_route_format': 'route_approval_required',
 };
 
 // ─── Private Helpers ──────────────────────────────────────────────────────────
@@ -191,6 +197,42 @@ async function parse_response(
     // 3. Tool was used → determine type and extract data
     const result_type = TOOL_TYPE_MAP[tool_used] || 'tool_result';
 
+    // 3a. Route approval flow — extract structured route data
+    if (result_type === 'route_approval_required') {
+        let routes: any[] = [];
+        // routeData is set by Spring Boot after parsing the agent's JSON output
+        if (backend_response.routeData) {
+            const rd = backend_response.routeData;
+            if (Array.isArray(rd)) {
+                routes = rd;
+            } else if (rd && typeof rd === 'object' && Array.isArray((rd as any).routes)) {
+                routes = (rd as any).routes;
+            }
+        }
+        // Fallback: try parsing response_text if routeData wasn't populated
+        if (routes.length === 0 && response_text) {
+            try {
+                const parsed = JSON.parse(response_text);
+                if (Array.isArray(parsed)) {
+                    routes = parsed;
+                } else if (parsed && Array.isArray(parsed.routes)) {
+                    routes = parsed.routes;
+                }
+            } catch {
+                // Not parseable — fall through
+            }
+        }
+
+        return {
+            type: 'route_approval_required',
+            routeData: routes,
+            message: '',
+            toolUsed: tool_used,
+            toolParams: backend_response.toolParams,
+        };
+    }
+
+    // 3b. Destination recommendations and route search results
     if (
         result_type === 'destination_recommendation' ||
         result_type === 'route_generated'
