@@ -369,22 +369,84 @@ def _render_route_explanation(raw_json: str) -> str:
     overview_md = "\n".join(md_lines)
 
     # ── 2. Render each stop's data block as plain text ────────────────
+    import re
+    seen_names = set()
+
     def _render_stop_block(s: dict) -> str:
+        name = s.get('name', 'Unknown')
+        is_return = name in seen_names
+        seen_names.add(name)
+
+        title = f"### 📍 Stop {s.get('stop', '?')} — {name}"
+        if is_return:
+            title += " (Return)"
+
         if "error" in s:
-            return (
-                f"Stop {s['stop']}: {s['name']}\n"
-                f"  ⚠  {s['error']}"
-            )
-        return (
-            f"Stop {s['stop']}: {s['name']}\n"
-            f"Type(s): {s['types']}\n"
-            f"Address: {s['address']}\n"
-            f"Coordinates: {s['coordinates']}\n"
-            f"Rating: {s['rating']}\n"
-            f"Price Level: {s['price_level']}\n"
-            f"Status: {s['status']}\n"
-            f"Planned Visit: {s['planned_visit']}"
-        )
+            return f"{title}\n  ⚠  {s['error']}"
+
+        lines = [title, ""]
+
+        # 1. Category
+        types_raw = s.get('types', '')
+        generic_types = {
+            'point_of_interest', 'establishment', 'food', 'store', 'lodging', 
+            'health', 'tourist_attraction', 'sports_activity_location'
+        }
+        type_mapping = {
+            "cafes & desserts": "Cafe", "cafe": "Cafe", 
+            "bars & nightclubs": "Bar", "bar": "Bar",
+            "night_club": "Nightlife", "pub": "Pub", 
+            "hotels": "Hotel", "hotel": "Hotel", 
+            "fitness_center": "Gym", "gym": "Gym", 
+            "restaurant": "Restaurant", 
+            "parks": "Park", "park": "Park", 
+            "landmarks": "Landmark", "monument": "Monument", 
+            "historic_places": "Historical Site",
+        }
+        
+        clean_types = []
+        for t in types_raw.split(','):
+            t_clean = t.strip().lower()
+            if not t_clean or t_clean in generic_types: 
+                continue
+            
+            mapped = type_mapping.get(t_clean, t_clean.replace('_', ' ').title())
+            if mapped not in clean_types:
+                clean_types.append(mapped)
+        
+        if clean_types:
+            category_str = " • ".join(clean_types[:3])
+            lines.append(f"Category: {category_str}")
+
+        # 2. Address
+        addr = s.get('address', '')
+        if addr and addr != "N/A":
+            addr = re.sub(r',\s*Türkiye\s*$', '', addr)
+            addr = re.sub(r'\b\d{5}\b\s*', '', addr)
+            addr = re.sub(r'(\w+)/(\w+)', r'\1 / \2', addr)
+            lines.append(f"Address: {addr.strip()}")
+
+        # 3. Coordinates
+        coords = s.get('coordinates', '')
+        if coords and coords != "N/A":
+            lines.append(f"Coordinates: {coords}")
+            
+        # 4. Rating
+        rating = s.get('rating', '')
+        if rating and rating != "N/A":
+            lines.append(f"Rating: ⭐ {rating}")
+            
+        # 5. Price Level
+        price = s.get('price_level', '')
+        if price and price != "N/A":
+            match = re.search(r'([A-Za-z\s]+)\((₺+)\)', price)
+            if match:
+                price_str = f"{match.group(2)} ({match.group(1).strip()})"
+            else:
+                price_str = price
+            lines.append(f"Price Level: {price_str}")
+
+        return "\n".join(lines)
 
     rendered_blocks = [_render_stop_block(s) for s in stops]
 
