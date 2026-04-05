@@ -1460,3 +1460,251 @@ class RouteGenerationFormatAgent(BaseAgent):
             result["warnings"] = warnings
 
         return json.dumps(result, ensure_ascii=False)
+
+class GeneratedRouteExplanationAgent(BaseAgent):
+    """
+    Explains an already-generated route to the user.
+
+    Workflow
+    --------
+    1.  Receives an ordered list of place names that make up the route.
+    2.  For each name, fetches the full database record from the backend
+        using the same multi-strategy resolver as RouteGenerationFormatAgent
+        (full-phrase search → token intersection → token union).
+    3.  Returns a compact JSON string containing:
+          • route_overview  — total stops, duration, distance, travel mode
+          • stops           — list of dicts with only narration-relevant
+                              fields (name, types, rating, price_level,
+                              planned_visit_min, address)
+    4.  The /explain_route endpoint renders the route overview as Markdown
+        and feeds the stops JSON to a second LLM call that writes creative
+        2–3 sentence verdicts per stop.  The LLM is NOT asked to reproduce
+        the data verbatim.
+    """
+
+    tool_template = {
+        "name": "explain_generated_route",
+        "description": (
+            "Fetches database records for every stop in a route and returns "
+            "a compact JSON object with route overview metadata and per-stop "
+            "fields (name, types, rating, price level, address, planned visit). "
+            "ALWAYS USE THIS TOOL when the user has an already-generated route "
+            "(a list of stops) and asks the assistant to explain, summarise, or "
+            "describe that route."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "route_stop_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Ordered list of place names exactly as they appear in the route "
+                        "(e.g. ['Anıtkabir', 'Kocatepe Camii', 'Aspava']). "
+                        "Include EVERY stop in route order. Do NOT shorten or paraphrase names."
+                    ),
+                },
+                "route_summary": {
+                    "type": "object",
+                    "description": (
+                        "High-level route metadata to include in the explanation. "
+                        "All fields are optional but should be provided when available."
+                    ),
+                    "properties": {
+                        "total_duration_min": {
+                            "type": "number",
+                            "description": "Estimated total trip duration in minutes.",
+                        },
+                        "total_distance_km": {
+                            "type": "number",
+                            "description": "Estimated total distance in kilometres.",
+                        },
+                        "travel_mode": {
+                            "type": "string",
+                            "description": "Primary travel mode (e.g. 'walking', 'driving').",
+                        },
+                    },
+                },
+            },
+            "required": ["route_stop_names"],
+        },
+    }
+
+    # ── private resolver (same algorithm as RouteGenerationFormatAgent) ──────
+
+    def _resolve_place(self, place_name: str) -> dict | None:
+        """
+        Fetches the best-matching full place record from the backend for the
+        given name.  Returns the raw dict from the API, or None on failure.
+        """
+
+        def _tr_normalize(s: str) -> str:
+            return (
+                s
+                .replace('İ', 'i').replace('I', 'ı')
+                .replace('Ş', 'ş').replace('Ğ', 'ğ')
+                .replace('Ç', 'ç').replace('Ö', 'ö').replace('Ü', 'ü')
+                .lower()
+            )
+
+        def _overlap(candidate: str, query: str) -> float:
+            q_tokens = set(_tr_normalize(query).split())
+            c_text   = _tr_normalize(candidate)
+            if not q_tokens:
+                return 0.0
+            return sum(1 for t in q_tokens if t in c_text) / len(q_tokens)
+
+        def _search(q: str, size: int = 15) -> list:
+            try:
+                resp = requests.get(
+                    f"{BACKEND_URL}/api/places/search",
+                    params={"name": q, "size": size},
+                    timeout=5,
+                )
+                if resp.status_code != 200:
+                    return []
+                data = resp.json()
+                return (data.get("content", data) if isinstance(data, dict) else data) or []
+            except Exception:
+                return []
+
+        # Strategy 0 — full phrase, best overlap
+        results = _search(place_name)
+        if results:
+            scored = [(c, _overlap(c.get("name", ""), place_name)) for c in results if c.get("id")]
+            if scored:
+                best, _ = max(scored, key=lambda x: x[1])
+                return best
+
+        # Strategy 1 & 2 — token-based fallback
+        tokens = [t for t in place_name.split() if len(t) >= 3]
+        if not tokens:
+            return None
+
+        token_maps = []
+        for token in tokens:
+            raw = _search(token, size=25)
+            if raw:
+                token_maps.append({c["id"]: c for c in raw if c.get("id")})
+
+        if not token_maps:
+            return None
+
+        # Intersection
+        intersected = set(token_maps[0].keys())
+        for tm in token_maps[1:]:
+            intersected &= set(tm.keys())
+
+        if intersected:
+            best_id = max(
+                intersected,
+                key=lambda pid: _overlap(token_maps[0].get(pid, {}).get("name", ""), place_name),
+            )
+            return token_maps[0][best_id]
+
+        # Union + score
+        all_candidates: dict = {}
+        for tm in token_maps:
+            all_candidates.update(tm)
+
+        best_id = max(
+            all_candidates,
+            key=lambda pid: _overlap(all_candidates[pid].get("name", ""), place_name),
+        )
+        if _overlap(all_candidates[best_id].get("name", ""), place_name) > 0:
+            return all_candidates[best_id]
+
+        return None
+
+    # ── compact stop builder (all display fields) ─────────────────────────────
+
+    @staticmethod
+    def _build_stop_dict(stop_number: int, place_name_query: str, record: dict | None) -> dict:
+        """
+        Returns a dict with all display-relevant fields for the stop.
+        The server uses this to render a deterministic data block
+        and to feed narration-relevant fields to the LLM.
+        """
+        if record is None:
+            return {
+                "stop": stop_number,
+                "name": place_name_query,
+                "error": "Could not retrieve database record for this stop.",
+            }
+
+        name    = record.get("name", place_name_query)
+        types   = record.get("types") or "N/A"
+        address = record.get("formattedAddress") or "N/A"
+
+        lat = record.get("latitude")
+        lng = record.get("longitude")
+        coords = f"{lat:.4f}°N, {lng:.4f}°E" if lat is not None and lng is not None else "N/A"
+
+        rating  = record.get("ratingScore")
+        r_count = record.get("ratingCount")
+        if rating is not None and r_count is not None:
+            rating_str = f"{rating} ({r_count:,} reviews)"
+        elif rating is not None:
+            rating_str = str(rating)
+        else:
+            rating_str = "N/A"
+
+        price     = record.get("priceLevel")
+        price_str = _PRICE_LEVEL_LABELS.get(price, price) if price else "N/A"
+
+        status  = record.get("businessStatus")
+        status_str = status.replace("_", " ").capitalize() if status else "N/A"
+
+        visit_min = record.get("plannedVisitMin")
+        visit_str = f"{visit_min} min" if visit_min else "N/A"
+
+        return {
+            "stop":          stop_number,
+            "name":          name,
+            "types":         types,
+            "address":       address,
+            "coordinates":   coords,
+            "rating":        rating_str,
+            "price_level":   price_str,
+            "status":        status_str,
+            "planned_visit": visit_str,
+        }
+
+    # ── main entry point ─────────────────────────────────────────────────────
+
+    def __call__(
+        self,
+        route_stop_names: list,
+        route_summary: dict | None = None,
+    ) -> str:
+        print("[SYSTEM]:\t",route_stop_names, route_summary)
+        print(f"[SYSTEM] GeneratedRouteExplanationAgent: explaining {len(route_stop_names)} stops")
+
+        if not route_stop_names:
+            return json.dumps({"error": "No route stops were provided."})
+
+        # ── Route overview ────────────────────────────────────────────────────
+        rs = route_summary or {}
+        duration_min = rs.get("total_duration_min")
+        distance_km  = rs.get("total_distance_km")
+        travel_mode  = rs.get("travel_mode")
+
+        route_overview = {"total_stops": len(route_stop_names)}
+        if duration_min is not None:
+            route_overview["total_duration_min"] = duration_min
+        if distance_km is not None:
+            route_overview["total_distance_km"] = distance_km
+        if travel_mode:
+            route_overview["travel_mode"] = travel_mode
+
+        # ── Per-stop compact dicts ────────────────────────────────────────────
+        stops = []
+        for i, name in enumerate(route_stop_names, start=1):
+            print(f"[SYSTEM] GeneratedRouteExplanationAgent: resolving stop {i}: '{name}'")
+            record = self._resolve_place(name)
+            stops.append(self._build_stop_dict(i, name, record))
+
+        result = {"route_overview": route_overview, "stops": stops}
+        print()
+        print("[SYSTEM] GeneratedRouteExplanationAgent: returned JSON payload")
+        return json.dumps(result, ensure_ascii=False)

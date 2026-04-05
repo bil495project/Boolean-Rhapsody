@@ -8,13 +8,12 @@ from chatbot.nematron_chatbot import ask_question
 
 # Import the agents from the sibling file
 from chatbot.ai_agents import (
-    calculatorAgent, weatherAgent, UserProfileAgent_SetInfo,
-    UserFeedbackAgent, XAIJustificationAgent,
+    calculatorAgent, weatherAgent, UserProfileUpdateAgent, #UserProfileAgent_SetInfo,
+    UserFeedbackAgent, RecommendationExplainerAgent,#XAIJustificationAgent,
     POI_suggest_agent, ItineraryModificationAgent, ChatTitleAgent,
     POI_data_agent, POI_search_agent, UserPersonaListAgent,
-    RouteGenerationFormatAgent
+    RouteGenerationFormatAgent, GeneratedRouteExplanationAgent
 )
-
 app = Flask(__name__)
 
 # Now the classes are defined and accessible here
@@ -22,9 +21,9 @@ app = Flask(__name__)
 TOOL_REGISTRY = {
     "calculator_agent":    calculatorAgent(),
     "weather_agent":       weatherAgent(),
-    "user_profile_agent":  UserProfileAgent_SetInfo(),     # Matches TC-LLM-U-008
+    "update_user_profile":  UserProfileUpdateAgent(),     # Matches TC-LLM-U-008
     "submit_user_feedback":UserFeedbackAgent(),            # Matches TC-LLM-U-005
-    "get_xai_justification":XAIJustificationAgent(),       # Matches TC-LLM-U-006
+    "explain_recommendation":RecommendationExplainerAgent(),       # Matches TC-LLM-U-006
     "suggest_poi":         POI_suggest_agent(),            # Matches TC-LLM-U-003
     "modify_itinerary":    ItineraryModificationAgent(),   # Matches TC-LLM-U-007
     "generate_chat_title": ChatTitleAgent(),               # Matches TC-LLM-U-015
@@ -32,11 +31,12 @@ TOOL_REGISTRY = {
     "search_poi_by_category":   POI_search_agent(),      # Browse by category (cafes, restaurants…)
     "get_user_personas":        UserPersonaListAgent(),  # Lists user's travel personas
     "generate_route_format":    RouteGenerationFormatAgent(),  # Formats payload for Route Generation Algorithm
+    "explain_generated_route": GeneratedRouteExplanationAgent(),
 }
 USER_ID_AWARE_TOOLS = {"get_user_personas", "generate_route_format"}
 
 # Tools whose output is returned verbatim to the frontend — NO second LLM call.
-RAW_OUTPUT_TOOLS = {"generate_route_format"} #set()
+RAW_OUTPUT_TOOLS = {"generate_route_format", "explain_generated_route"} #set()
 
 MAX_HISTORY = 10
 
@@ -157,6 +157,18 @@ def handle_chat():
                     "WHEN NOT TO USE: The user asks about historical weather or forecasts (not supported).\n"
                     "EXAMPLE: 'What's the weather in Ankara?' → call weather_agent.\n\n"
 
+                    "### 12. explain_generated_route — Route Explanation\n"
+                    "WHEN TO USE: The user presents a list of route stops and asks you to explain, describe, "
+                    "or summarise the route or any of its places in detail.\n"
+                    "WHEN NOT TO USE: The user wants to CREATE a new route (use generate_route_format) "
+                    "or look up a single place (use get_poi_details).\n"
+                    "EXAMPLE: 'Tell me about this route: Anıtkabir → Kocatepe Camii → Aspava' "
+                    "→ call explain_generated_route, passing every stop name in route_stop_names in order.\n"
+                    "EXTRACTION RULES:\n"
+                    "  a) route_stop_names — include EVERY stop exactly as written. Preserve Turkish characters.\n"
+                    "  b) route_summary — populate total_duration_min, total_distance_km, and travel_mode "
+                    "when the user provides that information in their message.\n\n"
+
                     # ── Section 3: Response Formatting ────────────────────────
                     "## Response Formatting\n\n"
                     "### RAW_OUTPUT tools (generate_route_format)\n"
@@ -221,12 +233,23 @@ def handle_chat():
                 "content": str(tool_result)
             })
 
-            # 4. Short-circuit: return raw tool output verbatim for structured-data tools
-            #    (same response shape as other tools — tool_used, tool_params, response)
+            # 4. Short-circuit for tools that bypass the generic second LLM call
             if tool_name in RAW_OUTPUT_TOOLS:
                 print(f"[SYSTEM] Raw output shortcut for '{tool_name}' — skipping second LLM call")
                 print("tool_used: " + tool_name)
                 print("tool_params:", arguments)
+
+                # explain_generated_route gets its own rendering pipeline
+                if tool_name == "explain_generated_route":
+                    rendered = _render_route_explanation(tool_result)
+                    return jsonify({
+                        "status": "success",
+                        "tool_used": tool_name,
+                        "tool_params": arguments,
+                        "response": rendered
+                    })
+
+                # All other RAW_OUTPUT tools return verbatim
                 return jsonify({
                     "status": "success",
                     "tool_used": tool_name,
@@ -308,6 +331,155 @@ def format_conversation(messages):
     readable_json = readable_json.replace('\\n', '\n')
     
     return readable_json
+
+# ── Shared helper: render route explanation ──────────────────────────────
+def _render_route_explanation(raw_json: str) -> str:
+    """
+    Takes the JSON string returned by GeneratedRouteExplanationAgent,
+    renders deterministic data blocks per stop, calls the LLM for
+    creative narration verdicts, and returns the final interleaved string.
+
+    Used by both /explain_route and the handle_chat() intercept for
+    the explain_generated_route tool.
+    """
+    agent_data = json.loads(raw_json)
+    overview   = agent_data.get("route_overview", {})
+    stops      = agent_data.get("stops", [])
+
+    # ── 1. Route overview as Markdown (deterministic) ─────────────────
+    md_lines = ["## 🗺️ Route Overview", ""]
+    md_lines.append(f"- **Stops:** {overview.get('total_stops', len(stops))}")
+
+    dur = overview.get("total_duration_min")
+    if dur is not None:
+        hrs, mins = divmod(int(dur), 60)
+        md_lines.append(f"- **Est. Duration:** {f'{hrs}h {mins}m' if hrs else f'{mins} min'}")
+
+    dist = overview.get("total_distance_km")
+    if dist is not None:
+        md_lines.append(f"- **Est. Distance:** {dist:.1f} km")
+
+    mode = overview.get("travel_mode")
+    if mode:
+        md_lines.append(f"- **Travel Mode:** {mode.capitalize()}")
+
+    md_lines.append("")
+    md_lines.append("---")
+    md_lines.append("")
+    overview_md = "\n".join(md_lines)
+
+    # ── 2. Render each stop's data block as plain text ────────────────
+    def _render_stop_block(s: dict) -> str:
+        if "error" in s:
+            return (
+                f"Stop {s['stop']}: {s['name']}\n"
+                f"  ⚠  {s['error']}"
+            )
+        return (
+            f"Stop {s['stop']}: {s['name']}\n"
+            f"Type(s): {s['types']}\n"
+            f"Address: {s['address']}\n"
+            f"Coordinates: {s['coordinates']}\n"
+            f"Rating: {s['rating']}\n"
+            f"Price Level: {s['price_level']}\n"
+            f"Status: {s['status']}\n"
+            f"Planned Visit: {s['planned_visit']}"
+        )
+
+    rendered_blocks = [_render_stop_block(s) for s in stops]
+
+    # ── 3. LLM call — creative verdicts only ─────────────────────────
+    VERDICT_DELIM = "===NEXT==="
+
+    llm_stop_lines = []
+    for s in stops:
+        if "error" in s:
+            llm_stop_lines.append(f"- Stop {s['stop']}: {s['name']} (no data available)")
+        else:
+            llm_stop_lines.append(
+                f"- Stop {s['stop']}: {s['name']} | "
+                f"Type: {s['types']} | Rating: {s['rating']} | "
+                f"Price: {s['price_level']}"
+            )
+    stops_summary = "\n".join(llm_stop_lines)
+
+    narrative_system = (
+        "You are a friendly, opinionated Ankara travel guide. "
+        "You will receive a list of route stops. "
+        "For EACH stop write exactly one paragraph (2–3 sentences): "
+        "what the place is, why it is interesting, and one practical tip. "
+        "Write in your own words — do NOT reproduce the raw data fields. "
+        f"Separate each stop's paragraph with exactly: {VERDICT_DELIM}\n"
+        "Do NOT include stop numbers, headings, or any other formatting — "
+        "just the paragraph text for each stop separated by the delimiter. "
+        "After the last stop's paragraph write one final paragraph as an "
+        f"overall route verdict, also preceded by {VERDICT_DELIM}."
+    )
+
+    narrative_user = f"Stops:\n{stops_summary}"
+
+    messages = [
+        {"role": "system", "content": narrative_system},
+        {"role": "user",   "content": narrative_user},
+    ]
+
+    llm_output    = ask_question(messages)
+    raw_narrative = llm_output.get("content", "")
+
+    # ── 4. Split verdicts and interleave with data blocks ────────────
+    import re
+    # Add tolerance for LLM formatting errors (e.g. |||NEXT||, ==NEXT===, etc)
+    raw_narrative = re.sub(r'(\|+NEXT\|+|=+NEXT=+)', VERDICT_DELIM, raw_narrative)
+    verdicts = [v.strip() for v in raw_narrative.split(VERDICT_DELIM) if v.strip()]
+
+    parts = [overview_md]
+    for i, block in enumerate(rendered_blocks):
+        parts.append(block)
+        if i < len(verdicts):
+            parts.append(verdicts[i])
+
+    # Append overall route verdict (last element) if present
+    if len(verdicts) > len(rendered_blocks):
+        parts.append("---")
+        parts.append(verdicts[-1])
+    # Fallback: if delimiter parsing failed, append raw narrative at end
+    elif not verdicts and raw_narrative.strip():
+        parts.append("---")
+        parts.append(raw_narrative.strip())
+
+    final_response = "\n\n".join(parts)
+    print("[SYSTEM]: Finale response\t",final_response)
+    return final_response
+
+
+@app.route('/explain_route', methods=['POST'])
+def explain_route():
+    data        = request.json or {}
+    stop_names  = data.get("route_stop_names", [])
+    route_summary = data.get("route_summary", {})
+    user_id     = data.get("user_id")
+
+    if not stop_names:
+        return jsonify({"status": "error", "message": "route_stop_names is required"}), 400
+
+    try:
+        agent    = TOOL_REGISTRY["explain_generated_route"]
+        raw_json = agent(route_stop_names=stop_names, route_summary=route_summary or None)
+        print("[SYSTEM]:\t",stop_names, route_summary)
+        print(f"[SYSTEM] /explain_route: agent returned {len(raw_json)} chars")
+
+        final_response = _render_route_explanation(raw_json)
+
+        return jsonify({
+            "status":    "success",
+            "tool_used": "explain_generated_route",
+            "response":  final_response,
+        })
+
+    except Exception as e:
+        print(f"[ERROR] /explain_route: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)

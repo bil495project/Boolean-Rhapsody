@@ -6,11 +6,11 @@ import os
 import re
 from openai import OpenAI
 from chatbot.ai_agents import (
-    calculatorAgent, weatherAgent, UserProfileAgent_SetInfo,
-    UserFeedbackAgent, XAIJustificationAgent,
+    calculatorAgent, weatherAgent, UserProfileUpdateAgent,#UserProfileAgent_SetInfo,
+    UserFeedbackAgent, RecommendationExplainerAgent,#XAIJustificationAgent,
     POI_suggest_agent, ItineraryModificationAgent, ChatTitleAgent,
     POI_data_agent, POI_search_agent, UserPersonaListAgent,
-    RouteGenerationFormatAgent
+    RouteGenerationFormatAgent, GeneratedRouteExplanationAgent
 )
 
 # Connect to your local llama.cpp server
@@ -24,9 +24,9 @@ client = OpenAI(
 TOOLS = [
     {"type": "function", "function": calculatorAgent.tool_template},
     {"type": "function", "function": weatherAgent.tool_template},
-    {"type": "function", "function": UserProfileAgent_SetInfo.tool_template},
+    {"type": "function", "function": UserProfileUpdateAgent.tool_template},#UserProfileAgent_SetInfo.tool_template},
     {"type": "function", "function": UserFeedbackAgent.tool_template},
-    {"type": "function", "function": XAIJustificationAgent.tool_template},
+    {"type": "function", "function": RecommendationExplainerAgent.tool_template},#XAIJustificationAgent.tool_template},
     {"type": "function", "function": POI_suggest_agent.tool_template},
     {"type": "function", "function": ItineraryModificationAgent.tool_template},
     {"type": "function", "function": ChatTitleAgent.tool_template},
@@ -34,6 +34,7 @@ TOOLS = [
     {"type": "function", "function": POI_search_agent.tool_template},
     {"type": "function", "function": UserPersonaListAgent.tool_template},
     {"type": "function", "function": RouteGenerationFormatAgent.tool_template},
+    {"type": "function", "function": GeneratedRouteExplanationAgent.tool_template},
 ]
 
 def get_openai_tools():
