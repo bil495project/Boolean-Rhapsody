@@ -16,6 +16,14 @@ const initialState: NavigationState = {
     isLoadingRoute: false,
 };
 
+const resetNavigationState = (state: NavigationState) => {
+    state.stops = [null, null];
+    state.mode = 'driving';
+    state.routeInfo = null;
+    state.routeCoordinates = null;
+    state.isLoadingRoute = false;
+};
+
 const navigationSlice = createSlice({
     name: 'navigation',
     initialState,
@@ -73,6 +81,15 @@ const navigationSlice = createSlice({
             state.routeInfo = null;
             state.routeCoordinates = null;
         },
+    },
+    extraReducers: (builder) => {
+        builder
+            .addCase('auth/logout', (state) => {
+                resetNavigationState(state);
+            })
+            .addCase('auth/deleteAccount', (state) => {
+                resetNavigationState(state);
+            });
     },
 });
 

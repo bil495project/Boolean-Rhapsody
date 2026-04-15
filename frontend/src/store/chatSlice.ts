@@ -3,12 +3,14 @@ import { chatApi, type ChatData, type MessageData } from '../services/userServic
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type ToolParams = string | number | boolean | null | ToolParams[] | { [key: string]: ToolParams };
+
 export interface Message {
     id: string;
     role: 'user' | 'assistant';
     content: string;
     toolUsed?: string;
-    toolParams?: any;
+    toolParams?: ToolParams;
     timestamp: number;
     locationCard?: LocationCard;
 }
@@ -61,7 +63,7 @@ const mapMessageData = (m: MessageData): Message => ({
     role: m.role as 'user' | 'assistant',
     content: m.content,
     toolUsed: m.toolUsed,
-    toolParams: m.toolParams ? JSON.parse(m.toolParams) : undefined,
+    toolParams: m.toolParams ? JSON.parse(m.toolParams) as ToolParams : undefined,
     timestamp: m.timestamp,
 });
 
@@ -108,7 +110,7 @@ export const updateChatTitleAsync = createAsyncThunk(
 
 export const addMessageAsync = createAsyncThunk(
     'chat/addMessageAsync',
-    async ({ chatId, role, content, toolUsed, toolParams }: { chatId: string; role: string; content: string; toolUsed?: string; toolParams?: any }) => {
+    async ({ chatId, role, content, toolUsed, toolParams }: { chatId: string; role: string; content: string; toolUsed?: string; toolParams?: ToolParams }) => {
         const toolParamsStr = toolParams ? JSON.stringify(toolParams) : undefined;
         const data = await chatApi.addMessage(chatId, role, content, toolUsed, toolParamsStr);
         return mapChatData(data);
@@ -128,6 +130,17 @@ const initialState: ChatState = {
     exploreMode: false,
     savedMode: false,
     savedDestinations: JSON.parse(localStorage.getItem('travelplanner_saved_destinations') || '[]'),
+};
+
+const clearAccountChatState = (state: ChatState) => {
+    state.chats = [];
+    state.activeChat = null;
+    state.isLoading = false;
+    state.error = null;
+    state.exploreMode = false;
+    state.savedMode = false;
+    state.savedDestinations = [];
+    localStorage.removeItem('travelplanner_saved_destinations');
 };
 
 const chatSlice = createSlice({
@@ -288,6 +301,12 @@ const chatSlice = createSlice({
         builder.addCase(addMessageAsync.rejected, (state, action) => {
             console.error('addMessageAsync failed:', action.error);
             state.error = action.error.message || 'Failed to add message';
+        });
+        builder.addCase('auth/logout', (state) => {
+            clearAccountChatState(state);
+        });
+        builder.addCase('auth/deleteAccount', (state) => {
+            clearAccountChatState(state);
         });
     },
 });

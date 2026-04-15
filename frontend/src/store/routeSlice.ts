@@ -77,6 +77,33 @@ const initialState: RouteState = {
     pendingRouteExplain: null,
 };
 
+const resetRouteState = (state: RouteState) => {
+    state.routes = [];
+    state.isLoading = false;
+    state.error = null;
+    state.currentRequest = null;
+    state.savedRouteId = null;
+    state.savedRouteTitle = null;
+    state.pendingChatApproval = false;
+    state.returnChatId = null;
+    state.approvedRoute = null;
+    state.selectedChatRoute = null;
+    state.pendingRouteExplain = null;
+};
+
+const toAsyncErrorMessage = (error: unknown, fallback: string) => {
+    if (typeof error === 'object' && error !== null) {
+        const candidate = error as {
+            message?: string;
+            response?: { data?: { error?: string } };
+        };
+
+        return candidate.response?.data?.error || candidate.message || fallback;
+    }
+
+    return fallback;
+};
+
 function buildUserVector(
     override?: Record<string, string | number | boolean>,
 ): Record<string, string> {
@@ -149,9 +176,9 @@ export const generateRoutesThunk = createAsyncThunk(
             const payload = buildGenerateRoutesPayload(params);
             const routes = await routeService.generateRoutes(payload);
             return { routes, payload };
-        } catch (error: any) {
+        } catch (error: unknown) {
             return rejectWithValue(
-                error?.response?.data?.error || error.message || 'Failed to generate routes',
+                toAsyncErrorMessage(error, 'Failed to generate routes'),
             );
         }
     },
@@ -251,6 +278,12 @@ const routeSlice = createSlice({
             .addCase(generateRoutesThunk.rejected, (state, action) => {
                 state.isLoading = false;
                 state.error = action.payload as string;
+            })
+            .addCase('auth/logout', (state) => {
+                resetRouteState(state);
+            })
+            .addCase('auth/deleteAccount', (state) => {
+                resetRouteState(state);
             });
     },
 });
@@ -268,4 +301,3 @@ export const {
 } = routeSlice.actions;
 
 export default routeSlice.reducer;
-

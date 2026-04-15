@@ -55,7 +55,7 @@ const SettingsPage = () => {
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
     const { mode, setMode } = useColorScheme();
-    const { isAuthenticated } = useAppSelector((state) => state.auth);
+    const { isAuthenticated, user } = useAppSelector((state) => state.auth);
 
     const [fontSize, setFontSize] = useState(getFontSize());
     const [emailNotifications, setEmailNotifications] = useState(true);
@@ -63,6 +63,8 @@ const SettingsPage = () => {
     const [language, setLanguage] = useState<string | null>('en');
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [deleteConfirmation, setDeleteConfirmation] = useState('');
+    const [deleteLoading, setDeleteLoading] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
 
     // Change password state
@@ -80,17 +82,41 @@ const SettingsPage = () => {
     }, [fontSize]);
 
     // Redirect to login if not authenticated
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !user) {
         return <Navigate to="/login" replace />;
     }
 
+    const accountEmail = user.email;
+    const deleteEmailMatches = deleteConfirmation.trim().toLowerCase() === accountEmail.toLowerCase();
+    const canDeleteAccount = confirmDelete && deleteEmailMatches && !deleteLoading;
+
+    const closeDeleteModal = () => {
+        if (deleteLoading) {
+            return;
+        }
+
+        setDeleteModalOpen(false);
+        setConfirmDelete(false);
+        setDeleteConfirmation('');
+        setDeleteError(null);
+    };
+
     const handleDeleteAccount = async () => {
+        setDeleteError(null);
+
+        if (!canDeleteAccount) {
+            setDeleteError('Confirm the deletion and type your account email to continue.');
+            return;
+        }
+
+        setDeleteLoading(true);
         try {
             await userApi.deleteAccount();
             dispatch(deleteAccount());
-            navigate('/');
+            navigate('/', { replace: true });
         } catch (err) {
             setDeleteError(extractErrorMessage(err));
+            setDeleteLoading(false);
         }
     };
 
@@ -146,7 +172,7 @@ const SettingsPage = () => {
                     Settings
                 </Typography>
                 <Typography level="body-lg" sx={{ color: 'text.secondary', mb: 4 }}>
-                    Customize your app experience
+                    Manage your preferences, security, and account data.
                 </Typography>
 
                 {/* Appearance */}
@@ -390,13 +416,18 @@ const SettingsPage = () => {
                     </Box>
                 </Card>
 
-                {/* Danger Zone */}
+                {/* Privacy & Data */}
                 <Card variant="outlined" sx={{ p: 3, borderColor: 'danger.300' }}>
-                    <Typography level="title-lg" sx={{ mb: 1, color: 'danger.500' }}>
-                        Danger Zone
+                    <Typography level="title-lg" sx={{ mb: 1, color: 'danger.500', display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <DeleteIcon />
+                        Privacy & Data
                     </Typography>
-                    <Typography level="body-sm" sx={{ color: 'text.secondary', mb: 3 }}>
-                        Permanently delete your account and all associated data
+                    <Typography level="body-sm" sx={{ color: 'text.secondary', mb: 2 }}>
+                        Delete your Roadrunner account when you no longer want it. Your profile,
+                        travel profiles, chats, saved places, saved routes, and travel plans will be removed.
+                    </Typography>
+                    <Typography level="body-xs" sx={{ color: 'text.tertiary', mb: 3 }}>
+                        Signed in as {accountEmail}
                     </Typography>
 
                     <Button
@@ -405,7 +436,7 @@ const SettingsPage = () => {
                         startDecorator={<DeleteIcon />}
                         onClick={() => setDeleteModalOpen(true)}
                     >
-                        Delete Account
+                        Delete my account
                     </Button>
                 </Card>
             </Box>
@@ -413,48 +444,65 @@ const SettingsPage = () => {
             <Footer />
 
             {/* Delete Confirmation Modal */}
-            <Modal open={deleteModalOpen} onClose={() => setDeleteModalOpen(false)}>
+            <Modal open={deleteModalOpen} onClose={closeDeleteModal}>
                 <ModalDialog variant="outlined" role="alertdialog">
                     <DialogTitle>
                         <WarningIcon sx={{ color: 'danger.500', mr: 1 }} />
-                        Delete Account
+                        Delete account and data
                     </DialogTitle>
                     <Divider />
                     <DialogContent>
                         <Typography level="body-md" sx={{ mb: 2 }}>
-                            Are you sure you want to delete your account? This action cannot be undone.
+                            This permanently deletes your Roadrunner account for {accountEmail}. This action cannot be undone.
+                        </Typography>
+                        <Typography level="body-sm" sx={{ color: 'text.secondary', mb: 2 }}>
+                            To continue, type your account email and confirm that you understand the deletion is permanent.
                         </Typography>
                         {deleteError && (
                             <Alert color="danger" sx={{ mb: 2 }}>
                                 {deleteError}
                             </Alert>
                         )}
+                        <FormControl sx={{ mb: 2 }}>
+                            <FormLabel>Account email</FormLabel>
+                            <Input
+                                value={deleteConfirmation}
+                                onChange={(e) => setDeleteConfirmation(e.target.value)}
+                                placeholder={accountEmail}
+                                autoComplete="off"
+                                disabled={deleteLoading}
+                            />
+                            {deleteConfirmation && !deleteEmailMatches && (
+                                <FormHelperText sx={{ color: 'danger.500' }}>
+                                    Email must match {accountEmail}
+                                </FormHelperText>
+                            )}
+                        </FormControl>
                         <Checkbox
-                            label="I understand this will permanently delete my account"
+                            label="I understand this will permanently delete my account and data"
                             checked={confirmDelete}
                             onChange={(e) => setConfirmDelete(e.target.checked)}
                             color="danger"
+                            disabled={deleteLoading}
                         />
                     </DialogContent>
                     <DialogActions>
                         <Button
                             variant="plain"
                             color="neutral"
-                            onClick={() => {
-                                setDeleteModalOpen(false);
-                                setConfirmDelete(false);
-                                setDeleteError(null);
-                            }}
+                            onClick={closeDeleteModal}
+                            disabled={deleteLoading}
                         >
                             Cancel
                         </Button>
                         <Button
                             variant="solid"
                             color="danger"
-                            disabled={!confirmDelete}
+                            disabled={!canDeleteAccount}
+                            loading={deleteLoading}
                             onClick={handleDeleteAccount}
                         >
-                            Delete Account
+                            Delete account
                         </Button>
                     </DialogActions>
                 </ModalDialog>

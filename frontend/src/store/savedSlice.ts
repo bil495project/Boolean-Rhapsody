@@ -26,6 +26,14 @@ const saveLocally = (destinations: MapDestination[]) => {
     localStorage.setItem('travelplanner_saved', JSON.stringify(destinations));
 };
 
+const clearSavedState = (state: SavedState) => {
+    state.destinations = [];
+    state.activePlanId = null;
+    state.isLoading = false;
+    state.error = null;
+    localStorage.removeItem('travelplanner_saved');
+};
+
 const initialState: SavedState = {
     destinations: loadSaved(),
     activePlanId: null,
@@ -80,9 +88,10 @@ const savedSlice = createSlice({
                 }
             })
             .addCase('auth/logout', (state) => {
-                state.destinations = [];
-                state.activePlanId = null;
-                saveLocally([]);
+                clearSavedState(state);
+            })
+            .addCase('auth/deleteAccount', (state) => {
+                clearSavedState(state);
             });
     }
 });
