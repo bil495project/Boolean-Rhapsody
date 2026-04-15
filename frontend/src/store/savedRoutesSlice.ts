@@ -17,13 +17,34 @@ const initialState: SavedRoutesState = {
     error: null,
 };
 
+const clearSavedRoutesState = (state: SavedRoutesState) => {
+    state.summaries = [];
+    state.activeRoute = null;
+    state.isLoading = false;
+    state.isSaving = false;
+    state.error = null;
+};
+
+const toAsyncErrorMessage = (error: unknown, fallback: string) => {
+    if (typeof error === 'object' && error !== null) {
+        const candidate = error as {
+            message?: string;
+            response?: { data?: { error?: string } };
+        };
+
+        return candidate.response?.data?.error || candidate.message || fallback;
+    }
+
+    return fallback;
+};
+
 export const fetchSavedRoutes = createAsyncThunk(
     'savedRoutes/fetchAll',
     async (_, { rejectWithValue }) => {
         try {
             return await savedRouteService.getAllSavedRoutes();
-        } catch (error: any) {
-            return rejectWithValue(error?.response?.data?.error || error.message || 'Failed to load saved routes');
+        } catch (error: unknown) {
+            return rejectWithValue(toAsyncErrorMessage(error, 'Failed to load saved routes'));
         }
     },
 );
@@ -33,8 +54,8 @@ export const fetchSavedRouteDetail = createAsyncThunk(
     async (savedRouteId: string, { rejectWithValue }) => {
         try {
             return await savedRouteService.getSavedRouteById(savedRouteId);
-        } catch (error: any) {
-            return rejectWithValue(error?.response?.data?.error || error.message || 'Failed to load saved route');
+        } catch (error: unknown) {
+            return rejectWithValue(toAsyncErrorMessage(error, 'Failed to load saved route'));
         }
     },
 );
@@ -44,8 +65,8 @@ export const createSavedRouteThunk = createAsyncThunk(
     async (payload: SavedRouteWritePayload, { rejectWithValue }) => {
         try {
             return await savedRouteService.createSavedRoute(payload);
-        } catch (error: any) {
-            return rejectWithValue(error?.response?.data?.error || error.message || 'Failed to save route');
+        } catch (error: unknown) {
+            return rejectWithValue(toAsyncErrorMessage(error, 'Failed to save route'));
         }
     },
 );
@@ -58,8 +79,8 @@ export const updateSavedRouteThunk = createAsyncThunk(
     ) => {
         try {
             return await savedRouteService.updateSavedRoute(params.savedRouteId, params.payload);
-        } catch (error: any) {
-            return rejectWithValue(error?.response?.data?.error || error.message || 'Failed to update saved route');
+        } catch (error: unknown) {
+            return rejectWithValue(toAsyncErrorMessage(error, 'Failed to update saved route'));
         }
     },
 );
@@ -72,8 +93,8 @@ export const renameSavedRouteThunk = createAsyncThunk(
     ) => {
         try {
             return await savedRouteService.renameSavedRoute(params.savedRouteId, params.title);
-        } catch (error: any) {
-            return rejectWithValue(error?.response?.data?.error || error.message || 'Failed to rename saved route');
+        } catch (error: unknown) {
+            return rejectWithValue(toAsyncErrorMessage(error, 'Failed to rename saved route'));
         }
     },
 );
@@ -84,8 +105,8 @@ export const deleteSavedRouteThunk = createAsyncThunk(
         try {
             await savedRouteService.deleteSavedRoute(savedRouteId);
             return savedRouteId;
-        } catch (error: any) {
-            return rejectWithValue(error?.response?.data?.error || error.message || 'Failed to delete saved route');
+        } catch (error: unknown) {
+            return rejectWithValue(toAsyncErrorMessage(error, 'Failed to delete saved route'));
         }
     },
 );
@@ -97,8 +118,18 @@ function upsertSummary(summaries: SavedRouteSummary[], summary: SavedRouteSummar
 }
 
 function toSummary(detail: SavedRouteDetail): SavedRouteSummary {
-    const { route: _route, generateRequest: _generateRequest, ...summary } = detail;
-    return summary;
+    return {
+        id: detail.id,
+        title: detail.title,
+        orderedPlaceIds: detail.orderedPlaceIds,
+        stopCount: detail.stopCount,
+        travelMode: detail.travelMode,
+        totalDurationSec: detail.totalDurationSec,
+        totalDistanceM: detail.totalDistanceM,
+        feasible: detail.feasible,
+        createdAt: detail.createdAt,
+        updatedAt: detail.updatedAt,
+    };
 }
 
 const savedRoutesSlice = createSlice({
@@ -184,11 +215,10 @@ const savedRoutesSlice = createSlice({
                 state.error = action.payload as string;
             })
             .addCase('auth/logout', (state) => {
-                state.summaries = [];
-                state.activeRoute = null;
-                state.isLoading = false;
-                state.isSaving = false;
-                state.error = null;
+                clearSavedRoutesState(state);
+            })
+            .addCase('auth/deleteAccount', (state) => {
+                clearSavedRoutesState(state);
             });
     },
 });
