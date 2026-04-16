@@ -31,7 +31,7 @@ import EditableRouteCard from '../components/route/EditableRouteCard';
 import PlaceSearchAutocomplete from '../components/route/PlaceSearchAutocomplete';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { toggleSidebar } from '../store/chatSlice';
-import { generateRoutesThunk, clearRoutes, hydrateSavedRoute, replaceRouteAtIndex, approveRouteForChat, clearChatApproval, setPendingRouteExplain } from '../store/routeSlice';
+import { generateRoutesThunk, clearRoutes, hydrateSavedRoute, replaceRouteAtIndex, approveRouteForChat, clearChatApproval, setPendingRouteExplain, setSelectedChatRoute } from '../store/routeSlice';
 import { addSaveDestination } from '../store/savedSlice';
 import { syncToggleToBackend } from '../store/savedThunks';
 import { setStops } from '../store/navigationSlice';
@@ -753,6 +753,8 @@ const RoutePage = () => {
     // Saves the route in Redux so ChatPage can auto-fire the explanation query,
     // then navigates to a fresh chat session.
     const handleAskLLM = (route: RouteData) => {
+        // Make the route visible on the ChatPage map while the question is answered
+        dispatch(setSelectedChatRoute(route));
         dispatch(setPendingRouteExplain(route));
         navigate('/chat/new');
     };

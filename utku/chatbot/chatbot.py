@@ -58,18 +58,27 @@ TOOLS = [
 
 def extract_tool_calls(response_text):
     """
-    Improved extraction for Qwen2.5 which often uses <tool_call> tags 
-    or specific JSON structures.
+    Improved extraction for Qwen2.5 which uses <tool_call> tags 
+    and non-greedy JSON parsing.
     """
     try:
-        # Regex to find JSON inside the response
-        match = re.search(r'\{.*\}', response_text, re.DOTALL)
-        if match:
-            data = json.loads(match.group())
-            # Normalize Qwen's 'arguments' to 'parameters' if needed
-            if "arguments" in data and "parameters" not in data:
-                data["parameters"] = data["arguments"]
-            return data
+        # 1. Look for explicit Qwen tool tags first
+        tag_match = re.search(r'<tool_call>\s*({.*?})\s*</tool_call>', response_text, re.DOTALL)
+        if tag_match:
+            json_str = tag_match.group(1)
+        else:
+            # 2. Fallback to non-greedy JSON matching
+            match = re.search(r'\{.*?\}', response_text, re.DOTALL)
+            if not match:
+                return None
+            json_str = match.group(0)
+
+        data = json.loads(json_str)
+        
+        # Normalize Qwen's 'arguments' to 'parameters' if needed
+        if "arguments" in data and "parameters" not in data:
+            data["parameters"] = data["arguments"]
+        return data
     except Exception as e:
         print(f"Extraction Error: {e}")
         return None
