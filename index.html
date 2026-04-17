@@ -9,8 +9,8 @@
     
     <style>
         :root {
-            --primary-color: #1e3a8a; 
-            --secondary-color: #3b82f6; 
+            --primary-color: #1e3a8a; /* Koyu Mavi */
+            --secondary-color: #3b82f6; /* Açık Mavi */
             --bg-color: #f8fafc;
             --text-main: #1e293b;
             --text-muted: #64748b;
@@ -115,58 +115,6 @@
             color: white;
             border-color: var(--secondary-color);
             transform: translateY(-2px);
-        }
-
-        /* YENİ EKLENEN MAİL BUTONU EFEKTİ */
-        .email-btn {
-            position: relative;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.75rem 1.5rem;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            border: 1px solid var(--border-color);
-            overflow: hidden;
-            justify-content: center;
-            min-width: 250px;
-        }
-
-        .email-btn .btn-text {
-            transition: transform 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .email-btn .btn-email {
-            position: absolute;
-            bottom: -100%;
-            font-size: 0.85rem;
-            color: white;
-            transition: all 0.3s ease;
-            white-space: nowrap;
-        }
-
-        .email-btn:hover {
-            background-color: var(--secondary-color);
-            color: white;
-            border-color: var(--secondary-color);
-            transform: translateY(-2px);
-            padding-bottom: 1.5rem;
-            padding-top: 0.2rem;
-        }
-
-        .email-btn:hover .btn-text {
-            transform: translateY(-10px);
-        }
-
-        .email-btn:hover .btn-email {
-            bottom: 5px;
         }
 
         /* Takım Grid Sistemi */
@@ -281,7 +229,7 @@
         <div class="card">
             <h2 class="section-title"><i class="fa-solid fa-rocket"></i> Proje Hakkında</h2>
             <p class="about-text">
-                Hızla gelişen yapay zekanın, var olan problemlere entregrasyonu hepimizin ilgisini çekiyor. Bu kapsamda Roadrunner projemiz, bir seyehat yapay zekasıdır
+                Hızla gelişen yapay zeka hepimizin ilgisini çekiyor ve bu alanda kapsamlı, yenilikçi bir bitirme projesi geliştirmeyi hedefliyoruz. Bu vizyonla geliştirdiğimiz günlük hayatımızdaki karmaşık seyehat rotası oluşturma problemine yapay zeka entegrasyonunu sağlayan RoadRunner, dağınık seyahat planlama süreçlerini tek bir akışta birleştiren, yapay zeka tabanlı yenilikçi bir seyahat platformudur. Sistemimiz, kullanıcıların doğal dille yazdığı seyahat taleplerini Büyük Dil Modeli ve ajan orkestrasyonu/tool call'ları ile işleyerek kullanıcıya özel olarak yapılandırılmış ve optimize edilmiş rota planlarına dönüştürür. Kullanıcıların seyahat tarzı, temposu ve ilgi alanlarına göre oluşturulan "seyahat personaları" sayesinde, her kullanıcıya benzersiz ve kişiselleştirilmiş bir deneyim sunulmaktadır. Projemizin en çarpıcı özelliklerinden biri olan Açıklanabilir Yapay Zeka (XAI) modülü, kullanıcılara belirli bir mekan veya rotanın neden öerildiğini şeffaf bir şekilde gerekçelendirerek güven inşa eder. Üretilen bu akıllı rotalar, OSRM tabanlı yönlendirme algoritmalarıyla hesaplanıp interaktif haritalar üzerinde anlık olarak görselleştirilir. Ayrıca kullanıcılar, oluşturulan planlar üzerinde dinamik değişiklikler yapma, llm ile konuşmadan da plan üretme ve harita üzerinden rotalat/mekanlar görüntüleyebilmekte ve diledikleri durakları esnek bir şekilde yeniden yapılandırma özgürlüğüne sahiptir. Mekanların, geçmiş konuşmaların, rotaların ve farklı seyehat persona'larının oluşturulup kaydedilebildiği bu interaktif sistem, sadece size rota çizen bir asistan değil; modern yazılım mimarisiyle seyahat planlamayı baştan aşağı yeniden tanımlayan kapsamlı bir mühendislik çözümüdür.
             </p>
             
             <div class="links-grid">
@@ -294,10 +242,8 @@
                 <a href="https://drive.google.com/drive/u/2/folders/1GQi-M1XxTLCynjEkB0TjZtSbjPcDLByY" class="action-btn" target="_blank">
                     <i class="fa-brands fa-google-drive"></i> Google Drive
                 </a>
-                
-                <a href="mailto:tobbbitirmeabdmu584@gmail.com" class="email-btn">
-                    <span class="btn-text"><i class="fa-solid fa-envelope"></i> Bize Ulaşın</span>
-                    <span class="btn-email">tobbbitirmeabdmu584@gmail.com</span>
+                <a href="mailto:tobbbitirmeabdmu584@gmail.com" class="action-btn">
+                    <i class="fa-solid fa-envelope"></i> Bize Ulaşın
                 </a>
             </div>
         </div>
@@ -319,7 +265,7 @@
                     </div>
                     <div class="team-member">
                         <h3>Ahmet Salih Kaya</h3>
-                        <p>YZ Mühendisliği - Bilgisayar Müh. ÇAP</p>
+                        <p>Yapay Zeka Mühendisliği ve Bilgisayar Mühendisliği ÇAP</p>
                         <span class="student-id">221401015</span>
                     </div>
                     <div class="team-member">
