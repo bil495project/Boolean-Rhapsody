@@ -3,257 +3,269 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Boolean Rhapsody | Engineering Portfolio</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>Boolean Rhapsody | BİL 495 & 496 Bitirme Projesi</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
         :root {
-            --primary: #0f172a;
-            --accent: #2563eb;
-            --accent-hover: #1d4ed8;
-            --bg: #fdfdfd;
+            --primary-color: #1e3a8a; 
+            --secondary-color: #3b82f6; 
+            --bg-color: #f8fafc;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
             --card-bg: #ffffff;
-            --text: #334155;
-            --text-light: #64748b;
-            --border: #f1f5f9;
+            --border-color: #e2e8f0;
         }
 
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: 'Inter', sans-serif;
         }
 
         body {
-            background-color: var(--bg);
-            color: var(--text);
-            line-height: 1.7;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
         }
 
-        /* Hero / Header Section */
+        /* Header Tasarımı */
         header {
-            background: radial-gradient(circle at top left, #1e293b, #0f172a);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             color: white;
-            padding: 6rem 2rem;
+            padding: 4rem 2rem;
             text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-
-        header::after {
-            content: "";
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 80px;
-            background: linear-gradient(to top, var(--bg), transparent);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
 
         header h1 {
-            font-size: 3.5rem;
-            font-weight: 800;
-            letter-spacing: -0.04em;
-            margin-bottom: 1rem;
-            background: linear-gradient(to right, #fff, #94a3b8);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-size: 3rem;
+            font-weight: 700;
+            letter-spacing: -0.05em;
+            margin-bottom: 0.5rem;
         }
 
         header p {
-            font-size: 1.2rem;
+            font-size: 1.25rem;
             font-weight: 300;
-            color: #94a3b8;
-            max-width: 700px;
-            margin: 0 auto;
+            opacity: 0.9;
         }
 
+        /* Ana İçerik Konteyneri */
         .container {
-            max-width: 1100px;
-            margin: -3rem auto 4rem auto;
-            padding: 0 1.5rem;
+            max-width: 1200px;
+            margin: -2rem auto 2rem auto;
+            padding: 0 2rem;
             position: relative;
-            z-index: 10;
         }
 
+        /* Kart Stilleri */
         .card {
             background: var(--card-bg);
-            border-radius: 20px;
-            padding: 2.5rem;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.03), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
-            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border-color);
             margin-bottom: 2rem;
         }
 
-        .section-header {
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--primary-color);
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 0.5rem;
+            border-bottom: 2px solid var(--bg-color);
+            padding-bottom: 0.75rem;
+        }
+
+        /* Hakkımızda & İletişim */
+        .about-text {
+            font-size: 1.1rem;
             margin-bottom: 1.5rem;
         }
 
-        .section-header i {
-            color: var(--accent);
-            font-size: 1.5rem;
+        .links-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-top: 1.5rem;
         }
 
-        .section-header h2 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--primary);
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border: 1px solid var(--border-color);
         }
 
-        /* Project Summary Improvements */
-        .summary-content {
-            font-size: 1.1rem;
-            color: var(--text);
-            border-left: 4px solid var(--accent);
-            padding-left: 1.5rem;
-            margin: 1.5rem 0;
+        .action-btn:hover {
+            background-color: var(--secondary-color);
+            color: white;
+            border-color: var(--secondary-color);
+            transform: translateY(-2px);
         }
 
-        /* Hover Email Button */
+        /* YENİ EKLENEN MAİL BUTONU EFEKTİ */
         .email-btn {
             position: relative;
             display: inline-flex;
             align-items: center;
-            gap: 0.75rem;
-            padding: 0.8rem 1.8rem;
-            background-color: var(--primary);
-            color: white;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background-color: var(--bg-color);
+            color: var(--text-main);
             text-decoration: none;
-            border-radius: 12px;
-            font-weight: 600;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: 1px solid var(--border-color);
             overflow: hidden;
-            min-width: 180px;
             justify-content: center;
+            min-width: 250px;
         }
 
         .email-btn .btn-text {
             transition: transform 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
         .email-btn .btn-email {
             position: absolute;
             bottom: -100%;
             font-size: 0.85rem;
-            font-weight: 400;
-            color: #94a3b8;
+            color: white;
             transition: all 0.3s ease;
+            white-space: nowrap;
         }
 
         .email-btn:hover {
-            background-color: var(--accent);
-            transform: translateY(-3px);
-            padding-bottom: 1.2rem;
-            padding-top: 0.4rem;
+            background-color: var(--secondary-color);
+            color: white;
+            border-color: var(--secondary-color);
+            transform: translateY(-2px);
+            padding-bottom: 1.5rem;
+            padding-top: 0.2rem;
         }
 
         .email-btn:hover .btn-text {
-            transform: translateY(-8px);
+            transform: translateY(-10px);
         }
 
         .email-btn:hover .btn-email {
-            bottom: 4px;
-            color: white;
+            bottom: 5px;
         }
 
-        /* Link Grid */
-        .links-flex {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 1rem;
-            margin-top: 2rem;
-        }
-
-        .action-link {
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            padding: 0.7rem 1.2rem;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            text-decoration: none;
-            color: var(--text);
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-
-        .action-link:hover {
-            border-color: var(--accent);
-            background: #f8fafc;
-            color: var(--accent);
-        }
-
-        /* Team Grid */
+        /* Takım Grid Sistemi */
         .team-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 1.5rem;
         }
 
-        .member-box {
-            padding: 1.2rem;
-            background: #f8fafc;
-            border-radius: 12px;
-            border: 1px solid var(--border);
+        .team-member {
+            background: var(--bg-color);
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
         }
 
-        .member-box h3 {
-            font-size: 1rem;
-            font-weight: 700;
+        .team-member h3 {
+            font-size: 1.1rem;
+            color: var(--text-main);
+            margin-bottom: 0.25rem;
         }
 
-        .member-box p {
-            font-size: 0.85rem;
-            color: var(--text-light);
-            margin-bottom: 0.5rem;
+        .team-member p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
         }
 
-        .member-id {
-            font-size: 0.75rem;
-            background: #fff;
-            padding: 2px 8px;
-            border-radius: 5px;
-            color: var(--accent);
-            font-weight: 600;
+        .team-member .student-id {
+            font-family: monospace;
+            background: #e2e8f0;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            color: var(--primary-color);
+            margin-top: 0.5rem;
+            display: inline-block;
         }
 
-        /* Reports List */
-        .report-grid {
+        /* Raporlar Listesi */
+        .reports-container {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 2rem;
         }
 
-        .report-item {
+        .report-list {
+            list-style: none;
+        }
+
+        .report-list li {
+            margin-bottom: 0.75rem;
+        }
+
+        .report-link {
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 0.75rem;
             padding: 1rem;
-            border-bottom: 1px solid var(--border);
+            background: var(--bg-color);
+            border-radius: 8px;
             text-decoration: none;
-            color: var(--text);
-            transition: 0.2s;
+            color: var(--text-main);
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border: 1px solid var(--border-color);
         }
 
-        .report-item:hover {
-            background: #f8fafc;
-            padding-left: 1.5rem;
-            color: var(--accent);
+        .report-link i {
+            color: var(--secondary-color);
+            font-size: 1.25rem;
         }
 
-        .report-item i {
-            font-size: 1.4rem;
-            color: var(--accent);
+        .report-link:hover {
+            border-color: var(--secondary-color);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
 
-        @media (max-width: 768px) {
-            .report-grid { grid-template-columns: 1fr; }
-            header h1 { font-size: 2.5rem; }
+        /* Scrum Master Listesi */
+        .scrum-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        
+        .scrum-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            background: var(--bg-color);
+            border-radius: 6px;
+            border-left: 4px solid var(--secondary-color);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
         }
     </style>
 </head>
@@ -261,125 +273,139 @@
 
     <header>
         <h1>Boolean Rhapsody</h1>
-        <p>TOBB Ekonomi ve Teknoloji Üniversitesi | Bilgisayar ve Yapay Zeka Mühendisliği Bitirme Projesi</p>
+        <p>TOBB ETÜ BİL 495 & BİL 496 Bitirme Projesi</p>
     </header>
 
     <div class="container">
         
         <div class="card">
-            <div class="section-header">
-                <i class="fa-solid fa-microchip"></i>
-                <h2>Proje Özeti & Vizyon</h2>
-            </div>
-            <p style="color: var(--text-light); font-weight: 500;">Bitirme Projesi (BİL 495-496)</p>
-            <div class="summary-content">
-                Boolean Rhapsody, modern yapay zeka metodolojilerini ve ileri düzey yazılım mimarilerini bir araya getiren yüksek mühendislik odaklı bir çalışmadır. Projemiz, karmaşık veri analizi ve otonom karar destek sistemleri üzerine yoğunlaşarak, akademik teoriyi pratik ve ölçeklenebilir bir endüstriyel çözüme dönüştürmeyi hedefler. Geliştirilen sistem, performans optimizasyonu ve kullanıcı deneyimini merkeze alarak, alanındaki teknik standartları bir üst seviyeye taşımaktadır.
-            </div>
+            <h2 class="section-title"><i class="fa-solid fa-rocket"></i> Proje Hakkında</h2>
+            <p class="about-text">
+                Hızla gelişen yapay zekanın, var olan problemlere entregrasyonu hepimizin ilgisini çekiyor. Bu kapsamda Roadrunner projemiz, bir seyehat yapay zekasıdır
+            </p>
             
-            <div class="links-flex">
-                <a href="https://github.com/bil495project" class="action-link" target="_blank"><i class="fa-brands fa-github"></i> GitHub</a>
-                <a href="https://trello.com/b/BLno6o20/bi%CC%87l-495-trello-board" class="action-link" target="_blank"><i class="fa-brands fa-trello"></i> Trello</a>
-                <a href="https://drive.google.com/drive/u/2/folders/1GQi-M1XxTLCynjEkB0TjZtSbjPcDLByY" class="action-link" target="_blank"><i class="fa-brands fa-google-drive"></i> Drive</a>
+            <div class="links-grid">
+                <a href="https://github.com/bil495project" class="action-btn" target="_blank">
+                    <i class="fa-brands fa-github"></i> GitHub Organizasyonu
+                </a>
+                <a href="https://trello.com/b/BLno6o20/bi%CC%87l-495-trello-board" class="action-btn" target="_blank">
+                    <i class="fa-brands fa-trello"></i> Trello Board
+                </a>
+                <a href="https://drive.google.com/drive/u/2/folders/1GQi-M1XxTLCynjEkB0TjZtSbjPcDLByY" class="action-btn" target="_blank">
+                    <i class="fa-brands fa-google-drive"></i> Google Drive
+                </a>
                 
                 <a href="mailto:tobbbitirmeabdmu584@gmail.com" class="email-btn">
-                    <span class="btn-text"><i class="fa-solid fa-paper-plane"></i> Bize Ulaşın</span>
+                    <span class="btn-text"><i class="fa-solid fa-envelope"></i> Bize Ulaşın</span>
                     <span class="btn-email">tobbbitirmeabdmu584@gmail.com</span>
                 </a>
             </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2rem; margin-bottom: 2rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 2rem; margin-bottom: 2rem;">
             
-            <div class="card" style="margin-bottom:0">
-                <div class="section-header">
-                    <i class="fa-solid fa-graduation-cap"></i>
-                    <h2>Proje Ekibi</h2>
-                </div>
+            <div class="card" style="margin-bottom: 0;">
+                <h2 class="section-title"><i class="fa-solid fa-users"></i> Proje Ekibi</h2>
                 <div class="team-grid">
-                    <div class="member-box">
+                    <div class="team-member">
                         <h3>Utku Ceylan</h3>
-                        <p>Bilgisayar Müh.</p>
-                        <span class="member-id">221101067</span>
+                        <p>Bilgisayar Mühendisliği</p>
+                        <span class="student-id">221101067</span>
                     </div>
-                    <div class="member-box">
+                    <div class="team-member">
                         <h3>Mustafa Tufan</h3>
-                        <p>Yapay Zeka Müh.</p>
-                        <span class="member-id">221401029</span>
+                        <p>Yapay Zeka Mühendisliği</p>
+                        <span class="student-id">221401029</span>
                     </div>
-                    <div class="member-box">
+                    <div class="team-member">
                         <h3>Ahmet Salih Kaya</h3>
-                        <p>YZ & Bilgisayar Müh.</p>
-                        <span class="member-id">221401015</span>
+                        <p>YZ Mühendisliği - Bilgisayar Müh. ÇAP</p>
+                        <span class="student-id">221401015</span>
                     </div>
-                    <div class="member-box">
+                    <div class="team-member">
                         <h3>Batuhan Efe Alkış</h3>
-                        <p>Bilgisayar Müh.</p>
-                        <span class="member-id">231104086</span>
+                        <p>Bilgisayar Mühendisliği</p>
+                        <span class="student-id">231104086</span>
                     </div>
-                    <div class="member-box">
+                    <div class="team-member">
                         <h3>Doruk Demirci</h3>
-                        <p>Bilgisayar Müh.</p>
-                        <span class="member-id">221101042</span>
+                        <p>Bilgisayar Mühendisliği</p>
+                        <span class="student-id">221101042</span>
                     </div>
                 </div>
             </div>
 
-            <div class="card" style="margin-bottom:0">
-                <div class="section-header">
-                    <i class="fa-solid fa-diagram-project"></i>
-                    <h2>Scrum Yönetimi</h2>
-                </div>
-                <div style="display:flex; flex-direction:column; gap:10px;">
-                    <div style="padding:10px; background:#f1f5f9; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
-                        <strong>Sprint 1</strong> <span style="color:var(--accent)">Utku Ceylan</span>
+            <div class="card" style="margin-bottom: 0;">
+                <h2 class="section-title"><i class="fa-solid fa-tasks"></i> Scrum Master Planlaması</h2>
+                <div class="scrum-list">
+                    <div class="scrum-item">
+                        <strong>1. Sprint</strong>
+                        <span>Utku Ceylan</span>
                     </div>
-                    <div style="padding:10px; background:#f1f5f9; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
-                        <strong>Sprint 2</strong> <span style="color:var(--accent)">Mustafa Tufan</span>
+                    <div class="scrum-item">
+                        <strong>2. Sprint</strong>
+                        <span>Mustafa Tufan</span>
                     </div>
-                    <div style="padding:10px; background:#f1f5f9; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
-                        <strong>Sprint 3</strong> <span style="color:var(--accent)">Doruk Demirci</span>
+                    <div class="scrum-item">
+                        <strong>3. Sprint</strong>
+                        <span>Doruk Demirci</span>
                     </div>
-                    <div style="padding:10px; background:#f1f5f9; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
-                        <strong>Sprint 4</strong> <span style="color:var(--accent)">Batuhan Efe Alkış</span>
+                    <div class="scrum-item">
+                        <strong>4. Sprint</strong>
+                        <span>Batuhan Efe Alkış</span>
                     </div>
                 </div>
             </div>
+            
         </div>
 
         <div class="card">
-            <div class="section-header">
-                <i class="fa-solid fa-file-invoice"></i>
-                <h2>Proje Dokümantasyonu</h2>
-            </div>
-            <div class="report-grid">
+            <h2 class="section-title"><i class="fa-solid fa-file-pdf"></i> Proje Raporları</h2>
+            
+            <div class="reports-container">
                 <div>
-                    <h4 style="margin-bottom:1rem; color:var(--text-light); text-transform:uppercase; font-size:0.8rem; letter-spacing:1px;">BİL 495 Raporları</h4>
-                    <a href="./reports/495/Project Proposal.docx" class="report-item">
-                        <i class="fa-solid fa-file-lines"></i> Project Proposal
-                    </a>
-                    <a href="./reports/495/Project Specifications Report.docx" class="report-item">
-                        <i class="fa-solid fa-file-shield"></i> Specifications Report
-                    </a>
-                    <a href="./reports/495/Analysis_Report.docx" class="report-item">
-                        <i class="fa-solid fa-magnifying-glass-chart"></i> Analysis Report
-                    </a>
-                    <a href="./reports/495/High-Level Design Report.docx" class="report-item">
-                        <i class="fa-solid fa-layer-group"></i> High-Level Design
-                    </a>
+                    <h3 style="margin-bottom: 1rem; color: var(--text-muted);">BİL 495 Raporları</h3>
+                    <ul class="report-list">
+                        <li>
+                            <a href="./reports/495/Project Proposal.docx" class="report-link">
+                                <i class="fa-solid fa-file-word"></i> Project Proposal
+                            </a>
+                        </li>
+                        <li>
+                            <a href="./reports/495/Project Specifications Report.docx" class="report-link">
+                                <i class="fa-solid fa-file-word"></i> Project Specifications Report
+                            </a>
+                        </li>
+                        <li>
+                            <a href="./reports/495/Analysis_Report.docx" class="report-link">
+                                <i class="fa-solid fa-file-word"></i> Analysis Report
+                            </a>
+                        </li>
+                        <li>
+                            <a href="./reports/495/High-Level Design Report.docx" class="report-link">
+                                <i class="fa-solid fa-file-word"></i> High Level Design Report
+                            </a>
+                        </li>
+                    </ul>
                 </div>
+
                 <div>
-                    <h4 style="margin-bottom:1rem; color:var(--text-light); text-transform:uppercase; font-size:0.8rem; letter-spacing:1px;">BİL 496 Raporları</h4>
-                    <a href="./reports/496/Low Level Design Report.docx" class="report-item">
-                        <i class="fa-solid fa-code"></i> Low-Level Design Report
-                    </a>
+                    <h3 style="margin-bottom: 1rem; color: var(--text-muted);">BİL 496 Raporları</h3>
+                    <ul class="report-list">
+                        <li>
+                            <a href="./reports/496/Low Level Design Report.docx" class="report-link">
+                                <i class="fa-solid fa-file-word"></i> Low Level Design Report
+                            </a>
+                        </li>
+                    </ul>
                 </div>
             </div>
         </div>
 
     </div>
 
-    <footer style="text-align:center; padding-bottom:3rem; color:var(--text-light); font-size:0.9rem;">
-        <p>&copy; 2024-2025 Boolean Rhapsody Engineering Team</p>
+    <footer>
+        <p>&copy; 2024-2025 Boolean Rhapsody. Tüm hakları saklıdır.</p>
     </footer>
 
 </body>
