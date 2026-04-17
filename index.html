@@ -9,15 +9,14 @@
     
     <style>
         :root {
-            /* Görselden alınan renk paleti (Koyu Tema & Turkuaz/Nane Yeşili Vurgular) */
-            --bg-color: #121820; /* Uygulama arka planı (Koyu antrasit/lacivert) */
-            --card-bg: #1A222C; /* Kartların arka planı */
-            --hero-bg: #112A32; /* Görseldeki 'Let's shape your route' kutusu gibi koyu yeşil/mavi */
-            --primary-color: #20C997; /* Ana vurgu rengi (Nane yeşili) */
-            --secondary-color: #14A97B; /* Buton hover (Koyu nane yeşili) */
-            --text-main: #E2E8F0; /* Ana metin rengi (Açık gri/Beyaz) */
-            --text-muted: #94A3B8; /* Soluk metin rengi */
-            --border-color: #2D3A4A; /* İnce kenarlık rengi */
+            --bg-color: #121820;
+            --card-bg: #1A222C;
+            --hero-bg: #112A32;
+            --primary-color: #20C997;
+            --secondary-color: #14A97B;
+            --text-main: #E2E8F0;
+            --text-muted: #94A3B8;
+            --border-color: #2D3A4A;
             --input-bg: #141C25;
         }
 
@@ -34,7 +33,6 @@
             line-height: 1.6;
         }
 
-        /* Header Tasarımı - Koyu temaya uygun daha sade ve teknolojik bir görünüm */
         header {
             background: var(--card-bg);
             border-bottom: 1px solid var(--border-color);
@@ -58,7 +56,6 @@
             color: var(--text-muted);
         }
 
-        /* Ana İçerik Konteyneri */
         .container {
             max-width: 1200px;
             margin: -2.5rem auto 2rem auto;
@@ -67,7 +64,6 @@
             z-index: 10;
         }
 
-        /* Kart Stilleri */
         .card {
             background: var(--card-bg);
             border-radius: 12px;
@@ -77,7 +73,6 @@
             margin-bottom: 2rem;
         }
 
-        /* İlk kartı görseldeki vurgulu kutuya (Let's shape your route) benzetme */
         .hero-card {
             background: var(--hero-bg);
             border: 1px solid #1A444C;
@@ -104,9 +99,8 @@
             color: var(--primary-color);
         }
 
-        /* Hakkımızda & İletişim */
         .about-text {
-            font-size: 0.9rem; /* 1.05rem'den 0.9rem'e düşürülerek font küçültüldü */
+            font-size: 0.9rem;
             margin-bottom: 1.5rem;
             color: var(--text-muted);
         }
@@ -118,7 +112,6 @@
             margin-top: 1.5rem;
         }
 
-        /* Butonlar - Görseldeki turkuaz uzun butona uyumlu */
         .action-btn {
             display: inline-flex;
             align-items: center;
@@ -141,7 +134,6 @@
             box-shadow: 0 4px 12px rgba(32, 201, 151, 0.2);
         }
 
-        /* Takım Grid Sistemi */
         .team-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -183,7 +175,6 @@
             border: 1px solid rgba(32, 201, 151, 0.2);
         }
 
-        /* Raporlar Listesi (Görseldeki Route listesi durakları gibi) */
         .reports-container {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -224,7 +215,6 @@
             background: var(--card-bg);
         }
 
-        /* Scrum Master Listesi */
         .scrum-list {
             display: flex;
             flex-direction: column;
@@ -251,7 +241,6 @@
             color: var(--text-muted);
         }
 
-        /* Footer */
         footer {
             text-align: center;
             padding: 2rem;
@@ -275,7 +264,7 @@
         <div class="card hero-card">
             <h2 class="section-title"><i class="fa-solid fa-rocket"></i> Proje Hakkında</h2>
             <p class="about-text">
-                Günlük hayatımızdaki karmaşık seyehat rotası oluşturma problemine yapay zeka entegrasyonunu sağlayan RoadRunner, dağınık seyahat planlama süreçlerini tek bir akışta birleştiren, yapay zeka tabanlı yenilikçi bir seyahat platformudur. Sistemimiz, kullanıcıların doğal dille yazdığı seyahat taleplerini LLM modeli ve ajan orkestrasyonu/tool call'ları ile işleyerek kullanıcıya özel olarak yapılandırılmış ve optimize edilmiş rota planlarına dönüştürür. Kullanıcıların seyahat tarzı, temposu ve ilgi alanlarına göre oluşturulan "seyahat personaları" sayesinde, her kullanıcıya benzersiz ve kişiselleştirilmiş bir deneyim sunulmaktadır. Projemizin en çarpıcı özelliklerinden biri olan Açıklanabilir Yapay Zeka (XAI) modülü, kullanıcılara belirli bir mekan veya rotanın neden önerildiğini şeffaf bir şekilde gerekçelendirerek güven inşa eder. Üretilen bu akıllı rotalar, OSRM tabanlı yönlendirme algoritmalarıyla hesaplanıp interaktif haritalar üzerinde anlık olarak görselleştirilir. Ayrıca kullanıcılar, oluşturulan planlar üzerinde dinamik değişiklikler yapma, llm ile konuşmadan da plan üretme ve harita üzerinden rotalar/mekanlar görüntüleyebilmekte ve diledikleri durakları esnek bir şekilde yeniden yapılandırma özgürlüğüne sahiptir. Mekanların, geçmiş konuşmaların, rotaların ve farklı seyehat persona'larının oluşturulup kaydedilebildiği bu interaktif sistem, sadece size rota çizen bir asistan değil; modern yazılım mimarisiyle seyahat planlamayı size özel hale getiren bir yapay zeka çözümüdür.
+                Günlük hayatımızdaki karmaşık seyahat rotası oluşturma problemine yapay zeka entegrasyonunu sağlayan RoadRunner, dağınık seyahat planlama süreçlerini tek bir akışta birleştiren, yapay zeka tabanlı yenilikçi bir seyahat platformudur. Sistemimiz, kullanıcıların doğal dille yazdığı seyahat taleplerini LLM modeli ve ajan orkestrasyonu/tool call'ları ile işleyerek kullanıcıya özel olarak yapılandırılmış ve optimize edilmiş rota planlarına dönüştürür. Kullanıcıların seyahat tarzı, temposu ve ilgi alanlarına göre oluşturulan "seyahat personaları" sayesinde, her kullanıcıya benzersiz ve kişiselleştirilmiş bir deneyim sunulmaktadır. Projemizin en çarpıcı özelliklerinden biri olan Açıklanabilir Yapay Zeka (XAI) modülü, kullanıcılara belirli bir mekan veya rotanın neden önerildiğini şeffaf bir şekilde gerekçelendirerek güven inşa eder. Üretilen bu akıllı rotalar, OSRM tabanlı yönlendirme algoritmalarıyla hesaplanıp interaktif haritalar üzerinde anlık olarak görselleştirilir. Ayrıca kullanıcılar, oluşturulan planlar üzerinde dinamik değişiklikler yapma, llm ile konuşmadan da plan üretme ve harita üzerinden rotalar/mekanlar görüntüleyebilmekte ve diledikleri durakları esnek bir şekilde yeniden yapılandırma özgürlüğüne sahiptir. Mekanların, geçmiş konuşmaların, rotaların ve farklı seyehat persona'larının oluşturulup kaydedilebildiği bu interaktif sistem, sadece size rota çizen bir asistan değil; modern yazılım mimarisiyle seyahat planlamayı size özel hale getiren bir yapay zeka çözümüdür.
             </p>
             
             <div class="links-grid">
@@ -359,23 +348,23 @@
                     <h3 style="margin-bottom: 1rem; color: var(--text-muted); font-size: 0.95rem; text-transform: uppercase; letter-spacing: 1px;">BİL 495 Raporları</h3>
                     <ul class="report-list">
                         <li>
-                            <a href="./reports/495/Project Proposal.docx" class="report-link">
-                                <i class="fa-solid fa-file-word"></i> Project Proposal
+                            <a href="./reports/495/Project Proposal.pdf" class="report-link">
+                                <i class="fa-solid fa-file-pdf"></i> Project Proposal
                             </a>
                         </li>
                         <li>
-                            <a href="./reports/495/Project Specifications Report.docx" class="report-link">
-                                <i class="fa-solid fa-file-word"></i> Project Specifications Report
+                            <a href="./reports/495/Project Specifications Report.pdf" class="report-link">
+                                <i class="fa-solid fa-file-pdf"></i> Project Specifications Report
                             </a>
                         </li>
                         <li>
-                            <a href="./reports/495/Analysis_Report.docx" class="report-link">
-                                <i class="fa-solid fa-file-word"></i> Analysis Report
+                            <a href="./reports/495/Analysis_Report.pdf" class="report-link">
+                                <i class="fa-solid fa-file-pdf"></i> Analysis Report
                             </a>
                         </li>
                         <li>
-                            <a href="./reports/495/High-Level Design Report.docx" class="report-link">
-                                <i class="fa-solid fa-file-word"></i> High Level Design Report
+                            <a href="./reports/495/High-Level Design Report.pdf" class="report-link">
+                                <i class="fa-solid fa-file-pdf"></i> High Level Design Report
                             </a>
                         </li>
                     </ul>
@@ -385,8 +374,23 @@
                     <h3 style="margin-bottom: 1rem; color: var(--text-muted); font-size: 0.95rem; text-transform: uppercase; letter-spacing: 1px;">BİL 496 Raporları</h3>
                     <ul class="report-list">
                         <li>
-                            <a href="./reports/496/Low Level Design Report.docx" class="report-link">
-                                <i class="fa-solid fa-file-word"></i> Low Level Design Report
+                            <a href="./reports/496/Low Level Design Report.pdf" class="report-link">
+                                <i class="fa-solid fa-file-pdf"></i> Low Level Design Report
+                            </a>
+                        </li>
+                        <li>
+                            <a href="./reports/496/Test_plan_report.pdf" class="report-link">
+                                <i class="fa-solid fa-file-pdf"></i> Test Plan Report
+                            </a>
+                        </li>
+                        <li>
+                            <a href="./reports/496/Proje_Kisit_ve_Etkiler_Dokumani.pdf" class="report-link">
+                                <i class="fa-solid fa-file-pdf"></i> Proje Kısıt ve Etkiler Dokümanı
+                            </a>
+                        </li>
+                        <li>
+                            <a href="./reports/496/Final Raporu.pdf" class="report-link">
+                                <i class="fa-solid fa-file-pdf"></i> Final Raporu
                             </a>
                         </li>
                     </ul>
