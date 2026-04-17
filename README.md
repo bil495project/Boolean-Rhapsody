@@ -45,3 +45,4 @@ Hızla gelişen yapay zeka hepimizin ilgisini çekiyor ve bu alanda bir bitirme 
 
 ## BİL 496 Raporları
 - [Low Level Design Report](https://github.com/bil495project/Boolean-Rhapsody/blob/main/reports/496/Low%20Level%20Design%20Report.pdf)
+- [Test Plan Report](https://github.com/bil495project/Boolean-Rhapsody/blob/main/reports/496/Test_plan_report.pdf)
