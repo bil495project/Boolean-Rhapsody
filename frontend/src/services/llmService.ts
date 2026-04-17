@@ -315,8 +315,8 @@ export async function send_message(
     userId?: string
 ): Promise<ToolCallResult> {
     try {
-        // Take only the last 10 messages for context
-        const recentHistory = history.slice(-10);
+        // Take only the last 20 messages for context
+        const recentHistory = history.slice(-20);
 
         const response = await fetch(`${API_BASE_URL}/llm/chat`, {
             method: 'POST',
