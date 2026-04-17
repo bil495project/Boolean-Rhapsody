@@ -253,6 +253,11 @@ const routeSlice = createSlice({
             state.selectedChatRoute = null;
         },
 
+        /** Directly set the route the ChatPage map should display (without touching approval state). */
+        setSelectedChatRoute: (state, action: PayloadAction<RouteData>) => {
+            state.selectedChatRoute = action.payload;
+        },
+
         /** Signal ChatPage to auto-fire a route explanation query for this route. */
         setPendingRouteExplain: (state, action: PayloadAction<RouteData>) => {
             state.pendingRouteExplain = action.payload;
@@ -296,6 +301,7 @@ export const {
     approveRouteForChat,
     clearChatApproval,
     clearSelectedChatRoute,
+    setSelectedChatRoute,
     setPendingRouteExplain,
     clearPendingRouteExplain,
 } = routeSlice.actions;

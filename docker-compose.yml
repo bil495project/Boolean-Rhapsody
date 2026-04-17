@@ -1,0 +1,55 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_API_URL: /api
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "3000:80"
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/roadrunner
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-postgres}
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "true"
+      SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: "true"
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-dGVzdFNlY3JldEtleUZvclJvYWRSdW5uZXJUZXN0aW5nMTIz}
+      APP_JWT_EXPIRATION_MS: ${APP_JWT_EXPIRATION_MS:-86400000}
+      APP_RECAPTCHA_ENABLED: ${APP_RECAPTCHA_ENABLED:-false}
+      APP_RECAPTCHA_SECRET_KEY: ${APP_RECAPTCHA_SECRET_KEY:-}
+      APP_RECAPTCHA_MIN_SCORE: ${APP_RECAPTCHA_MIN_SCORE:-0.5}
+    expose:
+      - "8080"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: roadrunner
+      POSTGRES_USER: ${SPRING_DATASOURCE_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-postgres}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:

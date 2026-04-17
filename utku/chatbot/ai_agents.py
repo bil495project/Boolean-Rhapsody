@@ -158,37 +158,449 @@ class UserProfileUpdateAgent(BaseAgent):
             return "Failed to update your personas in the database."
 
 
+# ---------------------------------------------------------------------------
+# Sentiment & place-to-persona mapping helpers used by TripFeedbackAgent
+# ---------------------------------------------------------------------------
+
+# Keyword sets for lightweight, dependency-free sentiment analysis.
+# Words the user uses when they *liked* something.
+_POSITIVE_SIGNALS = {
+    "loved", "love", "great", "amazing", "fantastic", "wonderful", "excellent",
+    "perfect", "beautiful", "awesome", "enjoyed", "enjoy", "liked", "like",
+    "good", "nice", "impressive", "stunning", "brilliant", "splendid",
+    "incredible", "superb", "best", "favourite", "favourite", "fun",
+    "happy", "glad", "pleased", "satisfied", "recommend", "definitely",
+    "must", "worth", "100", "5/5", "5 stars", "five stars",
+    # Explicit star ratings (numeric) — e.g. "I give this trip 5 stars"
+    "5", "four", "4",
+    # Turkish
+    "güzel", "harika", "mükemmel", "sevdim", "beğendim", "çok iyi", "süper",
+}
+
+# Words the user uses when they *didn't like* something.
+_NEGATIVE_SIGNALS = {
+    "hated", "hate", "terrible", "awful", "horrible", "bad", "boring", "dull",
+    "disappointing", "disappointed", "waste", "wasted", "didn't like",
+    "did not like", "not good", "not great", "not worth", "overcrowded",
+    "overpriced", "expensive", "skip", "avoid", "never again", "worst",
+    "mediocre", "poor", "unpleasant", "disliked", "wasn't", "wasn't good",
+    "not impressive", "too crowded", "too loud", "too dark", "too long",
+    # Explicit star ratings (numeric) — e.g. "I give this trip 1 star"
+    "1", "2", "one", "two",
+    # Turkish
+    "kötü", "berbat", "sıkıcı", "sevmedim", "beğenmedim", "pahalı",
+    "hayal kırıklığı", "yazık", "olmamış",
+}
+
+# Negation words that flip the sentiment of the word that follows.
+_NEGATIONS = {
+    "not", "no", "never", "didn't", "did not", "wasn't", "was not",
+    "couldn't", "could not", "don't", "do not", "doesn't", "does not",
+    "won't", "will not", "hardly", "barely", "değil",
+}
+
+
+def _analyse_sentiment(text: str) -> float:
+    """
+    Rule-based, dependency-free sentiment scorer.
+
+    Returns a score in the range [-1.0, +1.0]:
+        +1.0  → strongly positive ("I loved it!")
+        0.0   → neutral / mixed
+        -1.0  → strongly negative ("I hated it")
+
+    Strategy
+    --------
+    1. Tokenise the text into lowercase words.
+    2. Slide a context window of size 3: if a negation appears in the
+       three words *before* a sentiment word, flip its polarity.
+    3. Accumulate ±1 for every signal word found, then normalise by the
+       total number of signal words so a single strong word gives 1.0 or
+       -1.0 while mixed feedback averages out.
+    """
+    words = text.lower().split()
+    score = 0
+    hits  = 0
+
+    for i, word in enumerate(words):
+        # Strip common punctuation to improve matching
+        clean = word.strip(".,!?;:'\"()")
+
+        polarity = 0
+        if clean in _POSITIVE_SIGNALS:
+            polarity = +1
+        elif clean in _NEGATIVE_SIGNALS:
+            polarity = -1
+
+        if polarity != 0:
+            # Look back up to 3 words for a negation
+            window = words[max(0, i - 3):i]
+            if any(w.strip(".,!?;:'\"()") in _NEGATIONS for w in window):
+                polarity *= -1  # flip: "didn't like" → negative
+
+            score += polarity
+            hits  += 1
+
+    if hits == 0:
+        return 0.0  # no sentiment words found → neutral
+
+    return max(-1.0, min(1.0, score / hits))
+
+
+# ---------------------------------------------------------------------------
+# Maps place types (from the DB 'types' string) to the persona weight keys
+# that should be adjusted when the user gives feedback on that place.
+#
+# Logic: if the user loved a Historic Place, we nudge historyPreference up;
+#        if they hated a Park, we nudge naturePreference down.
+# ---------------------------------------------------------------------------
+_PLACE_TYPE_TO_PERSONA_KEYS: dict[str, list[str]] = {
+    # Historic & cultural sites
+    "museum":           ["historyPreference"],
+    "historic":         ["historyPreference"],
+    "historical":       ["historyPreference"],
+    "church":           ["historyPreference", "socialPreference"],
+    "mosque":           ["historyPreference", "socialPreference"],
+    "monument":         ["historyPreference"],
+    "archaeological":   ["historyPreference"],
+
+    # Nature & outdoors
+    "park":             ["naturePreference"],
+    "garden":           ["naturePreference"],
+    "lake":             ["naturePreference"],
+    "forest":           ["naturePreference"],
+    "trail":            ["naturePreference", "tempo"],
+    "nature":           ["naturePreference"],
+
+    # Food & drink
+    "restaurant":       ["foodImportance", "budgetLevel"],
+    "cafe":             ["foodImportance", "socialPreference"],
+    "coffee":           ["foodImportance", "socialPreference"],
+    "bakery":           ["foodImportance"],
+    "food":             ["foodImportance"],
+    "bar":              ["socialPreference", "alcoholPreference"],
+    "pub":              ["socialPreference", "alcoholPreference"],
+    "nightclub":        ["socialPreference", "alcoholPreference"],
+
+    # Social & entertainment
+    "landmark":         ["historyPreference", "socialPreference"],
+    "stadium":          ["socialPreference"],
+    "theater":          ["socialPreference", "historyPreference"],
+    "shopping":         ["socialPreference", "budgetLevel"],
+    "mall":             ["socialPreference", "budgetLevel"],
+
+    # Accommodation
+    "hotel":            ["budgetLevel"],
+    "accommodation":    ["budgetLevel"],
+}
+
+
+def _place_types_to_persona_keys(place_types_str: str) -> list[str]:
+    """
+    Given a raw 'types' string from the backend (e.g.
+    "point_of_interest, museum, tourist_attraction"), returns the
+    deduplicated list of persona preference keys that are relevant.
+    """
+    key_set: set[str] = set()
+    lowered = place_types_str.lower()
+    for type_keyword, persona_keys in _PLACE_TYPE_TO_PERSONA_KEYS.items():
+        if type_keyword in lowered:
+            key_set.update(persona_keys)
+    return list(key_set)
+
+
+def _apply_feedback_delta(
+    current_weight: float,
+    sentiment_score: float,
+    learning_rate: float = 0.08,
+) -> float:
+    """
+    Nudges a single persona weight towards +1.0 or 0.0 depending on
+    the sentiment score.
+
+    Parameters
+    ----------
+    current_weight   : The current value of the persona preference (0.0–1.0).
+    sentiment_score  : A value in [-1.0, +1.0] from _analyse_sentiment.
+    learning_rate    : How large a step to take per piece of feedback.
+                       Default 0.08 means a strong opinion shifts the weight
+                       by at most ~8 percentage points per feedback message.
+
+    Returns
+    -------
+    The new clamped weight value (still 0.0–1.0).
+    """
+    delta = sentiment_score * learning_rate
+    new_weight = current_weight + delta
+    return round(max(0.0, min(1.0, new_weight)), 4)
+
+
+# ---------------------------------------------------------------------------
+# TripFeedbackAgent
+# ---------------------------------------------------------------------------
+
 class TripFeedbackAgent(BaseAgent):
-    """Records user feedback for a completed trip."""
+    """
+    Records user feedback about a place or trip experience and automatically
+    updates the active travel persona weights to reflect what the user did
+    or didn't enjoy.
+
+    How it works
+    ------------
+    1. **Sentiment Analysis** — The feedback comment is scored on a
+       [-1.0, +1.0] scale using a keyword-based analyser (_analyse_sentiment).
+       A score of +1 means "strongly liked"; -1 means "strongly disliked".
+
+    2. **Place Lookup** — If a ``place_name`` is provided, the agent fetches
+       the place record from the backend (GET /api/places/search) to read its
+       ``types`` field (e.g. "museum, historic_place").
+
+    3. **Persona Key Mapping** — The place's type keywords are mapped to the
+       relevant persona weight keys (e.g. "museum" → historyPreference).
+
+    4. **Weight Adjustment** — Each mapped persona key is nudged by
+       ``sentiment_score × learning_rate`` (default: ±0.08 per feedback).
+       Extreme values are clamped to [0.0, 1.0].
+
+    5. **Persistence** — The updated persona is saved via ``_set_persona``
+       which calls PUT /api/users/{user_id}/personas/{persona_id}.
+    """
+
+    # How much a single piece of feedback can shift a weight.
+    # Increase (e.g. 0.15) for faster learning; decrease (e.g. 0.04) for
+    # more conservative adjustments.
+    LEARNING_RATE = 0.08
+
     tool_template = {
         "name": "submit_trip_feedback",
         "description": (
-            "Saves the user's feedback for a specific completed trip. "
-            "Use this after a trip when the user rates their experience, mentions "
-            "what they liked or disliked, or leaves a comment. "
-            "Do NOT use for updating general profile preferences — use 'update_user_profile' for that."
+            "Saves the user's feedback about a completed trip or a specific visited place, "
+            "and automatically adjusts their active travel persona weights based on what "
+            "they liked or disliked. "
+            "Use this whenever the user rates their experience, comments on a visited place, "
+            "mentions what they enjoyed or didn't enjoy during a trip, or says things like "
+            "'I loved the park', 'the museum was boring', 'great restaurant', etc. "
+            "IMPORTANT: If the user mentions a specific place they liked/disliked, set "
+            "'place_name' to that place's name so the feedback can be precisely attributed. "
+            "Do NOT use this for changing general profile preferences without trip context — "
+            "use 'update_user_profile' for that."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "trip_id": {
-                    "type": "string",
-                    "description": "The unique identifier of the completed trip."
-                },
                 "user_feedback": {
                     "type": "string",
                     "description": (
-                        "The user's feedback in free text. "
-                        "Example: 'The route was great but the museum visit was too long.'"
+                        "The user's feedback comment in free text. Should capture what they "
+                        "liked or disliked about the place or trip. "
+                        "Example: 'The museum was amazing, I could have stayed all day.' "
+                        "or 'The park was a bit boring honestly.'"
+                    )
+                },
+                "place_name": {
+                    "type": "string",
+                    "description": (
+                        "Optional. The name of the specific place the user is commenting on "
+                        "(e.g. 'Anıtkabir', 'Eymir Gölü'). When provided, the agent looks up "
+                        "the place's category to determine which persona weights to adjust. "
+                        "Omit if the feedback is about the whole trip rather than a single place."
+                    )
+                },
+                "trip_id": {
+                    "type": "string",
+                    "description": (
+                        "Optional. The unique identifier of the completed trip this feedback "
+                        "belongs to. Useful for logging but not required for persona adjustment."
                     )
                 }
             },
-            "required": ["trip_id", "user_feedback"]
+            "required": ["user_feedback"]
         }
     }
 
-    def __call__(self, trip_id, user_feedback):
-        return f"Feedback for trip {trip_id} recorded: '{user_feedback[:50]}...'"
+    # ------------------------------------------------------------------ #
+    # Private: fetch a place record by name (same endpoint as other agents)
+    # ------------------------------------------------------------------ #
+    def _fetch_place(self, place_name: str) -> dict | None:
+        """
+        Searches the backend for a place by name and returns the best-matching
+        record, or None if nothing is found.
+        """
+        try:
+            url  = f"{BACKEND_URL}/api/places/search"
+            resp = requests.get(url, params={"name": place_name, "size": 5}, timeout=5)
+            if resp.status_code != 200:
+                print(f"[WARN] TripFeedbackAgent: place search returned HTTP {resp.status_code}")
+                return None
+
+            data    = resp.json()
+            results = data.get("content", data) if isinstance(data, dict) else data
+            if not results:
+                return None
+
+            # Simple best-match: pick the result whose name most closely
+            # matches what the user mentioned (case-insensitive prefix match
+            # first, then fall back to the first result).
+            lowered = place_name.lower()
+            for r in results:
+                if r.get("name", "").lower().startswith(lowered):
+                    return r
+            return results[0]
+
+        except Exception as e:
+            print(f"[WARN] TripFeedbackAgent: error fetching place '{place_name}': {e}")
+            return None
+
+    # ------------------------------------------------------------------ #
+    # __call__
+    # ------------------------------------------------------------------ #
+    def __call__(
+        self,
+        user_feedback: str,
+        place_name: str = None,
+        trip_id: str = None,
+        user_id: str = None,  # injected by server.py — NOT in tool_template
+    ) -> str:
+        print(
+            f"[SYSTEM] TripFeedbackAgent: user_id={user_id}, "
+            f"place='{place_name}', trip='{trip_id}'"
+        )
+
+        # ── Guard: must be logged in to update persona ───────────────────────
+        if not user_id:
+            return (
+                "I've noted your feedback, but I couldn't identify your account so "
+                "I wasn't able to update your travel preferences. Please make sure "
+                "you are logged in."
+            )
+
+        # ── Step 1: Sentiment analysis ───────────────────────────────────────
+        sentiment_score = _analyse_sentiment(user_feedback)
+        sentiment_label = (
+            "positive" if sentiment_score > 0.1
+            else "negative" if sentiment_score < -0.1
+            else "neutral"
+        )
+        print(
+            f"[SYSTEM] TripFeedbackAgent: sentiment_score={sentiment_score:.3f} "
+            f"({sentiment_label})"
+        )
+
+        # If the sentiment is neutral we still record it, but there's nothing
+        # meaningful to adjust in the persona.
+        if sentiment_label == "neutral":
+            return (
+                f"Thanks for your feedback{' about ' + place_name if place_name else ''}! "
+                "Your comment sounded fairly neutral, so I didn't make any changes to "
+                "your travel preferences this time. Feel free to give more specific "
+                "feedback (e.g. 'I loved the park' or 'the museum was boring') and I'll "
+                "fine-tune your profile accordingly."
+            )
+
+        # ── Step 2: Determine which persona keys to adjust ───────────────────
+        place_record = None
+        persona_keys_to_adjust: list[str] = []
+
+        if place_name:
+            place_record = self._fetch_place(place_name)
+
+        if place_record:
+            place_types_str = place_record.get("types", "")
+            persona_keys_to_adjust = _place_types_to_persona_keys(place_types_str)
+            print(
+                f"[SYSTEM] TripFeedbackAgent: place types='{place_types_str}' → "
+                f"persona keys={persona_keys_to_adjust}"
+            )
+
+        # Fallback: if no place was found (or no types were mappable), apply a
+        # general adjustment across the most common preference dimensions so the
+        # feedback is never silently dropped.
+        if not persona_keys_to_adjust:
+            persona_keys_to_adjust = [
+                "historyPreference", "naturePreference",
+                "foodImportance", "socialPreference",
+            ]
+            print(
+                "[SYSTEM] TripFeedbackAgent: no specific place types "
+                "→ falling back to general preference adjustment"
+            )
+
+        # ── Step 3: Fetch the user's personas ────────────────────────────────
+        personas = _fetch_personas(user_id)
+        if not personas:
+            return (
+                f"Thanks for your feedback! "
+                "Unfortunately I couldn't find any travel personas linked to your "
+                "account to update. You can create one in your profile settings."
+            )
+
+        # Select the active / default persona (same logic as other agents)
+        active_persona = next(
+            (p for p in personas if p.get("isDefault")), personas[0]
+        )
+        persona_id = active_persona.get("id")
+
+        if not persona_id:
+            return "I found your personas but couldn't read an ID for the active one — update skipped."
+
+        print(
+            f"[SYSTEM] TripFeedbackAgent: updating persona "
+            f"'{active_persona.get('name')}' (id={persona_id})"
+        )
+
+        # ── Step 4: Compute and apply the weight deltas ──────────────────────
+        updated_persona = active_persona.copy()
+        changes: list[str] = []  # human-readable change log
+
+        for key in persona_keys_to_adjust:
+            old_value = active_persona.get(key)
+            if old_value is None:
+                # Key not present in this persona — skip silently
+                continue
+
+            new_value = _apply_feedback_delta(
+                current_weight=float(old_value),
+                sentiment_score=sentiment_score,
+                learning_rate=self.LEARNING_RATE,
+            )
+            updated_persona[key] = new_value
+
+            direction = "↑" if new_value > float(old_value) else "↓"
+            changes.append(
+                f"{key}: {float(old_value):.2f} {direction} {new_value:.2f}"
+            )
+
+        if not changes:
+            return (
+                f"Thanks for your {'positive' if sentiment_score > 0 else 'negative'} feedback! "
+                "I wasn't able to map it to any preference weights in your active persona "
+                "(the relevant weights may already be at their limits)."
+            )
+
+        # ── Step 5: Persist the updated persona ──────────────────────────────
+        result = _set_persona(user_id, persona_id, updated_persona)
+
+        if not result.get("success"):
+            print(f"[ERROR] TripFeedbackAgent: _set_persona failed — {result.get('message')}")
+            return (
+                "I understood your feedback but ran into an issue saving the preference "
+                f"updates: {result.get('message', 'Unknown error')}. Please try again later."
+            )
+
+        # ── Step 6: Build a clear, friendly confirmation message ─────────────
+        place_part  = f" about **{place_record.get('name', place_name)}**" if place_record else ""
+        trip_part   = f" (trip {trip_id})" if trip_id else ""
+        sign        = "+" if sentiment_score > 0 else ""
+        change_list = ", ".join(changes)
+
+        return (
+            f"Got it! Based on your {sentiment_label} feedback{place_part}{trip_part} "
+            f"(sentiment score: {sign}{sentiment_score:.2f}), I've updated your "
+            f"**{active_persona.get('name', 'active')}** persona:\n\n"
+            f"{chr(10).join('  • ' + c for c in changes)}\n\n"
+            "These small adjustments help me recommend places that better match what "
+            "you actually enjoy. Keep sharing your thoughts after visits!"
+        )
 
 
 class RecommendationExplainerAgent(BaseAgent):

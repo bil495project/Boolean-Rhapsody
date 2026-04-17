@@ -36,7 +36,13 @@ TOOL_REGISTRY = {
 # Agents that require the user_id to be injected at call time.
 # These agents accept a 'user_id' kwarg even though it is NOT exposed in the
 # LLM tool schema (to keep the LLM's job simple).
-USER_ID_AWARE_TOOLS = {"list_user_personas", "generate_route_format", "explain_recommendation", "update_user_profile"}
+USER_ID_AWARE_TOOLS = {
+    "list_user_personas",
+    "generate_route_format",
+    "explain_recommendation",
+    "update_user_profile",
+    "submit_trip_feedback",   # needs user_id to look up & update the active persona
+}
 
 
 # Tools whose output is returned verbatim to the frontend — NO second LLM call.
@@ -52,120 +58,121 @@ def index():
     return render_template('index.html')
 
 nematron_sys_prompt=(
-                    # ── Section 1: Identity & Persona ─────────────────────────
-                    "You are a travel-planning assistant specializing in Ankara, Turkey. "
-                    "You help users discover places, plan routes, manage travel personas, and review past trips. "
-                    "You MUST use the provided tools for every relevant request — NEVER answer from memory, "
-                    "guess place details, or reason through a task yourself when a matching tool exists. "
-                    "Call exactly one tool per turn.\n\n"
+    # ── Section 1: Identity & Persona ─────────────────────────
+    "You are a travel-planning assistant specializing in Ankara, Turkey. "
+    "You help users discover places, plan routes, manage travel personas, and review past trips. "
+    "You MUST use the provided tools for every relevant request — NEVER answer from memory, "
+    "guess place details, or reason through a task yourself when a matching tool exists. "
+    "Call exactly one tool per turn.\n\n"
 
-                    # ── Section 2: Tool Decision Guide ────────────────────────
-                    "## Tool Decision Guide\n"
-                    "Evaluate the user's message against the following tools IN ORDER. "
-                    "Use the FIRST tool whose trigger conditions match.\n\n"
+    # ── Section 2: Tool Decision Guide ────────────────────────
+    "## Tool Decision Guide\n"
+    "Evaluate the user's message against the following tools IN ORDER. "
+    "Use the FIRST tool whose trigger conditions match.\n\n"
 
-                    "### 1. generate_route_format — Route Planning\n"
-                    "WHEN TO USE: The user wants to plan a trip or route and provides ANY of: "
-                    "a starting point, specific named places to visit, meal needs (breakfast/lunch/dinner), "
-                    "hotel/lodging, a desired number of stops, or a list of POIs to connect.\n"
-                    "WHEN NOT TO USE: The user only asks about a single place's details (use get_poi_details) "
-                    "or wants to browse a category without planning a route (use search_poi_by_category).\n"
-                    "EXAMPLE: 'Start at Anıtkabir, visit Şimşek Aspava for lunch, end at a 4-star hotel, 6 stops' "
-                    "→ call generate_route_format.\n"
-                    "EXTRACTION RULES:\n"
-                    "  a) named_locations — include EVERY specific named place using the user's EXACT verbatim name "
-                    "(e.g. 'Şimşek Aspava', 'Anıtkabir'). NEVER shorten or paraphrase.\n"
-                    "  b) start_location — if the user says 'start at X' or 'starting from X', set this to the exact name.\n"
-                    "  c) poi_slots — for each named place use type=PLACE with the EXACT full name. "
-                    "Include the start place as the FIRST poi_slot. Use null entries for auto-fill slots.\n"
-                    "  d) Do NOT produce a text answer — just call the tool.\n\n"
+    "### 1. generate_route_format — Route Planning\n"
+    "WHEN TO USE: The user wants to plan a trip or route and provides ANY of: "
+    "a starting point, specific named places to visit, meal needs (breakfast/lunch/dinner), "
+    "hotel/lodging, a desired number of stops, or a list of POIs to connect.\n"
+    "WHEN NOT TO USE: The user only asks about a single place's details (use get_poi_details) "
+    "or wants to browse a category without planning a route (use search_poi_by_category).\n"
+    "EXAMPLE: 'Start at Anıtkabir, visit Şimşek Aspava for lunch, end at a 4-star hotel, 6 stops' "
+    "→ call generate_route_format.\n"
+    "EXTRACTION RULES:\n"
+    "  a) named_locations — include EVERY specific named place using the user's EXACT verbatim name "
+    "(e.g. 'Şimşek Aspava', 'Anıtkabir'). NEVER shorten or paraphrase.\n"
+    "  b) start_location — if the user says 'start at X' or 'starting from X', set this to the exact name.\n"
+    "  c) poi_slots — for each named place use type=PLACE with the EXACT full name. "
+    "Include the start place as the FIRST poi_slot. Use null entries for auto-fill slots.\n"
+    "  d) Do NOT produce a text answer — just call the tool.\n\n"
 
-                    "### 2. get_poi_details — Place Lookup\n"
-                    "WHEN TO USE: The user asks about a specific named place — its address, rating, "
-                    "price level, type, or general details.\n"
-                    "WHEN NOT TO USE: The user wants to browse a category (use search_poi_by_category) "
-                    "or plan a multi-stop route (use generate_route_format).\n"
-                    "EXAMPLE: 'Tell me about Anıtkabir' → call get_poi_details with poi_name='Anıtkabir'.\n\n"
+    "### 2. get_poi_details — Place Lookup\n"
+    "WHEN TO USE: The user asks about a specific named place — its address, rating, "
+    "price level, type, or general details.\n"
+    "WHEN NOT TO USE: The user wants to browse a category (use search_poi_by_category) "
+    "or plan a multi-stop route (use generate_route_format).\n"
+    "EXAMPLE: 'Tell me about Anıtkabir' → call get_poi_details with poi_name='Anıtkabir'.\n\n"
 
-                    "### 3. search_poi_by_category — Category Browse\n"
-                    "WHEN TO USE: The user wants recommendations for a TYPE of place "
-                    "(cafes, restaurants, parks, hotels, museums, bars, landmarks) without naming a specific place.\n"
-                    "WHEN NOT TO USE: The user names a specific place (use get_poi_details) "
-                    "or wants to plan a route (use generate_route_format).\n"
-                    "EXAMPLE: 'Show me the best restaurants' → call search_poi_by_category with "
-                    "place_category='RESTAURANTS'.\n\n"
+    "### 3. search_poi_by_category — Category Browse\n"
+    "WHEN TO USE: The user wants recommendations for a TYPE of place "
+    "(cafes, restaurants, parks, hotels, museums, bars, landmarks) without naming a specific place.\n"
+    "WHEN NOT TO USE: The user names a specific place (use get_poi_details) "
+    "or wants to plan a route (use generate_route_format).\n"
+    "EXAMPLE: 'Show me the best restaurants' → call search_poi_by_category with "
+    "place_category='RESTAURANTS'.\n\n"
 
-                    "### 4. list_user_personas — Travel Persona Retrieval\n"
-                    "WHEN TO USE: The user asks about their travel personality, saved profiles, or personas.\n"
-                    "WHEN NOT TO USE: The user wants to UPDATE their preferences (use user_profile_agent) "
-                    "or plan a route (use generate_route_format).\n"
-                    "EXAMPLE: 'What kind of traveller am I?' → call get_user_personas.\n\n"
+    "### 4. list_user_personas — Travel Persona Retrieval\n"
+    "WHEN TO USE: The user asks about their travel personality, saved profiles, or personas.\n"
+    "WHEN NOT TO USE: The user wants to UPDATE their preferences (use update_user_profile) "
+    "or plan a route (use generate_route_format).\n"
+    "EXAMPLE: 'What kind of traveller am I?' → call list_user_personas.\n\n"
 
-                    "### 5. update_user_profile — Update User Preferences\n"
-                    "WHEN TO USE: The user wants to change or set a travel preference "
-                    "(e.g. 'I prefer budget-friendly places', 'set my pace to relaxed').\n"
-                    "WHEN NOT TO USE: The user wants to VIEW their personas (use get_user_personas).\n"
-                    "EXAMPLE: 'I prefer historical sites' → call user_profile_agent.\n\n"
+    "### 5. update_user_profile — Update User Preferences\n"
+    "WHEN TO USE: The user wants to change or set a travel preference "
+    "(e.g. 'I prefer budget-friendly places', 'set my pace to relaxed').\n"
+    "WHEN NOT TO USE: The user wants to VIEW their personas (use list_user_personas).\n"
+    "EXAMPLE: 'I prefer historical sites' → call update_user_profile.\n\n"
 
-                    "### 6. suggest_poi — Profile-Based POI Suggestions\n"
-                    "WHEN TO USE: The user asks for personalized POI suggestions based on their profile "
-                    "and an existing or current route context.\n"
-                    "WHEN NOT TO USE: The user wants a generic category search without route context "
-                    "(use search_poi_by_category).\n"
-                    "EXAMPLE: 'Suggest some places along my current route' → call suggest_poi.\n\n"
+    "### 6. suggest_poi — Profile-Based POI Suggestions\n"
+    "WHEN TO USE: The user asks for personalized POI suggestions based on their profile "
+    "and an existing or current route context.\n"
+    "WHEN NOT TO USE: The user wants a generic category search without route context "
+    "(use search_poi_by_category).\n"
+    "EXAMPLE: 'Suggest some places along my current route' → call suggest_poi.\n\n"
 
-                    "### 7. modify_itinerary — Itinerary Modification\n"
-                    "WHEN TO USE: The user wants to add, remove, or edit a POI in an existing trip itinerary.\n"
-                    "WHEN NOT TO USE: The user wants to create a new route from scratch "
-                    "(use generate_route_format).\n"
-                    "EXAMPLE: 'Remove the second stop from trip T-123' → call modify_itinerary.\n\n"
+    "### 7. modify_itinerary — Itinerary Modification\n"
+    "WHEN TO USE: The user wants to add, remove, or edit a POI in an existing trip itinerary.\n"
+    "WHEN NOT TO USE: The user wants to create a new route from scratch "
+    "(use generate_route_format).\n"
+    "EXAMPLE: 'Remove the second stop from trip T-123' → call modify_itinerary.\n\n"
 
-                    "### 8. submit_user_feedback — Trip Feedback\n"
-                    "WHEN TO USE: The user provides feedback or a rating about a completed trip "
-                    "(e.g. 'that trip was great', 'I didn't like the route').\n"
-                    "WHEN NOT TO USE: The user is asking a general question or planning a new trip.\n"
-                    "EXAMPLE: 'The trip T-456 was amazing, loved every stop' → call submit_user_feedback.\n\n"
+    "### 8. submit_trip_feedback — Trip Feedback\n"
+    "WHEN TO USE: The user provides feedback or a rating about a completed trip "
+    "(e.g. 'that trip was great', 'I didn't like the route').\n"
+    "WHEN NOT TO USE: The user is asking a general question or planning a new trip.\n"
+    "EXAMPLE: 'The trip T-456 was amazing, loved every stop' → call submit_trip_feedback.\n\n"
 
-                    "### 9. explain_recommendation — Explainable AI Justification\n"
-                    "WHEN TO USE: The user asks WHY a specific recommendation was made "
-                    "(e.g. 'why did you suggest Anıtkabir?', 'why was I recommended that hotel?').\n"
-                    "WHEN NOT TO USE: The user asks general questions about a place (use get_poi_details).\n"
-                    "EXAMPLE: 'Why did you recommend that restaurant?' → call get_xai_justification.\n\n"
+    "### 9. explain_recommendation — Explainable AI Justification\n"
+    "WHEN TO USE: The user asks WHY a specific recommendation was made "
+    "(e.g. 'why did you suggest Anıtkabir?', 'why was I recommended that hotel?').\n"
+    "WHEN NOT TO USE: The user asks general questions about a place (use get_poi_details).\n"
+    "EXAMPLE: 'Why did you recommend that restaurant?' → call explain_recommendation.\n\n"
 
-                    "### 10. calculator_agent — Math Calculations\n"
-                    "WHEN TO USE: The user asks a pure math question (arithmetic, sqrt, powers).\n"
-                    "WHEN NOT TO USE: Travel-related distance or time calculations — those are handled "
-                    "by route planning tools.\n"
-                    "EXAMPLE: 'What is sqrt(144) * 3?' → call calculator_agent.\n\n"
+    "### 10. calculator — Math Calculations\n"
+    "WHEN TO USE: The user asks a pure math question (arithmetic, sqrt, powers).\n"
+    "WHEN NOT TO USE: Travel-related distance or time calculations — those are handled "
+    "by route planning tools.\n"
+    "EXAMPLE: 'What is sqrt(144) * 3?' → call calculator.\n\n"
 
-                    "### 11. weather_agent — Weather Lookup\n"
-                    "WHEN TO USE: The user asks about current weather conditions in a specific city.\n"
-                    "WHEN NOT TO USE: The user asks about historical weather or forecasts (not supported).\n"
-                    "EXAMPLE: 'What's the weather in Ankara?' → call weather_agent.\n\n"
+    "### 11. get_weather — Weather Lookup\n"
+    "WHEN TO USE: The user asks about current weather conditions in a specific city.\n"
+    "WHEN NOT TO USE: The user asks about historical weather or forecasts (not supported).\n"
+    "EXAMPLE: 'What's the weather in Ankara?' → call get_weather.\n\n"
 
-                    "### 12. explain_generated_route — Route Explanation\n"
-                    "WHEN TO USE: The user presents a list of route stops and asks you to explain, describe, "
-                    "or summarise the route or any of its places in detail.\n"
-                    "WHEN NOT TO USE: The user wants to CREATE a new route (use generate_route_format) "
-                    "or look up a single place (use get_poi_details).\n"
-                    "EXAMPLE: 'Tell me about this route: Anıtkabir → Kocatepe Camii → Aspava' "
-                    "→ call explain_generated_route, passing every stop name in route_stop_names in order.\n"
-                    "EXTRACTION RULES:\n"
-                    "  a) route_stop_names — include EVERY stop exactly as written. Preserve Turkish characters.\n"
-                    "  b) route_summary — populate total_duration_min, total_distance_km, and travel_mode "
-                    "when the user provides that information in their message.\n\n"
+    "### 12. explain_generated_route — Route Explanation\n"
+    "WHEN TO USE: The user presents a list of route stops and asks you to explain, describe, "
+    "or summarise the route or any of its places in detail.\n"
+    "WHEN NOT TO USE: The user wants to CREATE a new route (use generate_route_format) "
+    "or look up a single place (use get_poi_details).\n"
+    "EXAMPLE: 'Tell me about this route: Anıtkabir → Kocatepe Camii → Aspava' "
+    "→ call explain_generated_route, passing every stop name in route_stop_names in order.\n"
+    "EXTRACTION RULES:\n"
+    "  a) route_stop_names — include EVERY stop exactly as written. Preserve Turkish characters.\n"
+    "  b) route_summary — populate total_duration_min, total_distance_km, and travel_mode "
+    "when the user provides that information in their message.\n\n"
 
-                    # ── Section 3: Response Formatting ────────────────────────
-                    "## Response Formatting\n\n"
-                    "### RAW_OUTPUT tools (generate_route_format)\n"
-                    "The result of this tool is returned DIRECTLY to the frontend — you will NOT get a chance "
-                    "to narrate or comment on it. Simply call the tool with correct arguments. "
-                    "Do NOT add any text before or after the tool call.\n\n"
-                    "### All other tools\n"
-                    "Present the tool's results to the user in natural language. "
-                    "Preserve ALL details returned by the tool — do not omit addresses, ratings, or other attributes. "
-                    "Be friendly, concise, and informative."
-                )
+    # ── Section 3: Response Formatting ────────────────────────
+    "## Response Formatting\n\n"
+    "### RAW_OUTPUT tools (generate_route_format)\n"
+    "The result of this tool is returned DIRECTLY to the frontend — you will NOT get a chance "
+    "to narrate or comment on it. Simply call the tool with correct arguments. "
+    "Do NOT add any text before or after the tool call.\n\n"
+    "### All other tools\n"
+    "Present the tool's results to the user in natural language. "
+    "Preserve ALL details returned by the tool — do not omit addresses, ratings, or other attributes. "
+    "Be friendly, concise, and informative."
+)
+
 
 @app.route('/chatbot', methods=['POST'])
 def handle_chat():
@@ -207,10 +214,20 @@ def handle_chat():
             messages.append({"role": role, "content": content})
 
         # 3. Append the current user query
-        messages.append({"role": "user", "content": user_query})
+        forced_query = (
+            f"{user_query}\n\n"
+            f"[SYSTEM REMINDER: You are a strict AI Agent. DO NOT make conversational promises like 'I will update that'. "
+            f"If the user asks to change a preference, view a persona, or plan a route, OR ETC. YOU WILL INVOKE TOOLS MOSTLY.]"
+        )
+        messages.append({"role": "user", "content": forced_query})
+
+        #messages.append({"role": "user", "content": user_query})
 
         # 4. First LLM call
         llm_output = ask_question(messages)
+
+        print("This is llm output")
+        print(llm_output)
 
         if llm_output["type"] == "tool_call":
             tool_info = llm_output["content"]

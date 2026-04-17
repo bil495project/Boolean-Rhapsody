@@ -9,6 +9,58 @@
 | Node.js | 18+ |
 | PostgreSQL | 14+ |
 
+## Docker Quick Start
+
+LLM services are not included in the Docker stack. Compose runs only
+`frontend + backend + postgres`, and the single browser entry point is `http://localhost:3000`.
+
+### 1. Run with Docker
+
+From the repository root:
+
+```bash
+docker compose up --build
+```
+
+Then the application will be available at:
+
+- Frontend: `http://localhost:3000`
+- Backend API: Nginx üzerinden `/api`
+- PostgreSQL: accessible only inside the Compose network
+
+### 2. Optional Environment Variables
+
+The Compose defaults are enough for local use. If you want, you can create a `.env`
+file in the repository root and override these values:
+
+```env
+SPRING_DATASOURCE_USERNAME=postgres
+SPRING_DATASOURCE_PASSWORD=postgres
+APP_JWT_SECRET=YOUR_BASE64_SECRET
+APP_JWT_EXPIRATION_MS=86400000
+APP_RECAPTCHA_ENABLED=false
+APP_RECAPTCHA_SECRET_KEY=
+APP_RECAPTCHA_MIN_SCORE=0.5
+```
+
+Notes:
+
+- `APP_JWT_SECRET` should be changed for production-like usage.
+- As long as `APP_RECAPTCHA_ENABLED=false`, the frontend reCAPTCHA key will not block the Docker flow.
+- Chat screens remain visible; the LLM backend is not started separately.
+
+### 3. Stop the Stack
+
+```bash
+docker compose down
+```
+
+If you also want to remove the database data:
+
+```bash
+docker compose down -v
+```
+
 
 ## 1. Database Setup
 

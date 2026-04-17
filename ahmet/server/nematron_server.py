@@ -9,7 +9,7 @@ from chatbot.nematron_chatbot import ask_question
 # Import the agents from the sibling file
 from chatbot.ai_agents import (
     calculatorAgent, weatherAgent, UserProfileUpdateAgent, #UserProfileAgent_SetInfo,
-    UserFeedbackAgent, RecommendationExplainerAgent,#XAIJustificationAgent,
+    TripFeedbackAgent, RecommendationExplainerAgent,#XAIJustificationAgent,
     POI_suggest_agent, ItineraryModificationAgent, ChatTitleAgent,
     POI_data_agent, POI_search_agent, UserPersonaListAgent,
     RouteGenerationFormatAgent, GeneratedRouteExplanationAgent
@@ -22,7 +22,7 @@ TOOL_REGISTRY = {
     "calculator_agent":    calculatorAgent(),
     "weather_agent":       weatherAgent(),
     "update_user_profile":  UserProfileUpdateAgent(),     # Matches TC-LLM-U-008
-    "submit_user_feedback":UserFeedbackAgent(),            # Matches TC-LLM-U-005
+    "submit_trip_feedback":TripFeedbackAgent(),            # Matches TC-LLM-U-005
     "explain_recommendation":RecommendationExplainerAgent(),       # Matches TC-LLM-U-006
     "suggest_poi":         POI_suggest_agent(),            # Matches TC-LLM-U-003
     "modify_itinerary":    ItineraryModificationAgent(),   # Matches TC-LLM-U-007
@@ -33,7 +33,7 @@ TOOL_REGISTRY = {
     "generate_route_format":    RouteGenerationFormatAgent(),  # Formats payload for Route Generation Algorithm
     "explain_generated_route": GeneratedRouteExplanationAgent(),
 }
-USER_ID_AWARE_TOOLS = {"get_user_personas", "generate_route_format"}
+USER_ID_AWARE_TOOLS = {"get_user_personas", "generate_route_format", "update_user_profile", "submit_trip_feedback"}
 
 # Tools whose output is returned verbatim to the frontend — NO second LLM call.
 RAW_OUTPUT_TOOLS = {"generate_route_format", "explain_generated_route"} #set()
@@ -134,11 +134,11 @@ def handle_chat():
                     "(use generate_route_format).\n"
                     "EXAMPLE: 'Remove the second stop from trip T-123' → call modify_itinerary.\n\n"
 
-                    "### 8. submit_user_feedback — Trip Feedback\n"
+                    "### 8. submit_trip_feedback — Trip Feedback\n"
                     "WHEN TO USE: The user provides feedback or a rating about a completed trip "
                     "(e.g. 'that trip was great', 'I didn't like the route').\n"
                     "WHEN NOT TO USE: The user is asking a general question or planning a new trip.\n"
-                    "EXAMPLE: 'The trip T-456 was amazing, loved every stop' → call submit_user_feedback.\n\n"
+                    "EXAMPLE: 'The trip T-456 was amazing, loved every stop' → call submit_trip_feedback.\n\n"
 
                     "### 9. explain_recommendation — Explainable AI Justification\n"
                     "WHEN TO USE: The user asks WHY a specific recommendation was made "
