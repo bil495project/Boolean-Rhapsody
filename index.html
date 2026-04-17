@@ -9,8 +9,8 @@
     
     <style>
         :root {
-            --primary-color: #1e3a8a; /* Koyu Mavi */
-            --secondary-color: #3b82f6; /* Açık Mavi */
+            --primary-color: #1e3a8a;
+            --secondary-color: #3b82f6;
             --bg-color: #f8fafc;
             --text-main: #1e293b;
             --text-muted: #64748b;
@@ -85,8 +85,9 @@
 
         /* Hakkımızda & İletişim */
         .about-text {
-            font-size: 1.1rem;
+            font-size: 0.9rem; /* Font küçültüldü */
             margin-bottom: 1.5rem;
+            text-align: justify;
         }
 
         .links-grid {
@@ -115,6 +116,59 @@
             color: white;
             border-color: var(--secondary-color);
             transform: translateY(-2px);
+        }
+
+        /* Mail Butonu Hover Efekti */
+        .email-btn {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            justify-content: center;
+            min-width: 290px;
+        }
+
+        .email-btn .btn-text {
+            transition: transform 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .email-btn .btn-email {
+            position: absolute;
+            bottom: -100%;
+            font-size: 0.7rem; /* Mail fontu küçük */
+            color: white;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            letter-spacing: 0.02em;
+        }
+
+        .email-btn:hover {
+            background-color: var(--secondary-color);
+            color: white;
+            border-color: var(--secondary-color);
+            transform: translateY(-2px);
+            padding-bottom: 1.6rem;
+            padding-top: 0.2rem;
+        }
+
+        .email-btn:hover .btn-text {
+            transform: translateY(-10px);
+        }
+
+        .email-btn:hover .btn-email {
+            bottom: 6px;
         }
 
         /* Takım Grid Sistemi */
@@ -229,7 +283,7 @@
         <div class="card">
             <h2 class="section-title"><i class="fa-solid fa-rocket"></i> Proje Hakkında</h2>
             <p class="about-text">
-                Hızla gelişen yapay zeka hepimizin ilgisini çekiyor ve bu alanda kapsamlı, yenilikçi bir bitirme projesi geliştirmeyi hedefliyoruz. Bu vizyonla geliştirdiğimiz günlük hayatımızdaki karmaşık seyehat rotası oluşturma problemine yapay zeka entegrasyonunu sağlayan RoadRunner, dağınık seyahat planlama süreçlerini tek bir akışta birleştiren, yapay zeka tabanlı yenilikçi bir seyahat platformudur. Sistemimiz, kullanıcıların doğal dille yazdığı seyahat taleplerini Büyük Dil Modeli ve ajan orkestrasyonu/tool call'ları ile işleyerek kullanıcıya özel olarak yapılandırılmış ve optimize edilmiş rota planlarına dönüştürür. Kullanıcıların seyahat tarzı, temposu ve ilgi alanlarına göre oluşturulan "seyahat personaları" sayesinde, her kullanıcıya benzersiz ve kişiselleştirilmiş bir deneyim sunulmaktadır. Projemizin en çarpıcı özelliklerinden biri olan Açıklanabilir Yapay Zeka (XAI) modülü, kullanıcılara belirli bir mekan veya rotanın neden öerildiğini şeffaf bir şekilde gerekçelendirerek güven inşa eder. Üretilen bu akıllı rotalar, OSRM tabanlı yönlendirme algoritmalarıyla hesaplanıp interaktif haritalar üzerinde anlık olarak görselleştirilir. Ayrıca kullanıcılar, oluşturulan planlar üzerinde dinamik değişiklikler yapma, llm ile konuşmadan da plan üretme ve harita üzerinden rotalat/mekanlar görüntüleyebilmekte ve diledikleri durakları esnek bir şekilde yeniden yapılandırma özgürlüğüne sahiptir. Mekanların, geçmiş konuşmaların, rotaların ve farklı seyehat persona'larının oluşturulup kaydedilebildiği bu interaktif sistem, sadece size rota çizen bir asistan değil; modern yazılım mimarisiyle seyahat planlamayı baştan aşağı yeniden tanımlayan kapsamlı bir mühendislik çözümüdür.
+                Hızla gelişen yapay zeka hepimizin ilgisini çekiyor ve bu alanda kapsamlı, yenilikçi bir bitirme projesi geliştirmeyi hedefledik. Bu vizyonla geliştirdiğimiz günlük hayatımızdaki karmaşık seyehat rotası oluşturma problemine yapay zeka entegrasyonunu sağlayan RoadRunner, dağınık seyahat planlama süreçlerini tek bir akışta birleştiren, yapay zeka tabanlı yenilikçi bir seyahat platformudur. Sistemimiz, kullanıcıların doğal dille yazdığı seyahat taleplerini Büyük Dil Modeli ve ajan orkestrasyonu/tool call'ları ile işleyerek kullanıcıya özel olarak yapılandırılmış ve optimize edilmiş rota planlarına dönüştürür. Kullanıcıların seyahat tarzı, temposu ve ilgi alanlarına göre oluşturulan "seyahat personaları" sayesinde, her kullanıcıya benzersiz ve kişiselleştirilmiş bir deneyim sunulmaktadır. Projemizin en çarpıcı özelliklerinden biri olan Açıklanabilir Yapay Zeka (XAI) modülü, kullanıcılara belirli bir mekan veya rotanın neden öerildiğini şeffaf bir şekilde gerekçelendirerek güven inşa eder. Üretilen bu akıllı rotalar, OSRM tabanlı yönlendirme algoritmalarıyla hesaplanıp interaktif haritalar üzerinde anlık olarak görselleştirilir. Ayrıca kullanıcılar, oluşturulan planlar üzerinde dinamik değişiklikler yapma, llm ile konuşmadan da plan üretme ve harita üzerinden rotalat/mekanlar görüntüleyebilmekte ve diledikleri durakları esnek bir şekilde yeniden yapılandırma özgürlüğüne sahiptir. Mekanların, geçmiş konuşmaların, rotaların ve farklı seyehat persona'larının oluşturulup kaydedilebildiği bu interaktif sistem, sadece size rota çizen bir asistan değil; modern yazılım mimarisiyle seyahat planlamayı baştan aşağı yeniden tanımlayan kapsamlı bir mühendislik çözümüdür.
             </p>
             
             <div class="links-grid">
@@ -242,8 +296,9 @@
                 <a href="https://drive.google.com/drive/u/2/folders/1GQi-M1XxTLCynjEkB0TjZtSbjPcDLByY" class="action-btn" target="_blank">
                     <i class="fa-brands fa-google-drive"></i> Google Drive
                 </a>
-                <a href="mailto:tobbbitirmeabdmu584@gmail.com" class="action-btn">
-                    <i class="fa-solid fa-envelope"></i> Bize Ulaşın
+                <a href="mailto:tobbbitirmeabdmu584@gmail.com" class="email-btn">
+                    <span class="btn-text"><i class="fa-solid fa-envelope"></i> Bize Ulaşın</span>
+                    <span class="btn-email">tobbbitirmeabdmu584@gmail.com</span>
                 </a>
             </div>
         </div>
@@ -351,7 +406,7 @@
     </div>
 
     <footer>
-        <p>&copy; 2024-2025 Boolean Rhapsody. Tüm hakları saklıdır.</p>
+        <p>&copy; 2025-2026 Boolean Rhapsody. Tüm hakları saklıdır.</p>
     </footer>
 
 </body>
