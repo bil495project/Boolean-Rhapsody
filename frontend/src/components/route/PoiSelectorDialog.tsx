@@ -19,6 +19,7 @@ import StarIcon from '@mui/icons-material/Star';
 import PlaceIcon from '@mui/icons-material/Place';
 import GroupsIcon from '@mui/icons-material/Groups';
 import type { MapDestination } from '../../data/destinations';
+import { DEFAULT_PLACE_IMAGE } from '../../utils/placeImage';
 import { categories } from '../../data/destinations';
 import { normalizeForSearch } from '../../utils/stringUtils';
 
@@ -200,7 +201,8 @@ const PoiSelectorDialog = ({
                                                 loading="lazy"
                                                 style={{ objectFit: 'cover' }}
                                                 onError={(event) => {
-                                                    event.currentTarget.style.display = 'none';
+                                                    event.currentTarget.onerror = null;
+                                                    event.currentTarget.src = DEFAULT_PLACE_IMAGE;
                                                 }}
                                             />
                                         </CardCover>

@@ -15,6 +15,7 @@ import BookmarkRemoveIcon from '@mui/icons-material/BookmarkRemove';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { toggleSaveDestination, syncToggleToBackend, clearSaved } from '../../store/savedSlice';
 import { toggleSidebar } from '../../store/chatSlice';
+import { DEFAULT_PLACE_IMAGE } from '../../utils/placeImage';
 import type { MapDestination } from '../../data/destinations';
 
 interface SavedPanelProps {
@@ -153,7 +154,8 @@ const SavedPanel = ({
                                         loading="lazy"
                                         style={{ objectFit: 'cover' }}
                                         onError={(e) => {
-                                            e.currentTarget.style.display = 'none';
+                                            e.currentTarget.onerror = null;
+                                            e.currentTarget.src = DEFAULT_PLACE_IMAGE;
                                         }}
                                     />
                                 </CardCover>

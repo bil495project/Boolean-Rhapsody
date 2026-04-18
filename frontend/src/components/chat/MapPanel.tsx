@@ -18,6 +18,7 @@ import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { toggleMapFullscreen } from '../../store/chatSlice';
 import { toggleSaveDestination, syncToggleToBackend } from '../../store/savedSlice';
 import { type MapDestination } from '../../data/destinations';
+import { DEFAULT_PLACE_IMAGE } from '../../utils/placeImage';
 
 // Fix for default marker icons in React-Leaflet
 delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: () => string })._getIconUrl;
@@ -391,7 +392,8 @@ const MapPanel = ({
                                 alt={hoveredDestination.name}
                                 style={{ objectFit: 'cover' }}
                                 onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
+                                    e.currentTarget.onerror = null;
+                                    e.currentTarget.src = DEFAULT_PLACE_IMAGE;
                                 }}
                             />
                         </CardCover>

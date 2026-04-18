@@ -6,6 +6,20 @@ type PlaceImageInput = {
     category: string;
 };
 
+export const DEFAULT_PLACE_IMAGE = 'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=1200';
+
+const CATEGORY_PHOTO_TABLES: Record<string, string> = {
+    'Bars & Nightclubs': 'bars_nightclubs_places',
+    'Cafes & Desserts': 'cafes_desserts_places',
+    'Historic Places': 'historic_places_places',
+    Hotels: 'hotels_places',
+    Landmarks: 'landmarks_places',
+    Landmark: 'landmarks_places',
+    Parks: 'parks_places',
+    Park: 'parks_places',
+    Restaurants: 'restaurants_places',
+};
+
 const PLACE_IMAGE_OVERRIDES: Array<{ keywords: string[]; image: string }> = [
     {
         keywords: ['anitkabir', 'anıtkabir'],
@@ -94,6 +108,11 @@ function getCategoryImages(category: string): string[] {
 }
 
 export function getPlaceImage({ id, name, category }: PlaceImageInput): string {
+    const localPhotoTable = CATEGORY_PHOTO_TABLES[category];
+    if (localPhotoTable && id.startsWith('ChI')) {
+        return `/place-photos/${localPhotoTable}/${encodeURIComponent(id)}.jpg`;
+    }
+
     const normalizedName = normalizeText(name);
 
     const override = PLACE_IMAGE_OVERRIDES.find(({ keywords }) =>
@@ -105,7 +124,7 @@ export function getPlaceImage({ id, name, category }: PlaceImageInput): string {
 
     const images = getCategoryImages(category);
     if (!images.length) {
-        return 'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=1200';
+        return DEFAULT_PLACE_IMAGE;
     }
 
     const index = getDeterministicIndex(`${category}:${normalizedName}:${id}`, images.length);
