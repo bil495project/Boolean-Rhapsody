@@ -1341,26 +1341,86 @@ class RouteGenerationFormatAgent(BaseAgent):
     tool_template = {
         "name": "generate_route_format",
         "description": (
-            "Translates the user's travel request into a structured JSON payload, resolves "
-            "every named location to a real place ID from the local database, and POSTs the "
-            "payload to the Route Generation Algorithm. Use this when the user wants to plan "
-            "a route or trip and provides details such as start/end points, desired stops, "
-            "meal preferences, or lodging needs.\n\n"
-            "RAW OUTPUT: This tool returns a raw JSON payload directly to the frontend. "
-            "The LLM must NOT attempt to narrate, summarize, or comment on the result. "
+            "Translates the user's natural-language travel request into a structured JSON "
+            "payload, resolves every named location to a real place ID from the local "
+            "database, and POSTs the payload to the Route Generation Algorithm.\n\n"
+
+            "WHEN TO USE: The user wants to plan a route or trip and provides ANY of: "
+            "a starting point, specific named places to visit, meal needs, hotel/lodging, "
+            "a desired number of stops, or a list of POIs to connect.\n\n"
+
+            "RAW OUTPUT: The result is returned directly to the frontend as JSON. "
+            "Do NOT narrate, summarize, or comment on the result. "
             "Do NOT call this tool a second time for the same request.\n\n"
-            "CONSTRAINT RULES:\n"
-            "1. NAMED LOCATIONS: List EVERY specific place name the user mentions using their "
-            "   full exact name (e.g. '\u015eim\u015fek Aspava', 'An\u0131tkabir'). Never omit a named place.\n"
-            "2. START LOCATION: If the user says they START or BEGIN at a named place or type, "
-            "   set start_location to that exact name or type.\n"
-            "3. POI SLOTS: For each named place (type=PLACE), use the exact full name. "
-            "   Do NOT shorten or genericize names. Use null entries for auto-fill slots.\n"
-            "4. START AS FIRST SLOT: If the user starts at a specific named place, include it "
-            "   as the FIRST poi_slot with type=PLACE AND also set it as start_location.\n"
-            "5. HOTEL RESTRICTION: NEVER include 'HOTEL' as a poi_slot. Hotels cannot be interior "
-            "   route points. To include a hotel, set stay_at_hotel=true or use start_location / "
-            "   end_location with 'HOTEL'."
+
+            "─── EXTRACTION RULES (follow strictly) ───\n\n"
+
+            "1. named_locations — EVERY specific place name the user mentions, using "
+            "their EXACT verbatim full name. Examples: 'Şimşek Aspava', 'Anıtkabir'. "
+            "Never shorten, translate, or paraphrase. Every name used in start_location, "
+            "end_location, or any PLACE poi_slot MUST also appear here.\n\n"
+
+            "2. start_location — Set whenever the user indicates WHERE THE ROUTE BEGINS. "
+            "Trigger phrases include: 'start at X', 'starting from X', 'I'll start at X', "
+            "'begin at X', 'first stop is X', 'depart from X'. "
+            "If the FIRST named place in the user's message is clearly the starting point "
+            "of their journey (i.e., they describe visiting other places AFTER it), "
+            "you MUST set start_location to that place name. "
+            "Value is either a place name (exact, verbatim) or a type keyword: 'HOTEL'. "
+            "If the user says 'start at a hotel', set start_location='HOTEL'. "
+            "If the user says 'I'll start at Anıtkabir', set start_location='Anıtkabir'. "
+            "CRITICAL: If start_location is a named place, it MUST also appear in named_locations. "
+            "Omit entirely if the user does not specify a start.\n\n"
+
+            "3. end_location — Same rules as start_location but for the ending point. "
+            "If the user says 'end at a hotel' or 'return to hotel', set end_location='HOTEL'. "
+            "Omit if not specified.\n\n"
+
+            "4. poi_slots — Ordered list of INTERIOR stops only (not start/end boundaries). "
+            "Each slot is one of:\n"
+            "   • {\"type\": \"PLACE\", \"name\": \"<exact name>\"} — a specific named place. "
+            "The name MUST match an entry in named_locations exactly.\n"
+            "   • {\"type\": \"TYPE\", \"poiType\": \"<CATEGORY>\"} — algorithm picks a place of "
+            "that category. Valid poiType values: KAFE, RESTAURANT, PARK, HISTORIC_PLACE, "
+            "LANDMARK, BAR. The poiType field is REQUIRED for TYPE slots.\n"
+            "   • null — algorithm auto-fills this slot freely.\n"
+            "CRITICAL: NEVER put HOTEL in poi_slots. Hotels are boundaries, not interior "
+            "stops. Use stay_at_hotel=true or start/end_location='HOTEL' instead.\n\n"
+
+            "5. stay_at_hotel — Set to true if the user mentions hotel, accommodation, "
+            "or lodging. This makes the route start and/or end at a hotel (unless "
+            "overridden by start_location or end_location).\n\n"
+
+            "6. meal_preferences — Set needsBreakfast, needsLunch, needsDinner to true "
+            "when the user mentions those meals. Meals are handled separately from "
+            "poi_slots; the backend inserts meal stops automatically.\n\n"
+
+            "7. k — Number of route alternatives. Default is 3. Only change if the user "
+            "explicitly asks for a specific number of alternatives.\n\n"
+
+            "─── EXAMPLES ───\n\n"
+
+            "User: 'Start at Anıtkabir, visit Şimşek Aspava for lunch, end at hotel, "
+            "6 stops'\n"
+            "→ named_locations: [\"Anıtkabir\", \"Şimşek Aspava\"]\n"
+            "→ start_location: \"Anıtkabir\"\n"
+            "→ end_location: \"HOTEL\"\n"
+            "→ poi_slots: [{\"type\":\"PLACE\",\"name\":\"Anıtkabir\"}, "
+            "{\"type\":\"PLACE\",\"name\":\"Şimşek Aspava\"}, null, null, null, null]\n"
+            "→ meal_preferences: {\"needsLunch\": true}\n"
+            "→ stay_at_hotel: true\n\n"
+
+            "User: 'Plan a trip with 3 parks and all meals, stay at hotel'\n"
+            "→ named_locations: []\n"
+            "→ poi_slots: [{\"type\":\"TYPE\",\"poiType\":\"PARK\"}, "
+            "{\"type\":\"TYPE\",\"poiType\":\"PARK\"}, {\"type\":\"TYPE\",\"poiType\":\"PARK\"}]\n"
+            "→ meal_preferences: {\"needsBreakfast\":true,\"needsLunch\":true,"
+            "\"needsDinner\":true}\n"
+            "→ stay_at_hotel: true\n\n"
+
+            "User: 'Show me a route with 5 stops'\n"
+            "→ named_locations: []\n"
+            "→ poi_slots: [null, null, null, null, null]\n"
         ),
         "parameters": {
             "type": "object",
@@ -1369,26 +1429,32 @@ class RouteGenerationFormatAgent(BaseAgent):
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "Master list of ALL specific place names mentioned by the user, using their "
-                        "EXACT verbatim wording (e.g. ['\u015eim\u015fek Aspava', 'An\u0131tkabir', 'Hotel Metropol']). "
-                        "Every named place referenced anywhere in the request (start, end, or poi_slots) "
-                        "MUST appear in this list. This list drives the place ID resolver \u2014 any name "
-                        "missing here will not be resolved. Never shorten or paraphrase place names."
+                        "ALL specific place names the user mentions, using EXACT verbatim full "
+                        "names. Every name used in start_location, end_location, or PLACE-type "
+                        "poi_slots MUST appear here. This drives the place ID resolver — any "
+                        "name missing here will fail to resolve. "
+                        "Type keywords like 'HOTEL' do NOT go here — only real place names. "
+                        "If the user names no specific places, pass an empty array []."
                     )
                 },
                 "start_location": {
                     "type": "string",
                     "description": (
-                        "The exact name or type of the starting point, copied verbatim from the user's message. "
-                        "MUST be set whenever the user explicitly mentions where they will start "
-                        "(e.g. 'I'll start at An\u0131tkabir' \u2192 'An\u0131tkabir'). Omit if the user does not specify a start."
+                        "Where the route starts. Set ONLY when the user explicitly says where "
+                        "to start. Value is one of:\n"
+                        "  • A specific place name (exact, verbatim) — e.g. 'Anıtkabir'\n"
+                        "  • The keyword 'HOTEL' — if user says 'start at a hotel'\n"
+                        "Omit entirely if the user does not specify a starting point."
                     )
                 },
                 "end_location": {
                     "type": "string",
                     "description": (
-                        "The exact name or type of the ending point, copied verbatim from the user's message. "
-                        "Omit if the user does not specify an end point."
+                        "Where the route ends. Set ONLY when the user explicitly says where "
+                        "to end. Value is one of:\n"
+                        "  • A specific place name (exact, verbatim) — e.g. 'Kocatepe Camii'\n"
+                        "  • The keyword 'HOTEL' — if user says 'end at hotel' / 'return to hotel'\n"
+                        "Omit entirely if the user does not specify an ending point."
                     )
                 },
                 "poi_slots": {
@@ -1403,30 +1469,33 @@ class RouteGenerationFormatAgent(BaseAgent):
                                         "type": "string",
                                         "enum": ["PLACE", "TYPE"],
                                         "description": (
-                                            "'PLACE' = a specific named place (resolved by name). "
-                                            "'TYPE' = a category-based slot (filled by the algorithm)."
+                                            "PLACE = a specific named place (name field required). "
+                                            "TYPE = a category slot (poiType field required)."
                                         )
                                     },
                                     "name": {
                                         "type": "string",
                                         "description": (
-                                            "EXACT full place name as stated by the user. Required when type='PLACE'. "
-                                            "Must match an entry in named_locations exactly."
+                                            "REQUIRED when type=PLACE. The EXACT full place name "
+                                            "as stated by the user. Must match an entry in "
+                                            "named_locations."
                                         )
                                     },
                                     "poiType": {
                                         "type": "string",
-                                        "enum": ["KAFE", "RESTAURANT", "PARK", "HISTORIC_PLACE", "LANDMARK", "BAR"],
+                                        "enum": [
+                                            "KAFE", "RESTAURANT", "PARK",
+                                            "HISTORIC_PLACE", "LANDMARK", "BAR"
+                                        ],
                                         "description": (
-                                            "POI category. Required when type='TYPE'. "
-                                            "DO NOT use 'HOTEL' here \u2014 set stay_at_hotel=true or use start/end_location."
+                                            "REQUIRED when type=TYPE. Must be one of the listed "
+                                            "values. NEVER use HOTEL here."
                                         )
                                     },
                                     "filters": {
                                         "type": "object",
                                         "description": (
-                                            "Optional quality filters to narrow the algorithm's selection. "
-                                            "Useful for type=TYPE slots."
+                                            "Optional quality filters for TYPE slots."
                                         ),
                                         "properties": {
                                             "minRating": {"type": "number"},
@@ -1439,17 +1508,18 @@ class RouteGenerationFormatAgent(BaseAgent):
                         ]
                     },
                     "description": (
-                        "Ordered list of desired stops along the route. Each entry is either a specific "
-                        "place (type=PLACE), a category request (type=TYPE), or null. "
-                        "Null entries signal the auto-filler algorithm to choose a stop automatically. "
-                        "The number of slots should reflect the user's stated number of stops."
+                        "Ordered list of INTERIOR stops along the route. "
+                        "PLACE slots require 'name'. TYPE slots require 'poiType'. "
+                        "null = algorithm chooses freely. "
+                        "NEVER include HOTEL as a poi_slot."
                     )
                 },
                 "meal_preferences": {
                     "type": "object",
                     "description": (
-                        "Meal needs extracted from the user's message. Set each flag to true "
-                        "if the user mentions needing that meal during the trip."
+                        "Meal flags. Set to true when the user mentions needing that meal. "
+                        "Meals are separate from poi_slots — the backend adds meal stops "
+                        "automatically."
                     ),
                     "properties": {
                         "needsBreakfast": {"type": "boolean"},
@@ -1460,23 +1530,23 @@ class RouteGenerationFormatAgent(BaseAgent):
                 "stay_at_hotel": {
                     "type": "boolean",
                     "description": (
-                        "Set to true if the user needs hotel accommodation as part of the trip. "
-                        "This is the ONLY way to include a hotel in the itinerary."
+                        "true if the user wants hotel accommodation. This makes the route "
+                        "start and/or end at a hotel (unless overridden by start_location or "
+                        "end_location). This is the ONLY way to add a hotel to the route."
                     )
                 },
                 "k": {
                     "type": "integer",
                     "description": (
-                        "Number of alternative route graphs to generate. Defaults to 3 if not mentioned "
-                        "by the user. Higher values produce more route options for comparison."
+                        "Number of alternative routes to generate. Default 3. "
+                        "Only set if the user explicitly requests a different number."
                     )
                 },
                 "persona_id": {
                     "type": "string",
                     "description": (
-                        "Optional. The ID of a specific travel persona to use for preference weighting. "
-                        "If omitted, the user's default persona is used automatically. "
-                        "If the user has no personas, neutral defaults (0.5 for all weights) are applied."
+                        "Optional. ID of specific travel persona. If omitted, the user's "
+                        "default persona is used. If no personas exist, neutral defaults apply."
                     )
                 }
             },
@@ -1698,9 +1768,36 @@ class RouteGenerationFormatAgent(BaseAgent):
             if resolved is None:
                 warnings.append(f"Could not resolve place '{name}' to a placeId — set to null.")
 
-        # ── 3. Resolve startAnchor ────────────────────────────────────────────
-        # A keyword set of POI types that should be treated as TYPE anchors.
-        # We use substring detection so phrases like "4-star hotel" also match.
+        # ── 2b. Orphan detection: auto-assign start_location if missing ──────
+        # If the LLM failed to set start_location but the first named_location
+        # is not referenced in any poi_slot or end_location, it is almost
+        # certainly the intended starting point of the route.
+        if start_location is None and named_locations:
+            # Collect all names referenced in poi_slots
+            slot_names = set()
+            for slot in (poi_slots or []):
+                if slot and isinstance(slot, dict) and slot.get("type", "").upper() == "PLACE":
+                    slot_names.add(slot.get("name", ""))
+
+            # Check if the first named location is unreferenced
+            first_name = named_locations[0]
+            is_in_slots = first_name in slot_names
+            is_end = (end_location is not None and first_name == end_location)
+
+            if not is_in_slots and not is_end:
+                start_location = first_name
+                warnings.append(
+                    f"Auto-assigned start_location='{first_name}' — it was in "
+                    f"named_locations but not referenced in poi_slots or end_location."
+                )
+                print(
+                    f"[SYSTEM] RouteGenerationFormatAgent: auto-assigned "
+                    f"start_location='{first_name}' (orphan detection)"
+                )
+
+        # ── 3. Resolve start boundary ─────────────────────────────────────────
+        # Per ROUTE_INPUT_GUIDE.md: anchors are ignored unless the corresponding
+        # boundary flag (startWithPoi/startWithHotel) is also set.
         _ANCHOR_TYPES = {"HOTEL", "AIRPORT", "KAFE", "RESTAURANT", "PARK",
                          "HISTORIC_PLACE", "LANDMARK", "BAR"}
 
@@ -1710,38 +1807,58 @@ class RouteGenerationFormatAgent(BaseAgent):
             return next((t for t in _ANCHOR_TYPES if t in upper), None)
 
         start_anchor = None
+        start_with_poi = False
+        start_with_hotel = False
+
         if start_location:
-            if start_location in place_id_cache:
-                # Already resolved via named_locations cache
+            detected_type = _detect_poi_type(start_location)
+            if detected_type == "HOTEL":
+                # "start at a hotel" — activate hotel boundary, no anchor needed
+                start_with_hotel = True
+            elif start_location in place_id_cache:
+                # Named place already resolved
                 start_anchor = {"kind": "PLACE", "placeId": place_id_cache[start_location]}
+                start_with_poi = True
+            elif detected_type:
+                # Category keyword (e.g. "PARK", "RESTAURANT")
+                start_anchor = {"kind": "TYPE", "poiType": detected_type}
+                start_with_poi = True
             else:
-                poi_type = _detect_poi_type(start_location)
-                if poi_type:
-                    start_anchor = {"kind": "TYPE", "poiType": poi_type}
-                else:
-                    pid = self._resolve_place_id(start_location)
-                    if pid is None:
-                        warnings.append(f"Could not resolve start_location '{start_location}' — placeId set to null.")
-                    start_anchor = {"kind": "PLACE", "placeId": pid}
+                # Try to resolve as a place name
+                pid = self._resolve_place_id(start_location)
+                if pid is None:
+                    warnings.append(f"Could not resolve start_location '{start_location}' — placeId set to null.")
+                start_anchor = {"kind": "PLACE", "placeId": pid}
+                start_with_poi = True
 
-        # ── 4. Resolve endAnchor ──────────────────────────────────────────────
+        # ── 4. Resolve end boundary ───────────────────────────────────────────
         end_anchor = None
-        if end_location:
-            if end_location in place_id_cache:
-                end_anchor = {"kind": "PLACE", "placeId": place_id_cache[end_location]}
-            else:
-                poi_type = _detect_poi_type(end_location)
-                if poi_type:
-                    end_anchor = {"kind": "TYPE", "poiType": poi_type}
-                else:
-                    pid = self._resolve_place_id(end_location)
-                    if pid is None:
-                        warnings.append(f"Could not resolve end_location '{end_location}' — placeId set to null.")
-                    end_anchor = {"kind": "PLACE", "placeId": pid}
+        end_with_poi = False
+        end_with_hotel = False
 
-        # ── 5. Build poiSlots ─────────────────────────────────────────────────
+        if end_location:
+            detected_type = _detect_poi_type(end_location)
+            if detected_type == "HOTEL":
+                # "end at a hotel" — activate hotel boundary, no anchor needed
+                end_with_hotel = True
+            elif end_location in place_id_cache:
+                end_anchor = {"kind": "PLACE", "placeId": place_id_cache[end_location]}
+                end_with_poi = True
+            elif detected_type:
+                end_anchor = {"kind": "TYPE", "poiType": detected_type}
+                end_with_poi = True
+            else:
+                pid = self._resolve_place_id(end_location)
+                if pid is None:
+                    warnings.append(f"Could not resolve end_location '{end_location}' — placeId set to null.")
+                end_anchor = {"kind": "PLACE", "placeId": pid}
+                end_with_poi = True
+
+        # ── 5. Build poiSlots (with validation) ───────────────────────────────
+        _VALID_POI_TYPES = {"KAFE", "RESTAURANT", "PARK", "HISTORIC_PLACE", "LANDMARK", "BAR"}
+
         resolved_poi_slots = []
-        for slot in (poi_slots or []):
+        for slot_idx, slot in enumerate(poi_slots or []):
             if slot is None:
                 resolved_poi_slots.append(None)
                 continue
@@ -1749,8 +1866,18 @@ class RouteGenerationFormatAgent(BaseAgent):
             slot_type = slot.get("type", "").upper()
             filters   = slot.get("filters")
 
+            # ── Validate: reject HOTEL in poi_slots ──
+            if slot_type == "TYPE" and slot.get("poiType", "").upper() == "HOTEL":
+                warnings.append(f"poi_slot[{slot_idx}]: HOTEL is not valid in poi_slots — slot skipped. Use stay_at_hotel=true instead.")
+                continue
+
             if slot_type == "PLACE":
                 place_name = slot.get("name", "")
+                if not place_name:
+                    warnings.append(f"poi_slot[{slot_idx}]: type=PLACE but 'name' is missing — slot treated as auto-fill.")
+                    resolved_poi_slots.append(None)
+                    continue
+
                 # Use cache first; resolve freshly if not in cache
                 if place_name in place_id_cache:
                     pid = place_id_cache[place_name]
@@ -1763,7 +1890,16 @@ class RouteGenerationFormatAgent(BaseAgent):
                 entry = {"kind": "PLACE", "placeId": pid}
 
             elif slot_type == "TYPE":
-                entry = {"kind": "TYPE", "poiType": slot.get("poiType", "")}
+                poi_type_val = slot.get("poiType", "").upper()
+                if not poi_type_val:
+                    warnings.append(f"poi_slot[{slot_idx}]: type=TYPE but 'poiType' is missing — slot treated as auto-fill.")
+                    resolved_poi_slots.append(None)
+                    continue
+                if poi_type_val not in _VALID_POI_TYPES:
+                    warnings.append(f"poi_slot[{slot_idx}]: poiType='{poi_type_val}' is not valid — slot treated as auto-fill.")
+                    resolved_poi_slots.append(None)
+                    continue
+                entry = {"kind": "TYPE", "poiType": poi_type_val}
 
             elif slot_type in {"", "FREE"} and not filters and not slot.get("name") and not slot.get("poiType"):
                 resolved_poi_slots.append(None)
@@ -1786,16 +1922,33 @@ class RouteGenerationFormatAgent(BaseAgent):
         needs_dinner    = bool(mp.get("needsDinner",    False))
 
         # ── 7. Assemble the final payload ─────────────────────────────────────
+        # Per ROUTE_INPUT_GUIDE.md:
+        # - Anchors are ignored unless the corresponding boundary flag is active.
+        # - startWithPoi/startWithHotel activate the start boundary.
+        # - endWithPoi/endWithHotel activate the end boundary.
+        # - stayAtHotel provides defaults for both sides, but side-specific
+        #   flags (startWithPoi, etc.) override it on that side.
         constraints = {
-            "stayAtHotel":   bool(stay_at_hotel),
+            "stayAtHotel":    bool(stay_at_hotel),
             "needsBreakfast": needs_breakfast,
             "needsLunch":     needs_lunch,
             "needsDinner":    needs_dinner,
-            "poiSlots":           resolved_poi_slots,
+            "poiSlots":       resolved_poi_slots,
         }
 
+        # ── Start boundary flags ──
+        if start_with_poi:
+            constraints["startWithPoi"] = True
+        if start_with_hotel:
+            constraints["startWithHotel"] = True
         if start_anchor is not None:
             constraints["startAnchor"] = start_anchor
+
+        # ── End boundary flags ──
+        if end_with_poi:
+            constraints["endWithPoi"] = True
+        if end_with_hotel:
+            constraints["endWithHotel"] = True
         if end_anchor is not None:
             constraints["endAnchor"] = end_anchor
 
