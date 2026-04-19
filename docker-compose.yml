@@ -19,7 +19,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      LLM_SERVER_URL: "http://host.docker.internal:5000"
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/roadrunner
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-postgres}
@@ -35,6 +38,8 @@ services:
       APP_RECAPTCHA_MIN_SCORE: ${APP_RECAPTCHA_MIN_SCORE:-0.5}
     expose:
       - "8080"
+    ports:
+      - "8080:8080"
 
   postgres:
     image: postgres:16-alpine

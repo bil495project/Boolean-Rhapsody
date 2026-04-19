@@ -1127,7 +1127,7 @@ class POI_data_agent(BaseAgent):
             # The endpoint is permit-all so no auth token is needed for this
             # server-to-server call.
             url    = f"{BACKEND_URL}/api/places/search"
-            params = {"name": poi_name, "size": 50}   # fetch up to 50 matches
+            params = {"name": poi_name, "size": 20}   # fetch up to 20 matches
             resp   = requests.get(url, params=params, timeout=5)
 
             if resp.status_code != 200:
