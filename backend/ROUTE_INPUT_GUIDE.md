@@ -90,6 +90,8 @@ You can also send both. In that case:
 - if there is no explicit override, route ends at a hotel
 
 In constrained mode this now has real boundary semantics. It is not advisory only.
+In legacy boundary mode, a side-level anchor also overrides the hotel default on
+that side unless `startWithHotel` / `endWithHotel` is explicitly `true`.
 
 ### Boundary override precedence
 
@@ -103,6 +105,9 @@ Examples:
 - `stayAtHotel: true` + `endWithPoi: true`:
   - start is still HOTEL
   - end is POI
+- `stayAtHotel: true` + `startAnchor`:
+  - start is POI/TYPE from the anchor
+  - end is still HOTEL
 
 ### Explicit boundary model
 

@@ -60,6 +60,21 @@ class RouteConstraintResolverTest {
     }
 
     @Test
+    @DisplayName("stayAtHotel true ve startAnchor varsa start anchor olur end hotel kalir")
+    void shouldLetStartAnchorOverrideStayAtHotelDefault() {
+        RouteConstraintsRequest constraints = new RouteConstraintsRequest();
+        constraints.setStayAtHotel(true);
+        constraints.setStartAnchor(new RouteAnchorRequest("PLACE", "anitkabir", null, null));
+
+        RouteConstraintSpec spec = resolver.resolve(requestWithConstraints(constraints), userVector());
+
+        assertThat(spec.startBoundary().kind()).isEqualTo(BoundaryKind.PLACE);
+        assertThat(spec.startBoundary().placeId()).isEqualTo("anitkabir");
+        assertThat(spec.endBoundary().kind()).isEqualTo(BoundaryKind.HOTEL);
+        assertThat(spec.sameHotelLoop()).isFalse();
+    }
+
+    @Test
     @DisplayName("stayAtHotel true ve endWithPoi true ise end override edilir start hotel kalir")
     void shouldLetEndPoiOverrideStayAtHotelPerSide() {
         RouteConstraintsRequest constraints = new RouteConstraintsRequest();
@@ -72,6 +87,37 @@ class RouteConstraintResolverTest {
         assertThat(spec.startBoundary().kind()).isEqualTo(BoundaryKind.HOTEL);
         assertThat(spec.endBoundary().kind()).isEqualTo(BoundaryKind.TYPE);
         assertThat(spec.endBoundary().poiType()).isEqualTo("PARK");
+    }
+
+    @Test
+    @DisplayName("stayAtHotel true ve endAnchor varsa end anchor olur start hotel kalir")
+    void shouldLetEndAnchorOverrideStayAtHotelDefault() {
+        RouteConstraintsRequest constraints = new RouteConstraintsRequest();
+        constraints.setStayAtHotel(true);
+        constraints.setEndAnchor(new RouteAnchorRequest("TYPE", null, "PARK", null));
+
+        RouteConstraintSpec spec = resolver.resolve(requestWithConstraints(constraints), userVector());
+
+        assertThat(spec.startBoundary().kind()).isEqualTo(BoundaryKind.HOTEL);
+        assertThat(spec.endBoundary().kind()).isEqualTo(BoundaryKind.TYPE);
+        assertThat(spec.endBoundary().poiType()).isEqualTo("PARK");
+        assertThat(spec.sameHotelLoop()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Explicit hotel flag anchor auto override kuralindan once gelir")
+    void shouldLetExplicitHotelFlagOverrideAnchorAutoBoundary() {
+        RouteConstraintsRequest constraints = new RouteConstraintsRequest();
+        constraints.setStayAtHotel(true);
+        constraints.setStartWithHotel(true);
+        constraints.setStartAnchor(new RouteAnchorRequest("PLACE", "hotel-1", null, null));
+
+        RouteConstraintSpec spec = resolver.resolve(requestWithConstraints(constraints), userVector());
+
+        assertThat(spec.startBoundary().kind()).isEqualTo(BoundaryKind.HOTEL);
+        assertThat(spec.startBoundary().placeId()).isEqualTo("hotel-1");
+        assertThat(spec.endBoundary().kind()).isEqualTo(BoundaryKind.HOTEL);
+        assertThat(spec.sameHotelLoop()).isTrue();
     }
 
     @Test

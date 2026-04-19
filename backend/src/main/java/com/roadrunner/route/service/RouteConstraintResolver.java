@@ -68,8 +68,16 @@ public class RouteConstraintResolver {
             endBoundary = resolveExplicitBoundary(constraints.getEndPoint(), "end");
         } else {
             boolean stayAtHotel = Boolean.TRUE.equals(constraints.getStayAtHotel());
-            boolean startWithPoi = Boolean.TRUE.equals(constraints.getStartWithPoi());
-            boolean endWithPoi = Boolean.TRUE.equals(constraints.getEndWithPoi());
+            boolean startWithPoi = resolvePoiBoundaryFlag(
+                    constraints.getStartWithPoi(),
+                    constraints.getStartWithHotel(),
+                    constraints.getStartAnchor(),
+                    stayAtHotel);
+            boolean endWithPoi = resolvePoiBoundaryFlag(
+                    constraints.getEndWithPoi(),
+                    constraints.getEndWithHotel(),
+                    constraints.getEndAnchor(),
+                    stayAtHotel);
             boolean startWithHotel = resolveHotelBoundaryFlag(
                     constraints.getStartWithHotel(),
                     startWithPoi,
@@ -164,6 +172,19 @@ public class RouteConstraintResolver {
             return explicitHotelFlag;
         }
         return stayAtHotel && !withPoi;
+    }
+
+    private boolean resolvePoiBoundaryFlag(Boolean explicitPoiFlag,
+                                           Boolean explicitHotelFlag,
+                                           RouteAnchorRequest anchor,
+                                           boolean stayAtHotel) {
+        if (Boolean.TRUE.equals(explicitPoiFlag)) {
+            return true;
+        }
+        if (Boolean.TRUE.equals(explicitHotelFlag)) {
+            return false;
+        }
+        return stayAtHotel && anchor != null;
     }
 
     private BoundaryRequirement resolveExplicitBoundary(RouteBoundarySelectionRequest boundary, String side) {
