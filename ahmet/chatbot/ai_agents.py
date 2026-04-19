@@ -837,10 +837,12 @@ class UserPersonaListAgent(BaseAgent):
         "description": (
             "Retrieves and describes all travel personas saved by the current user. "
             "The user_id is automatically injected by the server — do NOT pass it as a parameter. "
-            "Use this when the user asks what kind of traveller they are, wants to know "
-            "their travel personality, or asks to see their saved travel profiles/personas. "
+            # "Use this when the user asks what kind of traveller they are, wants to know "
+            # "their travel personality, or asks to see their saved travel profiles/personas. "
+            "Use this when the user asks: 'What kind of traveller am I?', "
+            "'Show me my travel profiles', or 'What are my saved personas?'. "
             "This tool is READ-ONLY: it lists existing personas but does not create or modify them. "
-            "To update preferences, use user_profile_agent instead. "
+            "To update preferences, use update_user_profile instead. "
             "If the user has no saved personas, the tool will return a message suggesting "
             "they create one in their profile settings."
         ),
@@ -1004,6 +1006,7 @@ class ChatTitleAgent(BaseAgent):
     }
 
     def __call__(self, first_message: str):
+        return first_message[:50] + "..." if len(first_message) > 50 else first_message
         return first_message[:50] + "..." if len(first_message) > 50 else first_message
 
 
