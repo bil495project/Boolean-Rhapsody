@@ -324,9 +324,6 @@ public class RouteGenerationService {
         }
 
         Place place = optPlace.get();
-        if (labelService.label(place) == RouteLabel.HOTEL) {
-            return route;
-        }
         if (collectUsedIds(route).contains(place.getId())) {
             return route;
         }
