@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { Box, Drawer } from '@mui/joy';
 import { useMediaQuery } from '@mui/system';
 import ChatSidebar from '../components/chat/ChatSidebar';
@@ -7,13 +7,11 @@ import ExplorePanel from '../components/chat/ExplorePanel';
 import MapPanel from '../components/chat/MapPanel';
 import ResizableDivider from '../components/chat/ResizableDivider';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { createChatAsync, addMessageAsync, setActiveChat, setLoading, toggleSidebar } from '../store/chatSlice';
-import { sendMessage, generateTripTitle } from '../services/llmService';
+import { toggleSidebar } from '../store/chatSlice';
 import type { MapDestination } from '../data/destinations';
 import { fetchAllPlaces } from '../store/placesSlice';
 
 const ExplorePage = () => {
-  const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
   const { isAuthenticated } = useAppSelector((state) => state.auth);
@@ -23,6 +21,7 @@ const ExplorePage = () => {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [highlightedDestination, setHighlightedDestination] = useState<MapDestination | null>(null);
+  const [selectedDestination, setSelectedDestination] = useState<MapDestination | null>(null);
 
   // Fetch destinations from backend on component mount
   useEffect(() => {
@@ -47,41 +46,11 @@ const ExplorePage = () => {
     dispatch(toggleSidebar());
   };
 
-  // When user clicks a destination, create a new chat about it
-  const handleDestinationSelect = useCallback(async (destination: MapDestination) => {
-    const query = `Tell me more about ${destination.name} in Ankara. What can I do there and what should I know before visiting?`;
-    const title = await generateTripTitle(query);
-
-    // Create the chat on the backend
-    const result = await dispatch(createChatAsync({ title })).unwrap();
-    const newChatId = result.id;
-    dispatch(setActiveChat(newChatId));
-
-    // Navigate to the new chat
-    navigate(`/chat/${newChatId}`);
-
-    // Add the user's query as the first message
-    await dispatch(addMessageAsync({ chatId: newChatId, role: 'user', content: query }));
-
-    // Send to AI
-    dispatch(setLoading(true));
-    try {
-      const response = await sendMessage(query);
-      await dispatch(addMessageAsync({
-        chatId: newChatId,
-        role: 'assistant',
-        content: response.message,
-      }));
-    } catch {
-      await dispatch(addMessageAsync({
-        chatId: newChatId,
-        role: 'assistant',
-        content: `I'd love to tell you about ${destination.name}! It's a wonderful place to visit in Ankara.`,
-      }));
-    } finally {
-      dispatch(setLoading(false));
-    }
-  }, [dispatch, navigate]);
+  // When user clicks a destination card, highlight its marker and open a popup on the map
+  const handleDestinationSelect = useCallback((destination: MapDestination) => {
+    setSelectedDestination(destination);
+    setHighlightedDestination(destination);
+  }, []);
 
   return (
     <Box
@@ -140,7 +109,8 @@ const ExplorePage = () => {
                 <MapPanel
                   destinations={destinations}
                   highlightedDestination={highlightedDestination}
-                  onDestinationSelect={handleDestinationSelect}
+                  selectedDestination={selectedDestination}
+                  onSelectedDestinationClear={() => setSelectedDestination(null)}
                 />
               </Box>
             )}
@@ -186,7 +156,8 @@ const ExplorePage = () => {
               <MapPanel
                 destinations={destinations}
                 highlightedDestination={highlightedDestination}
-                onDestinationSelect={handleDestinationSelect}
+                selectedDestination={selectedDestination}
+                onSelectedDestinationClear={() => setSelectedDestination(null)}
               />
             </Box>
           </Box>
@@ -197,3 +168,4 @@ const ExplorePage = () => {
 };
 
 export default ExplorePage;
+

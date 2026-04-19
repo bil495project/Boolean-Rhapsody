@@ -153,10 +153,24 @@ const MapClickHandler = ({
     return null;
 };
 
+// Component to fly the map to a selected destination
+const FlyToSelected = ({ destination }: { destination: MapDestination | null | undefined }) => {
+    const map = useMap();
+
+    useEffect(() => {
+        if (!destination) return;
+        map.flyTo(destination.coordinates, 18, { animate: true, duration: 0.8 });
+    }, [destination, map]);
+
+    return null;
+};
+
 interface MapPanelProps {
     destinations?: MapDestination[];
     highlightedDestination?: MapDestination | null;
+    selectedDestination?: MapDestination | null;
     onDestinationSelect?: (destination: MapDestination) => void;
+    onSelectedDestinationClear?: () => void;
     route?: [number, number][] | null;
     orderedDestinations?: MapDestination[];
     onMapClick?: (latlng: { lat: number; lng: number }) => void;
@@ -168,7 +182,9 @@ interface MapPanelProps {
 const MapPanel = ({
     destinations = [], // Default to empty array
     highlightedDestination,
+    selectedDestination,
     onDestinationSelect,
+    onSelectedDestinationClear,
     route,
     orderedDestinations = [],
     onMapClick: onMapClickProp,
@@ -238,6 +254,10 @@ const MapPanel = ({
     const handleMapClick = () => {
         setHoveredDestination(null);
         setPopupPosition(null);
+        // Also clear the selected destination when user clicks the map background
+        if (onSelectedDestinationClear) {
+            onSelectedDestinationClear();
+        }
     };
     const savedDestinations = useAppSelector(state => state.saved.destinations);
 
@@ -256,6 +276,20 @@ const MapPanel = ({
             setPopupPosition(null);
         }
     };
+
+    // When a destination is selected from the ExplorePanel, show the popup on the map
+    useEffect(() => {
+        if (!selectedDestination || !mapContainerRef.current) return;
+
+        // Show the popup card positioned near the center of the map container
+        const containerWidth = mapContainerRef.current.clientWidth;
+        const containerHeight = mapContainerRef.current.clientHeight;
+        const x = Math.min(containerWidth / 2 + 20, containerWidth - 280);
+        const y = Math.max(containerHeight / 2 - 120, 10);
+
+        setHoveredDestination(selectedDestination);
+        setPopupPosition({ x, y });
+    }, [selectedDestination]);
 
     // Cleanup timeout on unmount
     useEffect(() => {
@@ -299,6 +333,7 @@ const MapPanel = ({
                 <MapResizeHandler fullscreen={mapFullscreen} />
                 <MapViewportController fullscreen={mapFullscreen} fitCoordinates={fitCoordinates} />
                 <MapClickHandler onMapClick={handleMapClick} onMapClickCoords={onMapClickProp} />
+                <FlyToSelected destination={selectedDestination} />
 
                 {/* Route Polyline */}
                 {route && route.length > 1 && (
@@ -321,9 +356,11 @@ const MapPanel = ({
                                     key={`${markerKeyPrefix}-${destination.id}-${idx}`}
                                     position={destination.coordinates}
                                     icon={createCustomIcon(
-                                        highlightedDestination?.id === destination.id || hoveredDestination?.id === destination.id
-                                            ? '#FF6B6B'
-                                            : '#00BFA6',
+                                        selectedDestination?.id === destination.id
+                                            ? '#FF4081'
+                                            : highlightedDestination?.id === destination.id || hoveredDestination?.id === destination.id
+                                                ? '#FF6B6B'
+                                                : '#00BFA6',
                                         orderNumber
                                     )}
                                     eventHandlers={{
@@ -345,9 +382,11 @@ const MapPanel = ({
                                     key={`${markerKeyPrefix}-${destination.id}-${idx}`}
                                     position={destination.coordinates}
                                     icon={createCustomIcon(
-                                        highlightedDestination?.id === destination.id || hoveredDestination?.id === destination.id
-                                            ? '#FF6B6B'
-                                            : '#00BFA6',
+                                        selectedDestination?.id === destination.id
+                                            ? '#FF4081'
+                                            : highlightedDestination?.id === destination.id || hoveredDestination?.id === destination.id
+                                                ? '#FF6B6B'
+                                                : '#00BFA6',
                                         orderNumber
                                     )}
                                     eventHandlers={{
