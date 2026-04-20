@@ -7,7 +7,7 @@ import { GoogleReCaptchaProvider } from 'react-google-recaptcha-v3';
 import { Provider } from 'react-redux';
 import { store } from './store';
 import theme from './theme/theme';
-import { RECAPTCHA_SITE_KEY } from './utils/recaptcha';
+import { RECAPTCHA_SITE_KEY, RECAPTCHA_ENABLED } from './utils/recaptcha';
 import { useAppDispatch, useAppSelector } from './store/hooks';
 import { restoreSession } from './store/authSlice';
 import { fetchChats } from './store/chatSlice';
@@ -92,9 +92,13 @@ function AppInner() {
 function App() {
   return (
     <Provider store={store}>
-      <GoogleReCaptchaProvider reCaptchaKey={RECAPTCHA_SITE_KEY}>
+      {RECAPTCHA_ENABLED ? (
+        <GoogleReCaptchaProvider reCaptchaKey={RECAPTCHA_SITE_KEY}>
+          <AppInner />
+        </GoogleReCaptchaProvider>
+      ) : (
         <AppInner />
-      </GoogleReCaptchaProvider>
+      )}
     </Provider>
   );
 }
