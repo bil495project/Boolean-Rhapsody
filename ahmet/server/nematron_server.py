@@ -36,7 +36,7 @@ TOOL_REGISTRY = {
 USER_ID_AWARE_TOOLS = {"get_user_personas", "generate_route_format", "update_user_profile", "submit_trip_feedback"}
 
 # Tools whose output is returned verbatim to the frontend — NO second LLM call.
-RAW_OUTPUT_TOOLS = {"generate_route_format", "explain_generated_route"} #set()
+RAW_OUTPUT_TOOLS = {"generate_route_format", "explain_generated_route", "generate_chat_title"} #set()
 
 MAX_HISTORY = 10
 
@@ -66,12 +66,25 @@ def handle_chat():
             {
                 "role": "system",
                 "content": (
+                    # ── Section 0: Hard Constraints (read FIRST) ──────────────
+                    "## SYSTEM CONSTRAINTS — READ BEFORE ANYTHING ELSE\n"
+                    "These rules override everything else. Violating them will break the pipeline.\n\n"
+                    "RULE 1 — ONE TOOL PER TURN (MANDATORY):\n"
+                    "You MUST call EXACTLY ONE tool per response. You are STRICTLY FORBIDDEN from\n"
+                    "making parallel, sequential, multiple, or recursive tool calls in a single turn.\n"
+                    "If fulfilling the user's request seems to require two tools, choose ONLY the single\n"
+                    "most relevant tool and call that one. Do NOT call a second tool to verify, enrich,\n"
+                    "or follow up on the first. The pipeline cannot handle more than one tool call at a time.\n\n"
+                    "RULE 2 — NO TOOL CHAINING:\n"
+                    "After producing a tool call, stop. Do NOT produce a text response alongside the tool call.\n"
+                    "Do NOT pre-emptively call another tool in anticipation of what the result might be.\n\n"
+
                     # ── Section 1: Identity & Persona ─────────────────────────
+                    "## Identity\n"
                     "You are a travel-planning assistant specializing in Ankara, Turkey. "
                     "You help users discover places, plan routes, manage travel personas, and review past trips. "
                     "You MUST use the provided tools for every relevant request — NEVER answer from memory, "
-                    "guess place details, or reason through a task yourself when a matching tool exists. "
-                    "Call exactly one tool per turn.\n\n"
+                    "guess place details, or reason through a task yourself when a matching tool exists.\n\n"
 
                     # ── Section 2: Tool Decision Guide ────────────────────────
                     "## Tool Decision Guide\n"
@@ -192,7 +205,12 @@ def handle_chat():
                     "### All other tools\n"
                     "Present the tool's results to the user in natural language. "
                     "Preserve ALL details returned by the tool — do not omit addresses, ratings, or other attributes. "
-                    "Be friendly, concise, and informative."
+                    "Be friendly, concise, and informative.\n\n"
+
+                    # ── Section 4: Final Reminder ──────────────────────────────
+                    "## REMEMBER (CRITICAL)\n"
+                    "No matter what: call EXACTLY ONE tool per turn. NEVER call two tools in the same response. "
+                    "NEVER chain tool calls. If unsure which tool to use, pick the single best match."
                 )
 
             },
@@ -219,6 +237,14 @@ def handle_chat():
 
         # 2. First LLM Call
         llm_output = ask_question(messages) #-1 if nematron
+        
+        # Protective measure: if the LLM outputted multiple tool calls despite constraints,
+        # forcefully truncate to the first one before appending to history, preventing API errors 
+        # when we only resolve one of them.
+        if llm_output.get("tool_calls") and len(llm_output["tool_calls"]) > 1:
+            print(f"[SYSTEM] Truncating {len(llm_output['tool_calls'])} tool calls down to 1 to match backend limitations.")
+            llm_output["tool_calls"] = [llm_output["tool_calls"][0]]
+
         messages.append(llm_output) #CRITICAL: Append the tool call AND the result to history
         
         if llm_output["tool_calls"]:
@@ -271,8 +297,10 @@ def handle_chat():
                     "response": tool_result
                 })
 
-            # 4b. Second LLM call — convert tool result into a natural language answer
-            final_output = ask_question(messages)
+            # 4b. Second LLM call — convert tool result into a natural language answer.
+            # force_text=True omits the tools list and sets tool_choice="none" so the
+            # LLM cannot attempt another tool call and MUST produce a text response.
+            final_output = ask_question(messages, force_text=True)
             messages.append(final_output)
             print("Final Response Output", format_conversation(final_output))
             print()
@@ -499,7 +527,9 @@ def _render_route_explanation(raw_json: str) -> str:
         {"role": "user",   "content": narrative_user},
     ]
 
-    llm_output    = ask_question(messages)
+    # force_text=True: this is a pure narration call — the model must write text,
+    # not attempt to call another tool.
+    llm_output    = ask_question(messages, force_text=True)
     raw_narrative = llm_output.get("content", "")
 
     # ── 4. Split verdicts and interleave with data blocks ────────────

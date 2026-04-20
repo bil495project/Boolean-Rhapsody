@@ -182,23 +182,7 @@ public class LLMService {
      * @return a concise title string
      */
     public String generateTitle(String firstMessage) {
-        try {
-            String titleQuery = "Generate a short title (max 60 chars) for this travel chat: \"" + firstMessage + "\"";
-            LLMChatResponse response = chat(titleQuery, null, null);
-
-            if ("success".equals(response.getStatus()) && response.getResponse() != null) {
-                String title = response.getResponse()
-                        .replaceAll("^[\"']|[\"']$", "")
-                        .trim();
-                if (!title.isEmpty() && title.length() <= 80) {
-                    return title;
-                }
-            }
-        } catch (Exception e) {
-            logger.warn("LLM title generation failed, using fallback: {}", e.getMessage());
-        }
-
-        // Fallback: extract keywords from the message
+        // Use fast, rule-based local implementation instantly
         return generateTitleLocal(firstMessage);
     }
 

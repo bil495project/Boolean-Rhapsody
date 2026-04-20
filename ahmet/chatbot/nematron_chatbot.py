@@ -61,25 +61,41 @@ def extract_tool_calls(response_text):
         print(f"Extraction Error: {e}")
         return None
 
-def ask_question(messages: list): # Accept the whole history
+def ask_question(messages: list, force_text: bool = False):
+    """
+    Calls the LLM with the given message history.
 
-    response = client.chat.completions.create(
+    Parameters
+    ----------
+    messages   : Conversation history (list of role/content dicts).
+    force_text : When True, sets tool_choice="none" and omits the tools
+                 list so the LLM MUST produce a plain text response.
+                 Use this for the second (narration) call after a tool
+                 has already been executed — prevents the model from
+                 attempting a recursive/follow-up tool call instead of
+                 just answering in natural language.
+    """
+    kwargs = dict(
         model="Nemotron-3-Nano-30B-A3B",
         messages=messages,
-        tools=TOOLS,
-        tool_choice="auto",
-        temperature=0.1 # Low temperature for precise tool calling
+        temperature=0.1,       # Low temperature for precise tool calling
     )
 
+    if force_text:
+        # Hard-lock the model into text-only mode for the narration pass.
+        # Omitting `tools` entirely is more reliable than tool_choice="none"
+        # on some backends; we do both for maximum compatibility.
+        kwargs["tool_choice"] = "none"
+    else:
+        kwargs["tools"] = TOOLS
+        kwargs["tool_choice"] = "auto"
+        kwargs["parallel_tool_calls"] = False  # Enforce single tool call at the API level
+
+    response = client.chat.completions.create(**kwargs)
+
     #The context of raw response as follows:
-    #content
-    #refusal
-    #role
-    #annotations
-    #audio
-    #function_call
-    #tool_calls
-    #reasoning_content
+    #content / refusal / role / annotations / audio
+    #function_call / tool_calls / reasoning_content
     raw_response = response.choices[0].message
     tool_calls = raw_response.tool_calls or []
     response_content = raw_response.content or ""
@@ -88,6 +104,6 @@ def ask_question(messages: list): # Accept the whole history
     return {
         "role": "assistant",
         "tool_calls": tool_calls_dict,
-        "content": response_content, 
+        "content": response_content,
         "reasoning": reasoning_content
         }
